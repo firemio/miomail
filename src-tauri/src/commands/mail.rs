@@ -891,25 +891,43 @@ pub fn mail_search(
 pub async fn send_and_record(db: &DbState, data: ComposeData) -> Result<(), String> {
     let (config, account_id) = {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
-        let (id, email, host, port, tls): (i64, String, String, i64, i64) = conn
-            .query_row(
-                "SELECT id, email, smtp_host, smtp_port, smtp_tls FROM accounts WHERE email = ?1",
-                [&data.from],
-                |row| {
-                    Ok((
-                        row.get(0)?,
-                        row.get(1)?,
-                        row.get::<_, Option<String>>(2)?.unwrap_or_default(),
-                        row.get::<_, Option<i64>>(3)?.unwrap_or(587),
-                        row.get::<_, Option<i64>>(4)?.unwrap_or(0),
-                    ))
-                },
-            )
-            .map_err(|e| format!("Account not found: {}", e))?;
-
-        let pass = credentials::get_password(&format!("miomail-smtp-{}", id))
+        // Several rows can share one address (stale rows from old imports),
+        // so prefer the newest account that actually has SMTP credentials
+        let mut stmt = conn
+            .prepare("SELECT id, email, smtp_host, smtp_port, smtp_tls FROM accounts WHERE email = ?1 ORDER BY id DESC")
+            .map_err(|e| e.to_string())?;
+        let candidates: Vec<(i64, String, String, i64, i64)> = stmt
+            .query_map([&data.from], |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                    row.get::<_, Option<i64>>(3)?.unwrap_or(587),
+                    row.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                ))
+            })
             .map_err(|e| e.to_string())?
-            .ok_or("SMTP password not found")?;
+            .filter_map(|r| r.ok())
+            .collect();
+        drop(stmt);
+
+        if candidates.is_empty() {
+            return Err(format!("送信元アカウントが見つかりません: {}", data.from));
+        }
+
+        let chosen = candidates.into_iter().find_map(|(id, email, host, port, tls)| {
+            credentials::get_password(&format!("miomail-smtp-{}", id))
+                .ok()
+                .flatten()
+                .map(|pass| (id, email, host, port, tls, pass))
+        });
+
+        let Some((id, email, host, port, tls, pass)) = chosen else {
+            return Err(format!(
+                "SMTPパスワードが保存されていません（{}）。設定画面でパスワードを保存し直してください",
+                data.from
+            ));
+        };
 
         (
             SmtpConfig {
@@ -1190,7 +1208,7 @@ fn guess_mime(filename: &str) -> &'static str {
 
 /// Resolve composer attachment references (local files / cached attachments
 /// of a received message) into raw data ready for the SMTP builder.
-fn resolve_compose_attachments(
+pub fn resolve_compose_attachments(
     db: &DbState,
     inputs: Vec<ComposeAttachmentInput>,
 ) -> Result<Vec<smtp_service::AttachmentData>, String> {

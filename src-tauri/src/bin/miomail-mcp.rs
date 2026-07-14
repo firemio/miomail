@@ -194,7 +194,8 @@ fn tool_definitions() -> Value {
                     "cc": { "type": "string", "description": "CC recipient(s), comma separated" },
                     "subject": { "type": "string" },
                     "body": { "type": "string", "description": "plain-text body" },
-                    "in_reply_to": { "type": "string", "description": "Message-ID being replied to (for threading)" }
+                    "in_reply_to": { "type": "string", "description": "Message-ID being replied to (for threading)" },
+                    "attachments": { "type": "array", "items": { "type": "string" }, "description": "absolute paths of local files to attach (25MB total limit)" }
                 },
                 "required": ["to", "subject", "body"],
                 "additionalProperties": false
@@ -404,6 +405,21 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
             let body = arg_str(args, "body").ok_or("missing required argument: body")?;
             let cc = arg_str(args, "cc").filter(|s| !s.trim().is_empty());
             let in_reply_to = arg_str(args, "in_reply_to").filter(|s| !s.trim().is_empty());
+            let attachment_inputs: Vec<mail_core::ComposeAttachmentInput> = args
+                .get("attachments")
+                .and_then(|v| v.as_array())
+                .map(|paths| {
+                    paths
+                        .iter()
+                        .filter_map(|p| p.as_str())
+                        .map(|p| mail_core::ComposeAttachmentInput {
+                            path: Some(p.to_string()),
+                            attachment_id: None,
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let attachments = mail_core::resolve_compose_attachments(db, attachment_inputs)?;
 
             let from = match arg_str(args, "from").filter(|s| !s.trim().is_empty()) {
                 Some(from) => from,
@@ -444,7 +460,7 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
                 text: Some(body),
                 in_reply_to: in_reply_to.clone(),
                 references: in_reply_to,
-                attachments: Vec::new(),
+                attachments,
             };
 
             mail_core::send_and_record(db, compose).await?;
