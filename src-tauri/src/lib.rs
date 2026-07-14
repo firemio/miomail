@@ -16,6 +16,7 @@ pub fn run() {
         .manage(commands::character_mod::CharacterModRegistry::default())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(|window, event| {
             tray::handle_window_event(window, event);
@@ -49,6 +50,10 @@ pub fn run() {
             commands::mail::mail_rename_folder,
             commands::mail::mail_delete_folder,
             commands::mail::compose_send,
+            commands::attachment::compose_pick_files,
+            commands::attachment::attachment_save,
+            commands::attachment::attachment_save_all,
+            commands::attachment::attachment_open,
             commands::import::import_outlook_folders,
             commands::import::import_outlook_messages,
             commands::import::import_outlook_body,

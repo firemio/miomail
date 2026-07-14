@@ -108,6 +108,17 @@ pub fn open_connection(db_path: &Path) -> Result<Connection> {
             message_id INTEGER PRIMARY KEY REFERENCES messages(id),
             html_body TEXT,
             text_body TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS attachments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id INTEGER REFERENCES messages(id),
+            filename TEXT NOT NULL,
+            mime_type TEXT,
+            size INTEGER DEFAULT 0,
+            content_id TEXT,
+            is_inline INTEGER DEFAULT 0,
+            data BLOB
         );",
     )?;
 
@@ -134,8 +145,18 @@ fn migrate(conn: &Connection) -> Result<()> {
         conn.execute("ALTER TABLE messages ADD COLUMN date_ts INTEGER DEFAULT 0", [])?;
     }
     conn.execute_batch(
-        "CREATE INDEX IF NOT EXISTS idx_messages_folder_datets ON messages(folder_id, date_ts);",
+        "CREATE INDEX IF NOT EXISTS idx_messages_folder_datets ON messages(folder_id, date_ts);
+         CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);",
     )?;
+
+    // v3: track whether attachments were extracted for a cached body, so
+    // bodies cached before attachment support get re-fetched once
+    if !column_exists(conn, "message_bodies", "attachments_synced") {
+        conn.execute(
+            "ALTER TABLE message_bodies ADD COLUMN attachments_synced INTEGER DEFAULT 0",
+            [],
+        )?;
+    }
 
     // Backfill date_ts for legacy rows
     {

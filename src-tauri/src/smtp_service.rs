@@ -1,6 +1,6 @@
 use anyhow::Result;
 use lettre::message::header;
-use lettre::message::{Mailbox, Mailboxes, MultiPart};
+use lettre::message::{Attachment, Mailbox, Mailboxes, MultiPart};
 use lettre::{
     transport::smtp::authentication::Credentials, AsyncSmtpTransport, AsyncTransport, Message,
     Tokio1Executor,
@@ -25,6 +25,13 @@ pub struct ComposeData {
     pub text: Option<String>,
     pub in_reply_to: Option<String>,
     pub references: Option<String>,
+    pub attachments: Vec<AttachmentData>,
+}
+
+pub struct AttachmentData {
+    pub filename: String,
+    pub mime_type: String,
+    pub data: Vec<u8>,
 }
 
 fn build_transport(config: &SmtpConfig) -> Result<AsyncSmtpTransport<Tokio1Executor>> {
@@ -130,7 +137,22 @@ pub fn build_message(data: &ComposeData) -> Result<Message> {
         .filter(|t| !t.trim().is_empty())
         .unwrap_or_else(|| html_to_fallback_text(&data.html));
 
-    let email = builder.multipart(MultiPart::alternative_plain_html(text, data.html.clone()))?;
+    let body = MultiPart::alternative_plain_html(text, data.html.clone());
+
+    let email = if data.attachments.is_empty() {
+        builder.multipart(body)?
+    } else {
+        let mut mixed = MultiPart::mixed().multipart(body);
+        for att in &data.attachments {
+            let content_type = header::ContentType::parse(&att.mime_type)
+                .or_else(|_| header::ContentType::parse("application/octet-stream"))
+                .map_err(|e| anyhow::anyhow!("添付のContent-Typeが不正です: {}", e))?;
+            mixed = mixed.singlepart(
+                Attachment::new(att.filename.clone()).body(att.data.clone(), content_type),
+            );
+        }
+        builder.multipart(mixed)?
+    };
     Ok(email)
 }
 
@@ -159,6 +181,7 @@ mod tests {
             text: Some("こんにちは & さようなら".to_string()),
             in_reply_to: Some("<parent-123@example.com>".to_string()),
             references: Some("<root-1@example.com> <parent-123@example.com>".to_string()),
+            attachments: Vec::new(),
         }
     }
 
@@ -199,6 +222,46 @@ mod tests {
         let email = build_message(&data).expect("message should build");
         let raw = String::from_utf8_lossy(&email.formatted()).to_string();
         assert!(raw.contains("multipart/alternative"));
+    }
+
+    #[test]
+    fn build_message_includes_attachments_as_multipart_mixed() {
+        let mut data = base_data();
+        data.attachments = vec![
+            AttachmentData {
+                filename: "レポート.pdf".to_string(),
+                mime_type: "application/pdf".to_string(),
+                data: b"%PDF-1.4 dummy".to_vec(),
+            },
+            AttachmentData {
+                filename: "photo.png".to_string(),
+                mime_type: "image/png".to_string(),
+                data: vec![0x89, 0x50, 0x4E, 0x47],
+            },
+        ];
+        let email = build_message(&data).expect("message should build");
+        let raw = String::from_utf8_lossy(&email.formatted()).to_string();
+
+        assert!(raw.contains("multipart/mixed"), "outer part should be mixed");
+        assert!(
+            raw.contains("multipart/alternative"),
+            "text+html alternative should be nested"
+        );
+        assert!(raw.contains("application/pdf"), "pdf content type missing");
+        assert!(raw.contains("image/png"), "png content type missing");
+        assert!(
+            raw.contains("Content-Disposition: attachment"),
+            "attachment disposition missing"
+        );
+        // Invalid mime types fall back to octet-stream instead of failing
+        let mut fallback = base_data();
+        fallback.attachments = vec![AttachmentData {
+            filename: "data.bin".to_string(),
+            mime_type: "not a mime".to_string(),
+            data: vec![1, 2, 3],
+        }];
+        let raw = String::from_utf8_lossy(&build_message(&fallback).unwrap().formatted()).to_string();
+        assert!(raw.contains("application/octet-stream"));
     }
 
     #[test]

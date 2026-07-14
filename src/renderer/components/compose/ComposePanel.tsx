@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   FilePlus2,
+  Forward,
   GripVertical,
   Paperclip,
   PanelRight,
@@ -10,9 +11,14 @@ import {
   X,
 } from 'lucide-react'
 import { api } from '../../lib/ipc'
+import { formatFileSize } from '../../lib/format'
 import { useMailStore } from '../../stores/mailStore'
 import { useMascotStore } from '../../stores/mascotStore'
 import { type ComposeDraft, useUIStore } from '../../stores/uiStore'
+
+/** Warn above 20MB, refuse above 25MB (matches the backend limit). */
+const ATTACHMENT_WARN_BYTES = 20 * 1024 * 1024
+const ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024
 
 function escapeHtml(str: string) {
   return str
@@ -54,6 +60,11 @@ function ComposeEditor({
   const [sending, setSending] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [pickingFiles, setPickingFiles] = useState(false)
+
+  const attachments = draft.attachments ?? []
+  const attachmentsTotalSize = attachments.reduce((sum, item) => sum + (item.size || 0), 0)
+  const attachmentsTooLarge = attachmentsTotalSize > ATTACHMENT_MAX_BYTES
 
   const defaultSender = useMemo(() => {
     if (draft.from) return draft.from
@@ -104,9 +115,45 @@ function ComposeEditor({
     window.addEventListener('mouseup', onUp)
   }
 
+  const handlePickFiles = async () => {
+    if (pickingFiles || sending) return
+
+    setPickingFiles(true)
+    setSendError(null)
+    try {
+      const picked = await api.attachment.pickFiles()
+      if (picked.length === 0) return
+
+      const knownPaths = new Set(
+        attachments.map((item) => item.path).filter(Boolean) as string[]
+      )
+      const added = picked
+        .filter((file) => !knownPaths.has(file.path))
+        .map((file) => ({
+          id: crypto.randomUUID(),
+          name: file.name,
+          size: file.size,
+          path: file.path,
+        }))
+      if (added.length > 0) {
+        updateComposeDraft(draft.id, { attachments: [...attachments, ...added] })
+      }
+    } catch (error: unknown) {
+      setSendError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setPickingFiles(false)
+    }
+  }
+
+  const removeAttachment = (attachmentId: string) => {
+    updateComposeDraft(draft.id, {
+      attachments: attachments.filter((item) => item.id !== attachmentId),
+    })
+  }
+
   const handleSend = async () => {
     const from = draft.from || defaultSender
-    if (!draft.to.trim() || !from) return
+    if (!draft.to.trim() || !from || attachmentsTooLarge) return
 
     setSending(true)
     setSendError(null)
@@ -122,6 +169,9 @@ function ComposeEditor({
         text: draft.body,
         inReplyTo: draft.mode === 'reply' ? draft.source?.message_id : undefined,
         references: draft.mode === 'reply' ? draft.source?.message_id : undefined,
+        attachments: attachments.map((item) =>
+          item.path ? { path: item.path } : { attachmentId: item.attachmentId }
+        ),
       })
       notifySentMail(draft.to.trim(), draft.subject || '(件名なし)')
       gainBond(3)
@@ -336,6 +386,53 @@ function ComposeEditor({
           />
         </div>
 
+        {attachments.length > 0 && (
+          <div className="shrink-0 border-t border-white/70 px-5 py-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {attachments.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex max-w-[220px] items-center gap-1.5 rounded-full border border-white/80 bg-white/85 py-1 pl-2.5 pr-1"
+                  title={item.name}
+                >
+                  {item.attachmentId ? (
+                    <Forward size={11} className="shrink-0 text-sumi-accent" />
+                  ) : (
+                    <Paperclip size={11} className="shrink-0 text-sumi-accent" />
+                  )}
+                  <span className="min-w-0 truncate text-[11px] font-semibold text-sumi-text">
+                    {item.name}
+                  </span>
+                  {item.size > 0 && (
+                    <span className="shrink-0 text-[10px] text-sumi-text-muted">
+                      {formatFileSize(item.size)}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => removeAttachment(item.id)}
+                    aria-label={`${item.name}を削除`}
+                    data-testid={`compose-remove-attachment-${item.id}`}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sumi-text-muted/70 transition hover:bg-sumi-accent/10 hover:text-sumi-accent"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {attachmentsTotalSize > ATTACHMENT_WARN_BYTES && (
+              <p
+                className={`mt-1.5 text-[10px] leading-4 ${
+                  attachmentsTooLarge ? 'text-red-500' : 'text-amber-600'
+                }`}
+              >
+                {attachmentsTooLarge
+                  ? `合計${formatFileSize(attachmentsTotalSize)}: 25MBを超えているため送信できません`
+                  : `合計${formatFileSize(attachmentsTotalSize)}: サイズが大きいため相手側で受信できない場合があります`}
+              </p>
+            )}
+          </div>
+        )}
+
         {sendError && (
           <div className="flex shrink-0 items-start justify-between gap-3 border-t border-red-100 bg-red-50/90 px-5 py-2.5">
             <p className="min-w-0 text-[11px] leading-5 text-red-500">送信に失敗しました: {sendError}</p>
@@ -352,10 +449,14 @@ function ComposeEditor({
         <div className="flex h-16 shrink-0 items-center justify-between border-t border-white/70 px-5">
           <div className="flex items-center gap-2">
             <button
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/75 text-sumi-text-muted transition hover:text-sumi-text"
-              title="添付は今後対応予定"
+              onClick={handlePickFiles}
+              disabled={pickingFiles || sending}
+              data-testid={`compose-attach-${draft.id}`}
+              className="flex h-10 items-center gap-1.5 rounded-full border border-white/70 bg-white/75 px-3.5 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/30 hover:text-sumi-text disabled:opacity-50"
+              title="ファイルを添付"
             >
               <Paperclip size={12} />
+              {pickingFiles ? '選択中...' : '添付'}
             </button>
             <button
               onClick={requestClose}
@@ -369,7 +470,7 @@ function ComposeEditor({
           <button
             onClick={handleSend}
             data-testid={`compose-send-${draft.id}`}
-            disabled={sending || !draft.to.trim()}
+            disabled={sending || !draft.to.trim() || attachmentsTooLarge}
             className="flex h-11 items-center gap-1.5 rounded-full bg-sumi-accent px-5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
           >
             <SendHorizontal size={13} />

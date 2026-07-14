@@ -52,9 +52,31 @@ export interface Message {
   has_attachments: number
 }
 
+export interface Attachment {
+  id: number
+  message_id: number
+  filename: string
+  mime_type: string
+  size: number
+  is_inline: number
+}
+
 export interface MessageFull extends Message {
   html_body: string
   text_body: string
+  attachments: Attachment[]
+}
+
+/** Reference to attach: a local file (path) or a cached received attachment (attachmentId, for forwarding). */
+export interface ComposeAttachmentRef {
+  path?: string
+  attachmentId?: number
+}
+
+export interface PickedFile {
+  path: string
+  name: string
+  size: number
 }
 
 export interface ComposeData {
@@ -66,6 +88,7 @@ export interface ComposeData {
   text?: string
   inReplyTo?: string
   references?: string
+  attachments?: ComposeAttachmentRef[]
 }
 
 export interface OutlookFolder {

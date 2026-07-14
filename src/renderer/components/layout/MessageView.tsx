@@ -1,19 +1,174 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { invoke } from '@tauri-apps/api/core'
-import { isTauriRuntime } from '../../lib/ipc'
+import { api, isTauriRuntime } from '../../lib/ipc'
 import {
+  Download,
+  FileArchive,
+  FileAudio,
+  FileImage,
+  FileSpreadsheet,
+  FileText,
+  FileVideo,
+  File as FileIcon,
+  FolderDown,
   Forward,
   Mail,
   MailOpen,
+  Paperclip,
   Reply,
   Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
+import type { Attachment } from '../../types'
+import { formatFileSize } from '../../lib/format'
 import { useMailStore } from '../../stores/mailStore'
 import { useMascotStore } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
+
+function attachmentIcon(mimeType: string) {
+  if (mimeType.startsWith('image/')) return FileImage
+  if (mimeType.startsWith('audio/')) return FileAudio
+  if (mimeType.startsWith('video/')) return FileVideo
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel') || mimeType === 'text/csv')
+    return FileSpreadsheet
+  if (
+    mimeType.includes('zip') ||
+    mimeType.includes('compressed') ||
+    mimeType.includes('x-tar') ||
+    mimeType.includes('rar')
+  )
+    return FileArchive
+  if (
+    mimeType === 'application/pdf' ||
+    mimeType.startsWith('text/') ||
+    mimeType.includes('word') ||
+    mimeType.includes('document')
+  )
+    return FileText
+  return FileIcon
+}
+
+function AttachmentChips({ attachments, messageId }: { attachments: Attachment[]; messageId: number }) {
+  const [busyId, setBusyId] = useState<number | 'all' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [savedNote, setSavedNote] = useState<string | null>(null)
+
+  useEffect(() => {
+    setBusyId(null)
+    setError(null)
+    setSavedNote(null)
+  }, [messageId])
+
+  const run = async (key: number | 'all', action: () => Promise<void>) => {
+    if (busyId !== null) return
+    setBusyId(key)
+    setError(null)
+    setSavedNote(null)
+    try {
+      await action()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleOpen = (attachment: Attachment) =>
+    run(attachment.id, async () => {
+      await api.attachment.open(attachment.id)
+    })
+
+  const handleSave = (attachment: Attachment) =>
+    run(attachment.id, async () => {
+      const path = await api.attachment.save(attachment.id)
+      if (path) setSavedNote(`保存しました: ${path}`)
+    })
+
+  const handleSaveAll = () =>
+    run('all', async () => {
+      const dir = await api.attachment.saveAll(messageId)
+      if (dir) setSavedNote(`保存しました: ${dir}`)
+    })
+
+  if (attachments.length === 0) return null
+
+  return (
+    <div className="shrink-0 border-b border-white/70 px-8 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sumi-text-muted">
+          <Paperclip size={12} />
+          添付ファイル {attachments.length}件
+        </span>
+        {attachments.length >= 2 && (
+          <button
+            onClick={handleSaveAll}
+            disabled={busyId !== null}
+            data-testid="attachment-save-all"
+            className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-2.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:opacity-50"
+          >
+            <FolderDown size={11} />
+            {busyId === 'all' ? '保存中...' : 'すべて保存'}
+          </button>
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {attachments.map((attachment) => {
+          const Icon = attachmentIcon(attachment.mime_type)
+          const size = formatFileSize(attachment.size)
+          return (
+            <div
+              key={attachment.id}
+              className="group flex max-w-[280px] items-center gap-1 rounded-2xl border border-white/80 bg-white/80 py-1.5 pl-3 pr-1.5 shadow-[0_4px_12px_rgba(181,132,112,0.08)]"
+            >
+              <button
+                onClick={() => handleOpen(attachment)}
+                disabled={busyId !== null}
+                data-testid={`attachment-open-${attachment.id}`}
+                title={`${attachment.filename}を開く`}
+                className="flex min-w-0 items-center gap-2 text-left disabled:opacity-50"
+              >
+                <Icon size={15} className="shrink-0 text-sumi-accent" />
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-semibold text-sumi-text">
+                    {attachment.filename}
+                  </span>
+                  <span className="block text-[10px] text-sumi-text-muted">
+                    {busyId === attachment.id
+                      ? '処理中...'
+                      : [size, attachment.is_inline ? 'インライン' : '']
+                          .filter(Boolean)
+                          .join(' · ')}
+                  </span>
+                </span>
+              </button>
+              <button
+                onClick={() => handleSave(attachment)}
+                disabled={busyId !== null}
+                data-testid={`attachment-save-${attachment.id}`}
+                title="名前を付けて保存"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sumi-text-muted transition hover:bg-sumi-accent/10 hover:text-sumi-accent disabled:opacity-50"
+              >
+                <Download size={13} />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+      {error && (
+        <p className="mt-2 text-[11px] leading-4 text-red-500" data-testid="attachment-error">
+          {error}
+        </p>
+      )}
+      {savedNote && (
+        <p className="mt-2 truncate text-[11px] leading-4 text-emerald-600" data-testid="attachment-saved">
+          {savedNote}
+        </p>
+      )}
+    </div>
+  )
+}
 
 function escapeHtml(str: string) {
   return str
@@ -213,6 +368,7 @@ export function MessageView() {
     cc_addresses: currentMessage.cc_addresses,
     date: currentMessage.date,
     text_body: currentMessage.text_body,
+    attachments: currentMessage.attachments ?? [],
   }
 
   const handleReply = () => {
@@ -345,6 +501,11 @@ export function MessageView() {
           </span>
         </div>
       </div>
+
+      <AttachmentChips
+        attachments={currentMessage.attachments ?? []}
+        messageId={currentMessage.id}
+      />
 
       <div className="flex-1 overflow-hidden">
         <iframe

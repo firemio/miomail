@@ -349,6 +349,13 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
                 "date": full.msg.date,
                 "flags": full.msg.flags,
                 "has_attachments": full.msg.has_attachments != 0,
+                "attachments": full.attachments.iter().map(|a| json!({
+                    "id": a.id,
+                    "filename": a.filename,
+                    "mime_type": a.mime_type,
+                    "size": a.size,
+                    "is_inline": a.is_inline != 0,
+                })).collect::<Vec<_>>(),
                 "text_body": full.text_body,
             });
             if include_html {
@@ -437,6 +444,7 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
                 text: Some(body),
                 in_reply_to: in_reply_to.clone(),
                 references: in_reply_to,
+                attachments: Vec::new(),
             };
 
             mail_core::send_and_record(db, compose).await?;

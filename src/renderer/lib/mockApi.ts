@@ -9,6 +9,7 @@ import type {
   MessageFull,
   OutlookFolder,
   OutlookMessage,
+  PickedFile,
 } from '../types'
 import { APP_BUILD_ID, APP_COMMIT, APP_VERSION } from '../version'
 
@@ -275,11 +276,29 @@ function seedDb(): PreviewDb {
       date: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
       flags: '[]',
       snippet: '返信しながら本文を読めるか、複数下書きが迷わず切り替えられるかを確認してください。',
-      has_attachments: 0,
+      has_attachments: 1,
       html_body:
         '<p>こんにちは。</p><p>返信しながら本文を読めるか、複数下書きが迷わず切り替えられるかを確認してください。</p><p>右パネルとフロート切替の体験を重点的に見てもらえると助かります。</p>',
       text_body:
         'こんにちは。\n\n返信しながら本文を読めるか、複数下書きが迷わず切り替えられるかを確認してください。\n右パネルとフロート切替の体験を重点的に見てもらえると助かります。',
+      attachments: [
+        {
+          id: 1,
+          message_id: 1,
+          filename: 'UIレビュー資料.pdf',
+          mime_type: 'application/pdf',
+          size: 245760,
+          is_inline: 0,
+        },
+        {
+          id: 2,
+          message_id: 1,
+          filename: 'screenshot.png',
+          mime_type: 'image/png',
+          size: 89340,
+          is_inline: 0,
+        },
+      ],
     },
     {
       id: 2,
@@ -299,6 +318,7 @@ function seedDb(): PreviewDb {
         '<p>今日の確認事項をまとめました。</p><blockquote>返信導線の見直しも含めて目を通してください。</blockquote>',
       text_body:
         '今日の確認事項をまとめました。\n\n返信導線の見直しも含めて目を通してください。',
+      attachments: [],
     },
     {
       id: 3,
@@ -318,6 +338,7 @@ function seedDb(): PreviewDb {
         '<p>Windows 通知、新着未読、トレイ復帰までの導線が自然かどうか見てください。</p><ul><li>未読バッジ</li><li>トレイから復帰</li><li>通知クリック</li></ul>',
       text_body:
         'Windows 通知、新着未読、トレイ復帰までの導線が自然かどうか見てください。\n- 未読バッジ\n- トレイから復帰\n- 通知クリック',
+      attachments: [],
     },
     {
       id: 4,
@@ -337,6 +358,7 @@ function seedDb(): PreviewDb {
         '<p>確認済みです。返信しながら確認できる構成で改善を進めます。</p><p>フローティング下書きも合わせて見直します。</p>',
       text_body:
         '確認済みです。返信しながら確認できる構成で改善を進めます。\nフローティング下書きも合わせて見直します。',
+      attachments: [],
     },
   ]
 
@@ -383,10 +405,11 @@ function loadDb(): PreviewDb {
       return seeded
     }
 
-    // Older stored data may predate the date_ts column
+    // Older stored data may predate the date_ts column / attachments field
     db.messages = (db.messages ?? []).map((message) => ({
       ...message,
       date_ts: message.date_ts || toTs(message.date),
+      attachments: Array.isArray(message.attachments) ? message.attachments : [],
     }))
 
     recalcFolders(db)
@@ -724,6 +747,7 @@ export const mockApi = {
         has_attachments: 0,
         html_body: makeHtmlFromText(text),
         text_body: text,
+        attachments: [],
       }
 
       db.messages.push(message)
@@ -808,6 +832,7 @@ export const mockApi = {
       }
 
       const text = data.text || ''
+      const attachmentRefs = data.attachments ?? []
       const message: MessageFull = {
         id: db.nextMessageId++,
         account_id: account.id,
@@ -822,15 +847,45 @@ export const mockApi = {
         date_ts: Math.floor(Date.now() / 1000),
         flags: '["\\\\Seen"]',
         snippet: createSnippet(text || data.subject || '(件名なし)'),
-        has_attachments: 0,
+        has_attachments: attachmentRefs.length > 0 ? 1 : 0,
         html_body: data.html || makeHtmlFromText(text),
         text_body: text,
+        attachments: attachmentRefs.map((ref, index) => ({
+          id: 9000 + index,
+          message_id: db.nextMessageId - 1,
+          filename: ref.path?.split(/[\\/]/).pop() || `attachment-${index + 1}`,
+          mime_type: 'application/octet-stream',
+          size: 0,
+          is_inline: 0,
+        })),
       }
 
       db.messages.push(message)
       recalcFolders(db)
       saveDb(db)
 
+    },
+  },
+
+  attachment: {
+    pickFiles: async (): Promise<PickedFile[]> => [
+      {
+        path: `preview://demo-file-${Date.now()}.png`,
+        name: 'プレビュー用サンプル.png',
+        size: 123456,
+      },
+    ],
+
+    save: async (): Promise<string | null> => {
+      throw new Error('添付ファイルの保存はデスクトップ版で利用できます')
+    },
+
+    saveAll: async (): Promise<string | null> => {
+      throw new Error('添付ファイルの保存はデスクトップ版で利用できます')
+    },
+
+    open: async (): Promise<void> => {
+      throw new Error('添付ファイルはデスクトップ版で開けます')
     },
   },
 
@@ -884,6 +939,7 @@ export const mockApi = {
           has_attachments: item.hasAttachments ? 1 : 0,
           html_body: item.html || makeHtmlFromText(text),
           text_body: text,
+          attachments: [],
         })
       })
 

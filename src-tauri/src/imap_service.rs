@@ -50,6 +50,16 @@ pub struct FlagState {
 pub struct MessageBody {
     pub html: String,
     pub text: String,
+    pub attachments: Vec<AttachmentPart>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AttachmentPart {
+    pub filename: String,
+    pub mime_type: String,
+    pub content_id: String,
+    pub is_inline: bool,
+    pub data: Vec<u8>,
 }
 
 /// How many messages to pull on the first sync of a folder.
@@ -392,6 +402,111 @@ pub async fn fetch_flags(
     Ok(result)
 }
 
+/// A short file extension for attachments that arrive without a filename.
+fn extension_for_mime(mime: &str) -> &'static str {
+    match mime.to_ascii_lowercase().as_str() {
+        "image/png" => "png",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/bmp" => "bmp",
+        "image/svg+xml" => "svg",
+        "application/pdf" => "pdf",
+        "application/zip" => "zip",
+        "text/plain" => "txt",
+        "text/html" => "html",
+        "text/calendar" => "ics",
+        "message/rfc822" => "eml",
+        _ => "bin",
+    }
+}
+
+/// RFC2047 encoded-word folding can leak spaces into decoded filenames
+/// (e.g. "資料.pd f"). A file extension never legitimately contains
+/// whitespace, so strip it there to keep the file openable.
+fn fix_extension_whitespace(filename: &str) -> String {
+    match filename.rsplit_once('.') {
+        Some((stem, ext))
+            if !stem.is_empty()
+                && ext.chars().any(char::is_whitespace)
+                && ext.chars().filter(|c| !c.is_whitespace()).count() <= 5
+                && ext
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c.is_whitespace()) =>
+        {
+            let clean: String = ext.chars().filter(|c| !c.is_whitespace()).collect();
+            format!("{}.{}", stem, clean)
+        }
+        _ => filename.to_string(),
+    }
+}
+
+fn extract_attachments(parsed: &mail_parser::Message) -> Vec<AttachmentPart> {
+    use mail_parser::MimeHeaders;
+
+    let mut result = Vec::new();
+    for (index, part) in parsed.attachments().enumerate() {
+        let data = part.contents().to_vec();
+        if data.is_empty() {
+            continue;
+        }
+
+        let mime_type = part
+            .content_type()
+            .map(|ct| match &ct.c_subtype {
+                Some(sub) => format!("{}/{}", ct.c_type, sub),
+                None => ct.c_type.to_string(),
+            })
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+
+        let content_id = part
+            .content_id()
+            .map(|s| s.trim_start_matches('<').trim_end_matches('>').to_string())
+            .unwrap_or_default();
+
+        let filename = part
+            .attachment_name()
+            .map(|s| fix_extension_whitespace(s.trim()))
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| {
+                format!("attachment-{}.{}", index + 1, extension_for_mime(&mime_type))
+            });
+
+        result.push(AttachmentPart {
+            filename,
+            mime_type,
+            content_id,
+            is_inline: false,
+            data,
+        });
+    }
+    result
+}
+
+/// Replace `cid:` references in the HTML body with data: URIs so inline
+/// images render inside the sandboxed viewer, and mark those parts inline.
+fn embed_inline_images(html: String, attachments: &mut [AttachmentPart]) -> String {
+    use base64::Engine as _;
+
+    let mut out = html;
+    for att in attachments.iter_mut() {
+        if att.content_id.is_empty() {
+            continue;
+        }
+        let marker = format!("cid:{}", att.content_id);
+        if out.contains(&marker) {
+            att.is_inline = true;
+            let data_uri = format!(
+                "data:{};base64,{}",
+                att.mime_type,
+                base64::engine::general_purpose::STANDARD.encode(&att.data)
+            );
+            out = out.replace(&marker, &data_uri);
+        }
+    }
+    out
+}
+
 pub async fn fetch_body(config: &ImapConfig, folder: &str, uid: u32, peek: bool) -> Result<MessageBody> {
     let mut session = connect(config).await?;
     session.select(folder).await?;
@@ -423,8 +538,11 @@ pub async fn fetch_body(config: &ImapConfig, folder: &str, uid: u32, peek: bool)
         .map(|s| s.to_string())
         .unwrap_or_default();
 
+    let mut attachments = extract_attachments(&parsed);
+    let html = embed_inline_images(html, &mut attachments);
+
     session.logout().await?;
-    Ok(MessageBody { html, text })
+    Ok(MessageBody { html, text, attachments })
 }
 
 pub async fn add_flags(config: &ImapConfig, folder: &str, uid: u32, flags: &str) -> Result<()> {
@@ -545,6 +663,112 @@ pub async fn delete_folder(config: &ImapConfig, path: &str) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("フォルダ '{}' の削除に失敗しました: {}", path, e))?;
     session.logout().await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MULTIPART_MAIL: &str = "From: sender@example.com\r\n\
+To: receiver@example.com\r\n\
+Subject: attachments\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"outer\"\r\n\
+\r\n\
+--outer\r\n\
+Content-Type: multipart/related; boundary=\"inner\"\r\n\
+\r\n\
+--inner\r\n\
+Content-Type: text/html; charset=utf-8\r\n\
+\r\n\
+<p>hello <img src=\"cid:logo123\"></p>\r\n\
+--inner\r\n\
+Content-Type: image/png\r\n\
+Content-ID: <logo123>\r\n\
+Content-Transfer-Encoding: base64\r\n\
+Content-Disposition: inline\r\n\
+\r\n\
+iVBORw0KGgo=\r\n\
+--inner--\r\n\
+--outer\r\n\
+Content-Type: application/pdf; name=\"report.pdf\"\r\n\
+Content-Transfer-Encoding: base64\r\n\
+Content-Disposition: attachment; filename=\"report.pdf\"\r\n\
+\r\n\
+JVBERi0xLjQ=\r\n\
+--outer--\r\n";
+
+    #[test]
+    fn attachments_are_extracted_with_names_and_inline_images_embedded() {
+        let parsed = mail_parser::MessageParser::default()
+            .parse(MULTIPART_MAIL.as_bytes())
+            .expect("mail should parse");
+
+        let html = parsed.body_html(0).map(|s| s.to_string()).unwrap_or_default();
+        let mut attachments = extract_attachments(&parsed);
+        assert_eq!(attachments.len(), 2, "png + pdf expected: {:?}", attachments.iter().map(|a| &a.filename).collect::<Vec<_>>());
+
+        let html = embed_inline_images(html, &mut attachments);
+        assert!(
+            html.contains("data:image/png;base64,"),
+            "cid reference should be replaced with a data URI: {}",
+            html
+        );
+        assert!(!html.contains("cid:logo123"));
+
+        let png = attachments.iter().find(|a| a.mime_type == "image/png").unwrap();
+        assert!(png.is_inline, "referenced cid part should be inline");
+        assert_eq!(png.content_id, "logo123");
+
+        let pdf = attachments.iter().find(|a| a.mime_type == "application/pdf").unwrap();
+        assert!(!pdf.is_inline);
+        assert_eq!(pdf.filename, "report.pdf");
+        assert_eq!(pdf.data, b"%PDF-1.4");
+    }
+
+    #[test]
+    fn extension_whitespace_from_folded_headers_is_repaired() {
+        assert_eq!(
+            fix_extension_whitespace("RFID導入検討に関する資料20260522.pd f"),
+            "RFID導入検討に関する資料20260522.pdf"
+        );
+        assert_eq!(fix_extension_whitespace("report.x lsx"), "report.xlsx");
+        // Untouched cases
+        assert_eq!(fix_extension_whitespace("report.pdf"), "report.pdf");
+        assert_eq!(fix_extension_whitespace("議事録 7月.docx"), "議事録 7月.docx");
+        assert_eq!(fix_extension_whitespace("no-extension"), "no-extension");
+        assert_eq!(
+            fix_extension_whitespace("odd.name with space"),
+            "odd.name with space"
+        );
+    }
+
+    #[test]
+    fn attachment_without_filename_gets_a_default_name() {
+        let mail = "From: a@example.com\r\n\
+To: b@example.com\r\n\
+Subject: unnamed\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"x\"\r\n\
+\r\n\
+--x\r\n\
+Content-Type: text/plain\r\n\
+\r\n\
+body\r\n\
+--x\r\n\
+Content-Type: image/png\r\n\
+Content-Transfer-Encoding: base64\r\n\
+Content-Disposition: attachment\r\n\
+\r\n\
+iVBORw0KGgo=\r\n\
+--x--\r\n";
+        let parsed = mail_parser::MessageParser::default()
+            .parse(mail.as_bytes())
+            .expect("mail should parse");
+        let attachments = extract_attachments(&parsed);
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].filename, "attachment-1.png");
+    }
 }
 
 /// Append a raw RFC822 message to a folder (used to save sent mail).

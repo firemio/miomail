@@ -5,6 +5,13 @@ import { loadThemeId, persistThemeId } from '../lib/theme'
 export type ComposeMode = 'new' | 'reply' | 'forward'
 export type ComposeLayout = 'docked' | 'floating'
 
+export interface ComposeSourceAttachment {
+  id: number
+  filename: string
+  size: number
+  is_inline: number
+}
+
 export interface ComposeSourceSnapshot {
   id: number
   message_id: string
@@ -14,6 +21,17 @@ export interface ComposeSourceSnapshot {
   cc_addresses: string
   date: string
   text_body: string
+  attachments?: ComposeSourceAttachment[]
+}
+
+/** An attachment added to a draft: a picked local file (path) or an
+ *  attachment carried over from the forwarded message (attachmentId). */
+export interface ComposeAttachment {
+  id: string
+  name: string
+  size: number
+  path?: string
+  attachmentId?: number
 }
 
 export interface ComposeDraft {
@@ -25,6 +43,7 @@ export interface ComposeDraft {
   cc: string
   subject: string
   body: string
+  attachments: ComposeAttachment[]
   showCc: boolean
   isDirty: boolean
   position: { x: number; y: number }
@@ -48,13 +67,19 @@ function loadComposeState(): PersistedComposeState {
 
     const saved = JSON.parse(raw) as Partial<PersistedComposeState>
     const drafts = Array.isArray(saved.drafts)
-      ? saved.drafts.filter(
-          (draft): draft is ComposeDraft =>
-            Boolean(draft) &&
-            typeof draft.id === 'string' &&
-            typeof draft.subject === 'string' &&
-            typeof draft.body === 'string'
-        )
+      ? saved.drafts
+          .filter(
+            (draft): draft is ComposeDraft =>
+              Boolean(draft) &&
+              typeof draft.id === 'string' &&
+              typeof draft.subject === 'string' &&
+              typeof draft.body === 'string'
+          )
+          // Drafts saved before attachment support lack the field
+          .map((draft) => ({
+            ...draft,
+            attachments: Array.isArray(draft.attachments) ? draft.attachments : [],
+          }))
       : []
     const activeDockedComposeId = drafts.some(
       (draft) => draft.id === saved.activeDockedComposeId && draft.layout === 'docked'
@@ -166,6 +191,7 @@ function createDraft(options: OpenComposeOptions, index: number, zIndex: number)
       cc: '',
       subject: normalizeSubject('Re:', source.subject),
       body: makeReplyBody(source),
+      attachments: [],
       showCc: false,
       isDirty: false,
       position: floatingPosition(index),
@@ -175,6 +201,16 @@ function createDraft(options: OpenComposeOptions, index: number, zIndex: number)
   }
 
   if (mode === 'forward' && source) {
+    // Carry the original (non-inline) attachments over to the forward
+    const forwardedAttachments: ComposeAttachment[] = (source.attachments ?? [])
+      .filter((attachment) => !attachment.is_inline)
+      .map((attachment) => ({
+        id: crypto.randomUUID(),
+        name: attachment.filename,
+        size: attachment.size,
+        attachmentId: attachment.id,
+      }))
+
     return {
       id: crypto.randomUUID(),
       mode,
@@ -184,6 +220,7 @@ function createDraft(options: OpenComposeOptions, index: number, zIndex: number)
       cc: '',
       subject: normalizeSubject('Fwd:', source.subject),
       body: makeForwardBody(source),
+      attachments: forwardedAttachments,
       showCc: false,
       isDirty: false,
       position: floatingPosition(index),
@@ -201,6 +238,7 @@ function createDraft(options: OpenComposeOptions, index: number, zIndex: number)
     cc: '',
     subject: '',
     body: '',
+    attachments: [],
     showCc: false,
     isDirty: false,
     position: floatingPosition(index),

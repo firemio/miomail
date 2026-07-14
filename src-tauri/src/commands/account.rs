@@ -156,6 +156,7 @@ pub fn account_delete(id: i64, db: State<'_, DbState>) -> Result<(), String> {
     conn.execute_batch("BEGIN TRANSACTION;")
         .map_err(|e| e.to_string())?;
     let r = (|| -> Result<(), rusqlite::Error> {
+        conn.execute("DELETE FROM attachments WHERE message_id IN (SELECT id FROM messages WHERE account_id = ?1)", [id])?;
         conn.execute("DELETE FROM message_bodies WHERE message_id IN (SELECT id FROM messages WHERE account_id = ?1)", [id])?;
         conn.execute("DELETE FROM messages WHERE account_id = ?1", [id])?;
         conn.execute("DELETE FROM folders WHERE account_id = ?1", [id])?;

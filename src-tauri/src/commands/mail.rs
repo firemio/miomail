@@ -38,12 +38,32 @@ pub struct Message {
     pub has_attachments: i64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct AttachmentMeta {
+    pub id: i64,
+    pub message_id: i64,
+    pub filename: String,
+    pub mime_type: String,
+    pub size: i64,
+    pub is_inline: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct MessageFull {
     #[serde(flatten)]
     pub msg: Message,
     pub html_body: String,
     pub text_body: String,
+    pub attachments: Vec<AttachmentMeta>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ComposeAttachmentInput {
+    /// Local file picked in the composer
+    pub path: Option<String>,
+    /// Cached attachment of a received message (forwarding)
+    #[serde(rename = "attachmentId")]
+    pub attachment_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +77,7 @@ pub struct ComposeInput {
     #[serde(rename = "inReplyTo")]
     pub in_reply_to: Option<String>,
     pub references: Option<String>,
+    pub attachments: Option<Vec<ComposeAttachmentInput>>,
 }
 
 const MESSAGE_COLUMNS: &str = "id, account_id, folder_id, uid, message_id, subject, from_address, to_addresses, cc_addresses, date, date_ts, flags, snippet, has_attachments";
@@ -349,6 +370,8 @@ pub async fn sync_messages_for_folder(
             match server_map.get(&uid) {
                 None => {
                     // Deleted on the server (webmail/another client)
+                    conn.execute("DELETE FROM attachments WHERE message_id = ?1", [row_id])
+                        .ok();
                     conn.execute("DELETE FROM message_bodies WHERE message_id = ?1", [row_id])
                         .ok();
                     conn.execute("DELETE FROM messages WHERE id = ?1", [row_id])
@@ -550,7 +573,7 @@ pub async fn get_message_core(
     message_id: i64,
     mark_read: bool,
 ) -> Result<MessageFull, String> {
-    let (msg, has_body, config, folder_path) = {
+    let (msg, cached, config, folder_path) = {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
         let msg_row = conn
             .query_row(
@@ -560,14 +583,21 @@ pub async fn get_message_core(
             )
             .map_err(|e| e.to_string())?;
 
-        let has_body = conn
+        // (html, text, attachments_synced) — bodies cached before attachment
+        // support have attachments_synced = 0 and get re-fetched once
+        let cached: Option<(String, String, i64)> = conn
             .query_row(
-                "SELECT COUNT(*) FROM message_bodies WHERE message_id = ?1",
+                "SELECT html_body, text_body, COALESCE(attachments_synced, 0) FROM message_bodies WHERE message_id = ?1",
                 [message_id],
-                |row| row.get::<_, i64>(0),
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                        row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                        row.get::<_, Option<i64>>(2)?.unwrap_or(0),
+                    ))
+                },
             )
-            .unwrap_or(0)
-            > 0;
+            .ok();
         let config = get_imap_config(&conn, msg_row.account_id)?;
         let folder_path: String = conn
             .query_row(
@@ -577,32 +607,58 @@ pub async fn get_message_core(
             )
             .unwrap_or_default();
 
-        (msg_row, has_body, config, folder_path)
+        (msg_row, cached, config, folder_path)
     };
 
-    let (html_body, text_body) = if has_body {
-        let conn = db.conn.lock().map_err(|e| e.to_string())?;
-        conn.query_row(
-            "SELECT html_body, text_body FROM message_bodies WHERE message_id = ?1",
-            [message_id],
-            |row| {
-                Ok((
-                    row.get::<_, Option<String>>(0)?.unwrap_or_default(),
-                    row.get::<_, Option<String>>(1)?.unwrap_or_default(),
-                ))
-            },
-        )
-        .unwrap_or_default()
-    } else {
-        if msg.uid <= 0 {
-            return Err("このメールの本文はローカルに保存されていません".to_string());
+    let fetch_needed = match &cached {
+        None => true,
+        Some((_, _, attachments_synced)) => *attachments_synced == 0,
+    };
+
+    let mut fetched: Option<imap_service::MessageBody> = None;
+    if fetch_needed && msg.uid > 0 {
+        match imap_service::fetch_body(&config, &folder_path, msg.uid as u32, !mark_read).await {
+            Ok(body) => fetched = Some(body),
+            Err(e) => {
+                // A stale cached body is still better than an error
+                if cached.is_none() {
+                    return Err(e.to_string());
+                }
+                log::warn!("attachment re-fetch failed for message {}: {}", message_id, e);
+            }
         }
-        let body = imap_service::fetch_body(&config, &folder_path, msg.uid as u32, !mark_read)
-            .await
-            .map_err(|e| e.to_string())?;
+    }
+
+    let (html_body, text_body) = if let Some(body) = fetched {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
-        conn.execute("INSERT OR REPLACE INTO message_bodies (message_id, html_body, text_body) VALUES (?1, ?2, ?3)",
+        conn.execute("INSERT OR REPLACE INTO message_bodies (message_id, html_body, text_body, attachments_synced) VALUES (?1, ?2, ?3, 1)",
             rusqlite::params![message_id, body.html, body.text]).ok();
+        conn.execute("DELETE FROM attachments WHERE message_id = ?1", [message_id])
+            .ok();
+        for att in &body.attachments {
+            conn.execute(
+                "INSERT INTO attachments (message_id, filename, mime_type, size, content_id, is_inline, data) VALUES (?1,?2,?3,?4,?5,?6,?7)",
+                rusqlite::params![
+                    message_id,
+                    att.filename,
+                    att.mime_type,
+                    att.data.len() as i64,
+                    att.content_id,
+                    if att.is_inline { 1i64 } else { 0i64 },
+                    att.data,
+                ],
+            )
+            .ok();
+        }
+        // Reflect real attachment state (BODYSTRUCTURE heuristics can differ)
+        conn.execute(
+            "UPDATE messages SET has_attachments = ?1 WHERE id = ?2",
+            rusqlite::params![
+                if body.attachments.iter().any(|a| !a.is_inline) { 1i64 } else { 0i64 },
+                message_id
+            ],
+        )
+        .ok();
         // Now that we have the body, store a real preview snippet
         let snippet = make_snippet(if body.text.is_empty() { &body.html } else { &body.text });
         if !snippet.is_empty() {
@@ -613,7 +669,13 @@ pub async fn get_message_core(
             .ok();
         }
         (body.html, body.text)
+    } else if let Some((html, text, _)) = cached {
+        (html, text)
+    } else {
+        return Err("このメールの本文はローカルに保存されていません".to_string());
     };
+
+    let attachments = list_attachment_meta(db, message_id)?;
 
     // Mark as read
     if mark_read {
@@ -639,11 +701,41 @@ pub async fn get_message_core(
         }
     }
 
+    let mut msg = msg;
+    if !attachments.is_empty() {
+        msg.has_attachments = if attachments.iter().any(|a| a.is_inline == 0) { 1 } else { msg.has_attachments };
+    }
+
     Ok(MessageFull {
         msg,
         html_body,
         text_body,
+        attachments,
     })
+}
+
+pub fn list_attachment_meta(db: &DbState, message_id: i64) -> Result<Vec<AttachmentMeta>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, message_id, filename, COALESCE(mime_type, 'application/octet-stream'), COALESCE(size, 0), COALESCE(is_inline, 0) FROM attachments WHERE message_id = ?1 ORDER BY is_inline, id",
+        )
+        .map_err(|e| e.to_string())?;
+    let metas = stmt
+        .query_map([message_id], |row| {
+            Ok(AttachmentMeta {
+                id: row.get(0)?,
+                message_id: row.get(1)?,
+                filename: row.get(2)?,
+                mime_type: row.get(3)?,
+                size: row.get(4)?,
+                is_inline: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(metas)
 }
 
 #[tauri::command]
@@ -770,6 +862,8 @@ pub async fn delete_core(db: &DbState, message_id: i64) -> Result<(), String> {
     }
 
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM attachments WHERE message_id = ?1", [message_id])
+        .ok();
     conn.execute(
         "DELETE FROM message_bodies WHERE message_id = ?1",
         [message_id],
@@ -978,6 +1072,14 @@ pub async fn mail_rename_folder(
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
         // Drop local rows for the old path subtree; re-sync repopulates them
         conn.execute(
+            "DELETE FROM attachments WHERE message_id IN (SELECT id FROM messages WHERE account_id = ?1 AND folder_id IN (SELECT id FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%')))",
+            rusqlite::params![account_id, from_path],
+        ).ok();
+        conn.execute(
+            "DELETE FROM message_bodies WHERE message_id IN (SELECT id FROM messages WHERE account_id = ?1 AND folder_id IN (SELECT id FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%')))",
+            rusqlite::params![account_id, from_path],
+        ).ok();
+        conn.execute(
             "DELETE FROM messages WHERE account_id = ?1 AND folder_id IN (SELECT id FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%'))",
             rusqlite::params![account_id, from_path],
         ).ok();
@@ -1019,6 +1121,14 @@ pub async fn mail_delete_folder(
     {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
         conn.execute(
+            "DELETE FROM attachments WHERE message_id IN (SELECT id FROM messages WHERE account_id = ?1 AND folder_id IN (SELECT id FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%')))",
+            rusqlite::params![account_id, path],
+        ).ok();
+        conn.execute(
+            "DELETE FROM message_bodies WHERE message_id IN (SELECT id FROM messages WHERE account_id = ?1 AND folder_id IN (SELECT id FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%')))",
+            rusqlite::params![account_id, path],
+        ).ok();
+        conn.execute(
             "DELETE FROM messages WHERE account_id = ?1 AND folder_id IN (SELECT id FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%'))",
             rusqlite::params![account_id, path],
         ).ok();
@@ -1032,8 +1142,113 @@ pub async fn mail_delete_folder(
     sync_folders_for_account(account_id, db.inner()).await
 }
 
+/// Total attachment size limit. Most providers cap messages at ~25MB, and
+/// base64 adds ~37% on top of the raw bytes.
+const MAX_ATTACHMENT_TOTAL_BYTES: usize = 25 * 1024 * 1024;
+
+fn guess_mime(filename: &str) -> &'static str {
+    let ext = filename
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "svg" => "image/svg+xml",
+        "heic" => "image/heic",
+        "pdf" => "application/pdf",
+        "txt" | "log" | "md" => "text/plain",
+        "csv" => "text/csv",
+        "html" | "htm" => "text/html",
+        "xml" => "text/xml",
+        "json" => "application/json",
+        "ics" => "text/calendar",
+        "eml" => "message/rfc822",
+        "zip" => "application/zip",
+        "7z" => "application/x-7z-compressed",
+        "rar" => "application/vnd.rar",
+        "gz" => "application/gzip",
+        "doc" => "application/msword",
+        "docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "xls" => "application/vnd.ms-excel",
+        "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "ppt" => "application/vnd.ms-powerpoint",
+        "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "m4a" => "audio/mp4",
+        "mp4" => "video/mp4",
+        "mov" => "video/quicktime",
+        "avi" => "video/x-msvideo",
+        _ => "application/octet-stream",
+    }
+}
+
+/// Resolve composer attachment references (local files / cached attachments
+/// of a received message) into raw data ready for the SMTP builder.
+fn resolve_compose_attachments(
+    db: &DbState,
+    inputs: Vec<ComposeAttachmentInput>,
+) -> Result<Vec<smtp_service::AttachmentData>, String> {
+    let mut result = Vec::new();
+    let mut total = 0usize;
+
+    for input in inputs {
+        let att = if let Some(path) = input.path.as_deref().filter(|p| !p.trim().is_empty()) {
+            let path = std::path::Path::new(path);
+            let filename = path
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_else(|| "attachment".to_string());
+            let data = std::fs::read(path).map_err(|e| {
+                format!("添付ファイル「{}」を読み込めませんでした: {}", filename, e)
+            })?;
+            smtp_service::AttachmentData {
+                mime_type: guess_mime(&filename).to_string(),
+                filename,
+                data,
+            }
+        } else if let Some(attachment_id) = input.attachment_id {
+            let conn = db.conn.lock().map_err(|e| e.to_string())?;
+            conn.query_row(
+                "SELECT filename, COALESCE(mime_type, 'application/octet-stream'), data FROM attachments WHERE id = ?1",
+                [attachment_id],
+                |row| {
+                    Ok(smtp_service::AttachmentData {
+                        filename: row.get(0)?,
+                        mime_type: row.get(1)?,
+                        data: row.get::<_, Option<Vec<u8>>>(2)?.unwrap_or_default(),
+                    })
+                },
+            )
+            .map_err(|_| "転送元の添付ファイルが見つかりませんでした。元のメールを開き直してから転送してください".to_string())?
+        } else {
+            continue;
+        };
+
+        if att.data.is_empty() {
+            return Err(format!(
+                "添付ファイル「{}」の中身が空です",
+                att.filename
+            ));
+        }
+        total += att.data.len();
+        if total > MAX_ATTACHMENT_TOTAL_BYTES {
+            return Err("添付ファイルの合計サイズが25MBを超えています。ファイルを減らすか、共有リンクをご利用ください".to_string());
+        }
+        result.push(att);
+    }
+
+    Ok(result)
+}
+
 #[tauri::command]
 pub async fn compose_send(data: ComposeInput, db: State<'_, DbState>) -> Result<(), String> {
+    let attachments = resolve_compose_attachments(db.inner(), data.attachments.unwrap_or_default())?;
     let compose = ComposeData {
         from: data.from,
         to: data.to,
@@ -1043,6 +1258,7 @@ pub async fn compose_send(data: ComposeInput, db: State<'_, DbState>) -> Result<
         text: data.text,
         in_reply_to: data.in_reply_to,
         references: data.references,
+        attachments,
     };
     send_and_record(db.inner(), compose).await
 }

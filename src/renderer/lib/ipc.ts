@@ -10,6 +10,7 @@ import type {
   DemoMailEvent,
   OutlookFolder,
   OutlookMessage,
+  PickedFile,
   UpdateStatus,
 } from '../types'
 import type { CharacterModScanResult } from '../characters/types'
@@ -64,6 +65,18 @@ const composeApi = isTauriRuntime
     }
   : mockApi.compose
 
+const attachmentApi = isTauriRuntime
+  ? {
+      pickFiles: (): Promise<PickedFile[]> => invoke('compose_pick_files'),
+      save: (attachmentId: number): Promise<string | null> =>
+        invoke('attachment_save', { attachmentId }),
+      saveAll: (messageId: number): Promise<string | null> =>
+        invoke('attachment_save_all', { messageId }),
+      open: (attachmentId: number): Promise<void> =>
+        invoke('attachment_open', { attachmentId }),
+    }
+  : mockApi.attachment
+
 const importApi = isTauriRuntime
   ? {
       outlookFolders: (): Promise<OutlookFolder[]> => invoke('import_outlook_folders'),
@@ -114,6 +127,7 @@ export const api = {
   account: accountApi,
   mail: mailApi,
   compose: composeApi,
+  attachment: attachmentApi,
   import: importApi,
   app: appApi,
   characterMods: characterModsApi,
