@@ -73,6 +73,9 @@ interface MailState {
   searchMessages: (query: string) => Promise<void>
   clearSearch: () => Promise<void>
   refreshFolder: (folderId: number) => Promise<void>
+  createFolder: (accountId: number, name: string, parentId?: number) => Promise<void>
+  renameFolder: (folderId: number, newName: string) => Promise<void>
+  deleteFolder: (folderId: number) => Promise<void>
   handleIncomingMail: (folderId: number) => Promise<void>
   toggleMessageSelection: (messageId: number) => void
   clearMessageSelection: () => void
@@ -364,6 +367,54 @@ export const useMailStore = create<MailState>((set, get) => ({
         return
       }
     }
+  },
+
+  createFolder: async (accountId, name, parentId) => {
+    const folders = await api.mail.createFolder(accountId, name, parentId)
+    set((state) => {
+      const next = new Map(state.allFolders)
+      next.set(accountId, sortFolders(folders))
+      return { allFolders: next }
+    })
+  },
+
+  renameFolder: async (folderId, newName) => {
+    const account = get().accounts.find((candidate) =>
+      (get().allFolders.get(candidate.id) || []).some((folder) => folder.id === folderId)
+    )
+    if (!account) return
+    const folders = await api.mail.renameFolder(folderId, newName)
+    set((state) => {
+      const next = new Map(state.allFolders)
+      next.set(account.id, sortFolders(folders))
+      const current = state.currentFolder
+      return {
+        allFolders: next,
+        currentFolder:
+          current?.id === folderId
+            ? folders.find((folder) => folder.id === folderId) ?? current
+            : current,
+      }
+    })
+  },
+
+  deleteFolder: async (folderId) => {
+    const account = get().accounts.find((candidate) =>
+      (get().allFolders.get(candidate.id) || []).some((folder) => folder.id === folderId)
+    )
+    if (!account) return
+    const folders = await api.mail.deleteFolder(folderId)
+    const removingCurrent = get().currentFolder?.id === folderId
+    set((state) => {
+      const next = new Map(state.allFolders)
+      next.set(account.id, sortFolders(folders))
+      return {
+        allFolders: next,
+        ...(removingCurrent
+          ? { currentFolder: null, messages: [], currentMessage: null, hasMoreMessages: false }
+          : {}),
+      }
+    })
   },
 
   handleIncomingMail: async (folderId) => {

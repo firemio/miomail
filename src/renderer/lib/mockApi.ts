@@ -562,6 +562,57 @@ export const mockApi = {
 
     syncMessages: async (): Promise<void> => undefined,
 
+    createFolder: async (accountId: number, name: string, parentId?: number): Promise<Folder[]> => {
+      const db = loadDb()
+      const delimiter = '/'
+      const parent = parentId ? db.folders.find((folder) => folder.id === parentId) : undefined
+      const path = parent ? `${parent.path}${delimiter}${name}` : name
+      const exists = db.folders.some(
+        (folder) => folder.account_id === accountId && folder.path.toLowerCase() === path.toLowerCase()
+      )
+      if (exists) {
+        throw new Error('同じ名前のフォルダが既にあります')
+      }
+      db.folders.push({
+        id: db.nextFolderId++,
+        account_id: accountId,
+        path,
+        name,
+        delimiter,
+        flags: '[]',
+        unread_count: 0,
+        total_count: 0,
+      })
+      recalcFolders(db)
+      saveDb(db)
+      return db.folders.filter((folder) => folder.account_id === accountId)
+    },
+
+    renameFolder: async (folderId: number, newName: string): Promise<Folder[]> => {
+      const db = loadDb()
+      const target = db.folders.find((folder) => folder.id === folderId)
+      if (!target) throw new Error('フォルダが見つかりません')
+      const accountId = target.account_id
+      db.folders = db.folders.map((folder) =>
+        folder.id === folderId ? { ...folder, name: newName } : folder
+      )
+      recalcFolders(db)
+      saveDb(db)
+      return db.folders.filter((folder) => folder.account_id === accountId)
+    },
+
+    deleteFolder: async (folderId: number): Promise<Folder[]> => {
+      const db = loadDb()
+      const target = db.folders.find((folder) => folder.id === folderId)
+      if (!target) throw new Error('フォルダが見つかりません')
+      const accountId = target.account_id
+      db.messages = db.messages.filter((message) => message.folder_id !== folderId)
+      db.folders = db.folders.filter((folder) => folder.id !== folderId)
+      recalcFolders(db)
+      saveDb(db)
+      return db.folders.filter((folder) => folder.account_id === accountId)
+    },
+
     getMessages: async (folderId: number, offset: number, limit: number): Promise<Message[]> => {
       const db = loadDb()
       return db.messages

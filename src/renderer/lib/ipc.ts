@@ -38,6 +38,12 @@ const mailApi = isTauriRuntime
         invoke('mail_list_folders', { accountId }),
       syncMessages: (accountId: number, folderId: number): Promise<void> =>
         invoke('mail_sync_messages', { accountId, folderId }),
+      createFolder: (accountId: number, name: string, parentId?: number): Promise<Folder[]> =>
+        invoke('mail_create_folder', { accountId, name, parentId: parentId ?? null }),
+      renameFolder: (folderId: number, newName: string): Promise<Folder[]> =>
+        invoke('mail_rename_folder', { folderId, newName }),
+      deleteFolder: (folderId: number): Promise<Folder[]> =>
+        invoke('mail_delete_folder', { folderId }),
       getMessages: (folderId: number, offset: number, limit: number): Promise<Message[]> =>
         invoke('mail_get_messages', { folderId, offset, limit }),
       getMessage: (messageId: number): Promise<MessageFull> =>

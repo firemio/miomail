@@ -510,6 +510,43 @@ async fn expunge_uid(session: &mut ImapSession, uid: u32) -> Result<()> {
     Ok(())
 }
 
+/// Create a new mailbox (folder) on the server.
+pub async fn create_folder(config: &ImapConfig, path: &str) -> Result<()> {
+    let mut session = connect(config).await?;
+    session
+        .create(path)
+        .await
+        .map_err(|e| anyhow::anyhow!("フォルダ '{}' の作成に失敗しました: {}", path, e))?;
+    // Subscribe so it shows up in clients that only list subscribed folders
+    session.subscribe(path).await.ok();
+    session.logout().await?;
+    Ok(())
+}
+
+/// Rename / move a mailbox on the server.
+pub async fn rename_folder(config: &ImapConfig, from: &str, to: &str) -> Result<()> {
+    let mut session = connect(config).await?;
+    session
+        .rename(from, to)
+        .await
+        .map_err(|e| anyhow::anyhow!("フォルダの名前変更に失敗しました: {}", e))?;
+    session.subscribe(to).await.ok();
+    session.logout().await?;
+    Ok(())
+}
+
+/// Delete a mailbox on the server.
+pub async fn delete_folder(config: &ImapConfig, path: &str) -> Result<()> {
+    let mut session = connect(config).await?;
+    session.unsubscribe(path).await.ok();
+    session
+        .delete(path)
+        .await
+        .map_err(|e| anyhow::anyhow!("フォルダ '{}' の削除に失敗しました: {}", path, e))?;
+    session.logout().await?;
+    Ok(())
+}
+
 /// Append a raw RFC822 message to a folder (used to save sent mail).
 pub async fn append_message(
     config: &ImapConfig,

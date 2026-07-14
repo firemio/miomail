@@ -860,6 +860,178 @@ pub async fn send_and_record(db: &DbState, data: ComposeData) -> Result<(), Stri
     Ok(())
 }
 
+/// Guard against renaming/deleting the well-known system folders.
+fn is_protected_folder(conn: &rusqlite::Connection, folder_id: i64) -> bool {
+    let row: Option<(String, String, String)> = conn
+        .query_row(
+            "SELECT path, name, COALESCE(flags, '') FROM folders WHERE id = ?1",
+            [folder_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .ok();
+    match row {
+        Some((path, name, flags)) => {
+            path.eq_ignore_ascii_case("INBOX")
+                || ["sent", "trash", "junk", "drafts"]
+                    .iter()
+                    .any(|kind| folder_matches_kind(&flags, &name, &path, kind))
+        }
+        None => false,
+    }
+}
+
+/// The delimiter an account's server uses (from any existing folder), default "/".
+fn account_delimiter(conn: &rusqlite::Connection, account_id: i64) -> String {
+    conn.query_row(
+        "SELECT delimiter FROM folders WHERE account_id = ?1 AND delimiter IS NOT NULL AND delimiter != '' LIMIT 1",
+        [account_id],
+        |row| row.get::<_, String>(0),
+    )
+    .ok()
+    .filter(|d| !d.is_empty())
+    .unwrap_or_else(|| "/".to_string())
+}
+
+#[tauri::command]
+pub async fn mail_create_folder(
+    account_id: i64,
+    name: String,
+    parent_id: Option<i64>,
+    db: State<'_, DbState>,
+) -> Result<Vec<Folder>, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("フォルダ名を入力してください".to_string());
+    }
+
+    let (config, path) = {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        let config = get_imap_config(&conn, account_id)?;
+        let delimiter = account_delimiter(&conn, account_id);
+        if name.contains(&delimiter) {
+            return Err(format!("フォルダ名に区切り文字「{}」は使えません", delimiter));
+        }
+        let path = match parent_id {
+            Some(pid) => {
+                let parent_path: String = conn
+                    .query_row(
+                        "SELECT path FROM folders WHERE id = ?1 AND account_id = ?2",
+                        [pid, account_id],
+                        |row| row.get(0),
+                    )
+                    .map_err(|_| "親フォルダが見つかりません".to_string())?;
+                format!("{}{}{}", parent_path, delimiter, name)
+            }
+            None => name.clone(),
+        };
+        (config, path)
+    };
+
+    imap_service::create_folder(&config, &path)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sync_folders_for_account(account_id, db.inner()).await
+}
+
+#[tauri::command]
+pub async fn mail_rename_folder(
+    folder_id: i64,
+    new_name: String,
+    db: State<'_, DbState>,
+) -> Result<Vec<Folder>, String> {
+    let new_name = new_name.trim().to_string();
+    if new_name.is_empty() {
+        return Err("フォルダ名を入力してください".to_string());
+    }
+
+    let (config, account_id, from_path, to_path) = {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        if is_protected_folder(&conn, folder_id) {
+            return Err("システムフォルダの名前は変更できません".to_string());
+        }
+        let (account_id, from_path): (i64, String) = conn
+            .query_row(
+                "SELECT account_id, path FROM folders WHERE id = ?1",
+                [folder_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?;
+        let config = get_imap_config(&conn, account_id)?;
+        let delimiter = account_delimiter(&conn, account_id);
+        if new_name.contains(&delimiter) {
+            return Err(format!("フォルダ名に区切り文字「{}」は使えません", delimiter));
+        }
+        // Preserve the parent path, replace only the leaf name
+        let to_path = match from_path.rsplit_once(delimiter.as_str()) {
+            Some((parent, _)) => format!("{}{}{}", parent, delimiter, new_name),
+            None => new_name.clone(),
+        };
+        (config, account_id, from_path, to_path)
+    };
+
+    imap_service::rename_folder(&config, &from_path, &to_path)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        // Drop local rows for the old path subtree; re-sync repopulates them
+        conn.execute(
+            "DELETE FROM messages WHERE account_id = ?1 AND folder_id IN (SELECT id FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%'))",
+            rusqlite::params![account_id, from_path],
+        ).ok();
+        conn.execute(
+            "DELETE FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%')",
+            rusqlite::params![account_id, from_path],
+        )
+        .ok();
+    }
+
+    sync_folders_for_account(account_id, db.inner()).await
+}
+
+#[tauri::command]
+pub async fn mail_delete_folder(
+    folder_id: i64,
+    db: State<'_, DbState>,
+) -> Result<Vec<Folder>, String> {
+    let (config, account_id, path) = {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        if is_protected_folder(&conn, folder_id) {
+            return Err("システムフォルダは削除できません".to_string());
+        }
+        let (account_id, path): (i64, String) = conn
+            .query_row(
+                "SELECT account_id, path FROM folders WHERE id = ?1",
+                [folder_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|e| e.to_string())?;
+        let config = get_imap_config(&conn, account_id)?;
+        (config, account_id, path)
+    };
+
+    imap_service::delete_folder(&config, &path)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM messages WHERE account_id = ?1 AND folder_id IN (SELECT id FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%'))",
+            rusqlite::params![account_id, path],
+        ).ok();
+        conn.execute(
+            "DELETE FROM folders WHERE account_id = ?1 AND (path = ?2 OR path LIKE ?2 || '%')",
+            rusqlite::params![account_id, path],
+        )
+        .ok();
+    }
+
+    sync_folders_for_account(account_id, db.inner()).await
+}
+
 #[tauri::command]
 pub async fn compose_send(data: ComposeInput, db: State<'_, DbState>) -> Result<(), String> {
     let compose = ComposeData {
