@@ -172,7 +172,6 @@ export function SettingsModal() {
             </div>
             <p className="mt-5 text-[10px] font-semibold tracking-[0.22em] text-sumi-text-muted">MIO CONTROL ROOM</p>
             <h1 id="settings-title" className="mt-1 font-display text-3xl text-sumi-text">設定</h1>
-            <p className="mt-2 text-xs leading-5 text-sumi-text-muted">散らばっていた変更項目を、ここにまとめました。</p>
           </div>
 
           <div className="space-y-2">
