@@ -12,12 +12,14 @@ const repo = 'firemio/miomail'
 
 const nsisDir = join(root, 'src-tauri', 'target', 'release', 'bundle', 'nsis')
 const files = readdirSync(nsisDir)
-const setupExe = files.find((f) => f.endsWith('-setup.exe'))
-const setupSig = files.find((f) => f.endsWith('-setup.exe.sig'))
+// Select the artifact that matches the current version (the dir may still hold
+// older builds), so the URL and signature never drift from `version`.
+const setupExe = files.find((f) => f.includes(`_${version}_`) && f.endsWith('-setup.exe'))
+const setupSig = setupExe ? `${setupExe}.sig` : undefined
 
-if (!setupExe || !setupSig) {
-  console.error('NSIS setup exe / sig not found in', nsisDir)
-  console.error('Run: npm run tauri build (with TAURI_SIGNING_PRIVATE_KEY_PATH set)')
+if (!setupExe || !setupSig || !files.includes(setupSig)) {
+  console.error(`NSIS setup exe / sig for version ${version} not found in`, nsisDir)
+  console.error('Run: npm run tauri build (with TAURI_SIGNING_PRIVATE_KEY set)')
   process.exit(1)
 }
 
