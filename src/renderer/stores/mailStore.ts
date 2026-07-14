@@ -57,6 +57,8 @@ interface MailState {
   searchMode: boolean
   lastQuery: string
   selectedMessageIds: number[]
+  syncError: string | null
+  clearSyncError: () => void
   loadAccounts: () => Promise<void>
   syncAllFolders: () => Promise<void>
   refreshFolderCounts: (accountId: number) => Promise<void>
@@ -90,6 +92,9 @@ export const useMailStore = create<MailState>((set, get) => ({
   searchMode: false,
   lastQuery: '',
   selectedMessageIds: [],
+  syncError: null,
+
+  clearSyncError: () => set({ syncError: null }),
 
   loadAccounts: async () => {
     const accounts = await api.account.list()
@@ -108,19 +113,22 @@ export const useMailStore = create<MailState>((set, get) => ({
 
     try {
       const newFolders = new Map<number, Folder[]>()
+      const errors: string[] = []
 
       await Promise.all(
         accounts.map(async (account) => {
           try {
             const folders = await api.mail.syncFolders(account.id)
             newFolders.set(account.id, sortFolders(folders))
-          } catch {
+          } catch (error) {
             newFolders.set(account.id, [])
+            const label = account.email || `アカウント${account.id}`
+            errors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`)
           }
         })
       )
 
-      set({ allFolders: newFolders })
+      set({ allFolders: newFolders, syncError: errors.length > 0 ? errors.join('\n') : null })
 
       if (!get().currentFolder) {
         for (const [, folders] of newFolders) {
@@ -176,6 +184,13 @@ export const useMailStore = create<MailState>((set, get) => ({
     try {
       try {
         await api.mail.syncMessages(currentFolder.account_id, currentFolder.id)
+        set({ syncError: null })
+      } catch (error) {
+        set({
+          syncError: `${currentFolder.name || 'フォルダ'}の同期に失敗しました: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        })
       } finally {
         await get().loadMessages()
         await get().refreshFolderCounts(currentFolder.account_id)

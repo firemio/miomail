@@ -1,4 +1,4 @@
-import { Paperclip, Search, Sparkles } from 'lucide-react'
+import { AlertTriangle, Paperclip, Search, Sparkles, X } from 'lucide-react'
 import { useMailStore } from '../../stores/mailStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { Message } from '../../types'
@@ -54,6 +54,8 @@ export function MessageList() {
     loadMoreMessages,
     hasMoreMessages,
     loadingMore,
+    syncError,
+    clearSyncError,
   } = useMailStore()
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
@@ -121,6 +123,30 @@ export function MessageList() {
           </span>
         </div>
       </div>
+
+      {syncError && (
+        <div className="mx-3 mt-3 flex shrink-0 items-start gap-2 rounded-[18px] border border-amber-200 bg-amber-50/90 px-3 py-2.5">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold text-amber-900">同期に失敗しました</p>
+            <p className="mt-0.5 whitespace-pre-line break-words text-[10px] leading-4 text-amber-800/90">
+              {syncError}
+            </p>
+            {/Password not found|パスワード/i.test(syncError) && (
+              <p className="mt-1 text-[10px] leading-4 text-amber-800/90">
+                設定 → メールアカウント からアカウントを開き、パスワードを再入力して保存してください。
+              </p>
+            )}
+          </div>
+          <button
+            onClick={clearSyncError}
+            aria-label="エラーを閉じる"
+            className="shrink-0 text-amber-600 transition hover:text-amber-800"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2" onScroll={handleScroll}>
         {loading && messages.length === 0 ? (
