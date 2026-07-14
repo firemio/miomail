@@ -264,7 +264,7 @@ export function MessageView() {
             <span>{read ? '未読に戻す' : '既読にする'}</span>
           </button>
           {confirmDelete ? (
-            <div className="flex items-center gap-2 rounded-full border border-red-100 bg-red-50/90 px-3 py-1">
+            <div className="flex items-center gap-2 rounded-full border border-red-400/30 bg-red-400/20 px-3 py-1">
               <span className="text-xs font-semibold text-red-500">ゴミ箱へ移動しますか？</span>
               <button
                 onClick={() => {
@@ -287,7 +287,7 @@ export function MessageView() {
             <button
               onClick={() => setConfirmDelete(true)}
               data-testid="message-delete-button"
-              className="flex h-10 items-center gap-1.5 rounded-full border border-red-100 bg-red-50/80 px-4 text-xs font-semibold text-red-400 transition hover:bg-red-100"
+              className="flex h-10 items-center gap-1.5 rounded-full border border-red-400/30 bg-red-400/15 px-4 text-xs font-semibold text-red-400 transition hover:bg-red-400/25"
               title="ゴミ箱へ移動"
             >
               <Trash2 size={13} />

@@ -10,6 +10,7 @@ import { useCharacterStore } from '../../stores/characterStore'
 import { MascotRenderer } from '../characters/MascotRenderer'
 import { ModThumbnail } from '../characters/ModThumbnail'
 import { AccountManager } from '../account/AccountManager'
+import { ThemePreview } from './ThemePreview'
 
 type SettingsSection = 'appearance' | 'mail' | 'data' | 'developer'
 
@@ -308,14 +309,55 @@ export function SettingsModal() {
                 </section>
 
                 <section>
-                  <div className="mb-4"><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">THEME</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">テーマを選ぶ</h3></div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="mb-4 flex items-end justify-between gap-4">
+                    <div><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">THEME</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">テーマを選ぶ</h3></div>
+                    <p className="text-xs text-sumi-text-muted">各テーマの実際の配色をプレビューで確認できます。</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                     {themeCatalog.map((theme) => {
                       const active = theme.id === themeId
-                      return <button key={theme.id} onClick={() => setTheme(theme.id)} className={`rounded-[22px] border px-4 py-4 text-left transition hover:-translate-y-0.5 ${active ? 'border-sumi-accent bg-sumi-accent/10' : 'border-white/80 bg-white/72'}`}>
-                        <div className="flex items-start justify-between gap-4"><div><p className="font-semibold text-sumi-text">{theme.name}</p><p className="mt-1 text-[11px] text-sumi-text-muted">{theme.mood}</p></div><div className="flex gap-1.5">{theme.swatches.map((color) => <span key={color} className="h-5 w-5 rounded-full border border-white/70" style={{ background: color }} />)}</div></div>
-                        <p className="mt-3 text-[11px] leading-5 text-sumi-text-muted">{theme.description}</p>
-                      </button>
+                      const p = theme.palette
+                      return (
+                        <button
+                          key={theme.id}
+                          onClick={() => setTheme(theme.id)}
+                          aria-pressed={active}
+                          className={`overflow-hidden rounded-[22px] border p-3 text-left transition hover:-translate-y-0.5 ${
+                            active
+                              ? 'border-sumi-accent bg-sumi-accent/10 shadow-[0_16px_34px_rgba(255,138,160,0.16)]'
+                              : 'border-white/80 bg-white/72'
+                          }`}
+                        >
+                          <ThemePreview palette={p} />
+                          <div className="mt-3 flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="flex items-center gap-1.5 truncate font-semibold text-sumi-text">
+                                {theme.name}
+                                {theme.dark && (
+                                  <span className="rounded-full bg-sumi-surface px-1.5 py-0.5 text-[8px] font-semibold text-sumi-text-muted">
+                                    DARK
+                                  </span>
+                                )}
+                                {active && (
+                                  <span className="rounded-full bg-sumi-accent px-1.5 py-0.5 text-[8px] font-semibold text-white">
+                                    使用中
+                                  </span>
+                                )}
+                              </p>
+                              <p className="mt-0.5 truncate text-[11px] text-sumi-text-muted">{theme.mood}</p>
+                            </div>
+                            <div className="flex shrink-0 gap-1">
+                              {[p.bg, p.surface, p.accent, p.accentStrong, p.unread, p.text].map((color, index) => (
+                                <span
+                                  key={index}
+                                  className="h-4 w-4 rounded-full border border-black/5"
+                                  style={{ background: color }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </button>
+                      )
                     })}
                   </div>
                 </section>

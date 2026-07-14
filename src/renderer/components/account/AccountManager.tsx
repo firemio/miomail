@@ -214,7 +214,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
       </div>
 
       {error && (
-        <div className="shrink-0 border-b border-red-100 bg-red-50/80 px-4 py-3">
+        <div className="shrink-0 border-b border-red-400/30 bg-red-400/15 px-4 py-3">
           <p className="text-[11px] text-red-400">{error}</p>
         </div>
       )}
@@ -242,7 +242,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                   </div>
                   {confirmDeleteId === account.id ? (
                     <div
-                      className="ml-2 flex shrink-0 items-center gap-1.5 rounded-full border border-red-100 bg-red-50/90 px-2.5 py-1.5"
+                      className="ml-2 flex shrink-0 items-center gap-1.5 rounded-full border border-red-400/30 bg-red-400/20 px-2.5 py-1.5"
                       onClick={(event) => event.stopPropagation()}
                     >
                       <span className="text-[10px] font-semibold text-red-500">削除しますか？</span>
@@ -275,7 +275,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                       }}
                       disabled={deleting === account.id}
                       data-testid={`account-delete-${account.id}`}
-                      className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-100 bg-red-50/75 text-sumi-text-muted transition hover:text-red-400"
+                      className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-400/25 bg-red-400/10 text-sumi-text-muted transition hover:text-red-400"
                     >
                       {deleting === account.id ? (
                         <Loader2 size={12} className="animate-spin" />

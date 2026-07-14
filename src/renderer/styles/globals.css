@@ -550,6 +550,23 @@ body[data-theme='sakura-noir'] .bg-sumi-accent-strong.text-white {
   color: rgb(var(--on-accent));
 }
 
+/*
+ * Dark themes: the light/pink drop shadows scattered through the UI (arbitrary
+ * `shadow-[0_..._rgba(255,...)]` utilities) read as smudgy white glows on a dark
+ * background. Replace them with a neutral dark shadow so panels stay crisp.
+ */
+body[data-theme='sakura-noir'] [class*='shadow-[0_'],
+body[data-theme='terminal-hacker'] [class*='shadow-[0_'],
+body[data-theme='amber-command'] [class*='shadow-[0_'] {
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32) !important;
+}
+/* keep the primary accent button's glow tinted to the accent, not black */
+body[data-theme='sakura-noir'] .bg-sumi-accent[class*='shadow-[0_'],
+body[data-theme='terminal-hacker'] .bg-sumi-accent[class*='shadow-[0_'],
+body[data-theme='amber-command'] .bg-sumi-accent[class*='shadow-[0_'] {
+  box-shadow: 0 14px 30px rgb(var(--sumi-accent) / 0.28) !important;
+}
+
 @layer utilities {
   .drag-region {
     -webkit-app-region: drag;

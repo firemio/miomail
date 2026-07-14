@@ -8,19 +8,15 @@ import { useUIStore } from '../../stores/uiStore'
 
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false)
-  const { openCompose, openSettings, searchQuery, setSearchQuery } = useUIStore()
-  const { searchMessages, currentFolder, accounts } = useMailStore()
+  const { openSettings, searchQuery, setSearchQuery } = useUIStore()
+  const { searchMessages } = useMailStore()
   const {
     selectedMascotId,
     summonEvent,
     dismissSummonEvent,
-    gainBond,
   } = useMascotStore()
 
   const selectedMascot = useMemo(() => getMascotMeta(selectedMascotId), [selectedMascotId])
-  const senderAccount = currentFolder
-    ? accounts.find((account) => account.id === currentFolder.account_id)
-    : accounts[0]
 
   useEffect(() => {
     const check = async () => setIsMaximized(await api.app.isMaximized())
@@ -39,11 +35,6 @@ export function TitleBar() {
     if (event.key === 'Enter') {
       void searchMessages(searchQuery)
     }
-  }
-
-  const handleCompose = () => {
-    openCompose({ mode: 'new', fromAddress: senderAccount?.email })
-    gainBond(1)
   }
 
   return (
@@ -85,17 +76,6 @@ export function TitleBar() {
         >
           <Settings size={17} />
         </button>
-
-        <button
-          data-testid="title-compose-button"
-          onClick={handleCompose}
-          className="no-drag rounded-full bg-sumi-accent px-4 py-2 text-xs font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:-translate-y-0.5 hover:bg-sumi-accent-strong"
-          title="新規メール"
-        >
-          作成
-        </button>
-
-        <div className="mx-1 h-5 w-px bg-sumi-border" />
 
         <button
           onClick={() => api.app.minimize()}

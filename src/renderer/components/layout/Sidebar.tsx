@@ -7,6 +7,7 @@ import {
   FolderPlus,
   Inbox,
   Mail,
+  MailPlus,
   MoreHorizontal,
   Pencil,
   RefreshCw,
@@ -16,6 +17,8 @@ import {
   X,
 } from 'lucide-react'
 import { useMailStore } from '../../stores/mailStore'
+import { useMascotStore } from '../../stores/mascotStore'
+import { useUIStore } from '../../stores/uiStore'
 import type { Account, Folder } from '../../types'
 
 function getFolderIcon(folder: Folder) {
@@ -77,6 +80,18 @@ export function Sidebar() {
     renameFolder,
     deleteFolder,
   } = useMailStore()
+  const { openCompose } = useUIStore()
+  const { gainBond } = useMascotStore()
+
+  // Compose from the account whose folder is open (falls back to the first account)
+  const composeSender = currentFolder
+    ? accounts.find((account) => account.id === currentFolder.account_id)
+    : accounts[0]
+
+  const handleCompose = () => {
+    openCompose({ mode: 'new', fromAddress: composeSender?.email })
+    gainBond(1)
+  }
 
   const [menuFolderId, setMenuFolderId] = useState<number | null>(null)
   const [renameId, setRenameId] = useState<number | null>(null)
@@ -111,6 +126,18 @@ export function Sidebar() {
 
   return (
     <div className="glass-panel flex h-full w-[260px] min-w-[260px] flex-col rounded-[28px] border border-white/75">
+      <div className="shrink-0 px-4 pt-4">
+        <button
+          onClick={handleCompose}
+          data-testid="compose-button"
+          disabled={accounts.length === 0}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-sumi-accent text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:-translate-y-0.5 hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <MailPlus size={16} />
+          新しいメールを書く
+        </button>
+      </div>
+
       <div className="flex-1 overflow-y-auto">
         <div className="px-5 pb-4 pt-5">
           <p className="text-[11px] font-semibold tracking-[0.18em] text-sumi-text-muted">
@@ -120,7 +147,7 @@ export function Sidebar() {
         </div>
 
         {error && (
-          <div className="mx-3 mb-2 rounded-[16px] border border-red-100 bg-red-50/85 px-3 py-2 text-[10px] leading-4 text-red-500">
+          <div className="mx-3 mb-2 rounded-[16px] border border-red-400/30 bg-red-400/15 px-3 py-2 text-[10px] leading-4 text-red-400">
             {error}
           </div>
         )}
@@ -255,7 +282,7 @@ export function Sidebar() {
                                 setConfirmDeleteId(folder.id)
                                 setMenuFolderId(null)
                               }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] text-red-500 transition hover:bg-red-50"
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] text-red-400 transition hover:bg-red-400/15"
                             >
                               <Trash2 size={12} /> 削除
                             </button>
