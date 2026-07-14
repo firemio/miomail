@@ -65,6 +65,7 @@ export function AccountSetup() {
   const [testResult, setTestResult] = useState<{ imap: boolean; smtp: boolean } | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState<number | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const update = (field: keyof AccountInput, value: string | number | boolean) => {
@@ -153,7 +154,6 @@ export function AccountSetup() {
   }
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('このアカウントを削除しますか？')) return
     setDeleting(id)
     try {
       await api.account.delete(id)
@@ -229,20 +229,50 @@ export function AccountSetup() {
                         IMAP: {account.imap_host}:{account.imap_port} / SMTP: {account.smtp_host}:{account.smtp_port}
                       </div>
                     </div>
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void handleDelete(account.id)
-                      }}
-                      disabled={deleting === account.id}
-                      className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-100 bg-red-50/75 text-sumi-text-muted transition hover:text-red-400"
-                    >
-                      {deleting === account.id ? (
-                        <Loader2 size={12} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={13} />
-                      )}
-                    </button>
+                    {confirmDeleteId === account.id ? (
+                      <div
+                        className="ml-2 flex shrink-0 items-center gap-1.5 rounded-full border border-red-100 bg-red-50/90 px-2.5 py-1.5"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <span className="text-[10px] font-semibold text-red-500">削除しますか？</span>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setConfirmDeleteId(null)
+                            void handleDelete(account.id)
+                          }}
+                          data-testid={`account-confirm-delete-${account.id}`}
+                          className="rounded-full bg-red-400 px-2.5 py-1 text-[10px] font-semibold text-white transition hover:bg-red-500"
+                        >
+                          削除
+                        </button>
+                        <button
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            setConfirmDeleteId(null)
+                          }}
+                          className="rounded-full px-1.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
+                        >
+                          やめる
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setConfirmDeleteId(account.id)
+                        }}
+                        disabled={deleting === account.id}
+                        data-testid={`account-delete-${account.id}`}
+                        className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-100 bg-red-50/75 text-sumi-text-muted transition hover:text-red-400"
+                      >
+                        {deleting === account.id ? (
+                          <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
+                      </button>
+                    )}
                   </div>
                 ))
               )}

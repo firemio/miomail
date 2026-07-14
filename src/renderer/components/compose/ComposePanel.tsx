@@ -53,6 +53,7 @@ function ComposeEditor({
   const { gainBond, notifySentMail } = useMascotStore()
   const [sending, setSending] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
 
   const defaultSender = useMemo(() => {
     if (draft.from) return draft.from
@@ -72,6 +73,7 @@ function ComposeEditor({
 
   useEffect(() => {
     setConfirmDiscard(false)
+    setSendError(null)
   }, [draft.id])
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -107,6 +109,7 @@ function ComposeEditor({
     if (!draft.to.trim() || !from) return
 
     setSending(true)
+    setSendError(null)
     try {
       await api.compose.send({
         from,
@@ -123,8 +126,8 @@ function ComposeEditor({
       notifySentMail(draft.to.trim(), draft.subject || '(件名なし)')
       gainBond(3)
       closeCompose(draft.id, true)
-    } catch (error: any) {
-      alert(`送信に失敗しました: ${error.message || error}`)
+    } catch (error: unknown) {
+      setSendError(error instanceof Error ? error.message : String(error))
     } finally {
       setSending(false)
     }
@@ -332,6 +335,19 @@ function ComposeEditor({
             className="h-full w-full resize-none bg-transparent px-5 py-5 text-sm leading-7 text-sumi-text placeholder-sumi-text-muted/50 focus:outline-none"
           />
         </div>
+
+        {sendError && (
+          <div className="flex shrink-0 items-start justify-between gap-3 border-t border-red-100 bg-red-50/90 px-5 py-2.5">
+            <p className="min-w-0 text-[11px] leading-5 text-red-500">送信に失敗しました: {sendError}</p>
+            <button
+              onClick={() => setSendError(null)}
+              aria-label="エラーを閉じる"
+              className="shrink-0 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
+            >
+              閉じる
+            </button>
+          </div>
+        )}
 
         <div className="flex h-16 shrink-0 items-center justify-between border-t border-white/70 px-5">
           <div className="flex items-center gap-2">
