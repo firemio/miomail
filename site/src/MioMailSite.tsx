@@ -19,10 +19,7 @@ import { CourierMascot3D } from '../../src/renderer/components/layout/CourierMas
 import { MASCOT_IDLE_MOTION_DURATIONS } from '../../src/renderer/data/mascotIdleMotions'
 import logoImage from '../../src/renderer/assets/miomail-logo.png'
 
-const RELEASE_PAGE_URL = 'https://github.com/firemio/miomail/releases/latest'
-// 常に最新リリースの固定名アセットを指すGitHubのエイリアスURL。
-// リリース時は必ず MioMail-x64-setup.exe (固定名コピー) をアセットに含めること。
-const DOWNLOAD_URL = 'https://github.com/firemio/miomail/releases/latest/download/MioMail-x64-setup.exe'
+import { DOWNLOAD_URL, RELEASE_PAGE_URL } from './links'
 
 const features = [
   {
@@ -287,6 +284,18 @@ export function MioMailSite() {
           </div>
         </section>
 
+        <section className="site-mods-band" data-reveal>
+          <p className="site-mods-band__kicker">CHARACTER MODS</p>
+          <h2>じぶんの相棒を、連れてくる。</h2>
+          <p>
+            2Dのイラストや3Dモデル(GLB)から、オリジナルの相棒を追加できます。
+            設定ファイル1枚とフォルダー1つだけ。コードは実行しない安全設計です。
+          </p>
+          <a className="site-button site-button--primary" href="/mods.html">
+            MODの作り方を見る <ArrowRight size={16} />
+          </a>
+        </section>
+
         <section className="site-security" id="security">
           <div className="site-security__copy" data-reveal>
             <div className="site-kicker site-kicker--blue"><ShieldCheck size={16} /> PRIVATE BY DESIGN</div>
@@ -329,6 +338,7 @@ export function MioMailSite() {
         </a>
         <p>メールを、もっとやさしく。もっとあなたらしく。</p>
         <div>
+          <a href="/mods.html">MODガイド</a>
           <a href="https://github.com/firemio/miomail">GitHub</a>
           <a href={RELEASE_PAGE_URL}>Releases</a>
           <span>© 2026 MioMail</span>
