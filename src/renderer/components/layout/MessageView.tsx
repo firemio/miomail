@@ -265,7 +265,7 @@ async function openExternalLink(url: string) {
 
 export function MessageView() {
   const { currentMessage, closeMessage, deleteMessage, markRead, accounts } = useMailStore()
-  const { openCompose } = useUIStore()
+  const { openCompose, themeId } = useUIStore()
   const { gainBond } = useMascotStore()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -307,12 +307,25 @@ export function MessageView() {
 
     const html =
       currentMessage.html_body ||
-      `<pre style="font-family:inherit;white-space:pre-wrap;color:#52362f;">${escapeHtml(
+      `<pre style="font-family:inherit;white-space:pre-wrap;">${escapeHtml(
         currentMessage.text_body || ''
       )}</pre>`
 
     const sanitized = sanitizeEmailHtml(html)
     const imgSrc = showRemoteImages ? 'data: cid: https: http:' : 'data: cid:'
+
+    // iframe内にはアプリのCSS変数が届かないため、現在のテーマの
+    // 実際の色を読み取ってsrcdocへ埋め込む(themeId変更で再生成される)
+    const themeStyles = getComputedStyle(document.body)
+    const themeColor = (name: string, fallback: string) => {
+      const value = themeStyles.getPropertyValue(name).trim()
+      return value ? `rgb(${value})` : fallback
+    }
+    const mailBg = themeColor('--panel-bg', '#fffdfb')
+    const mailText = themeColor('--sumi-text', '#52362f')
+    const mailMuted = themeColor('--sumi-text-muted', '#9b776d')
+    const mailAccent = themeColor('--sumi-accent-strong', '#f76f8e')
+    const mailBorder = themeColor('--sumi-border', '#f0d7cb')
 
     const doc = `
       <!DOCTYPE html>
@@ -324,22 +337,22 @@ export function MessageView() {
             font-family: 'Yu Gothic UI', 'Meiryo', sans-serif;
             font-size: 14px;
             line-height: 1.72;
-            color: #52362f;
-            background: #fffdfb;
+            color: ${mailText};
+            background: ${mailBg};
             padding: 24px 28px 36px;
             margin: 0;
             word-break: break-word;
           }
-          a { color: #f76f8e; }
+          a { color: ${mailAccent}; }
           blockquote {
-            border-left: 3px solid #f0d7cb;
+            border-left: 3px solid ${mailBorder};
             padding-left: 14px;
             margin: 10px 0;
-            color: #9b776d;
+            color: ${mailMuted};
           }
           img { max-width: 100%; height: auto; }
           table { border-collapse: collapse; }
-          td, th { padding: 4px 8px; border: 1px solid #f0d7cb; }
+          td, th { padding: 4px 8px; border: 1px solid ${mailBorder}; }
         </style>
       </head>
       <body>${sanitized}<script>
@@ -360,7 +373,7 @@ export function MessageView() {
     return () => {
       iframe.srcdoc = ''
     }
-  }, [currentMessage, showRemoteImages])
+  }, [currentMessage, showRemoteImages, themeId])
 
   if (!currentMessage) return null
 
@@ -531,7 +544,7 @@ export function MessageView() {
       <div className="flex-1 overflow-hidden">
         <iframe
           ref={iframeRef}
-          className="h-full w-full border-0 bg-white"
+          className="h-full w-full border-0 bg-transparent"
           sandbox="allow-scripts"
           title="Email content"
         />
