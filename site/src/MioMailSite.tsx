@@ -18,6 +18,7 @@ import { CourierMascot } from '../../src/renderer/components/layout/CourierMasco
 import { CourierMascot3D } from '../../src/renderer/components/layout/CourierMascot3D'
 import { MASCOT_IDLE_MOTION_DURATIONS } from '../../src/renderer/data/mascotIdleMotions'
 import logoImage from '../../src/renderer/assets/miomail-logo.png'
+import titleBanner from './assets/miomail-title-banner.png'
 
 import { DOWNLOAD_URL, RELEASE_PAGE_URL } from './links'
 
@@ -172,11 +173,12 @@ export function MioMailSite() {
             <div className="site-eyebrow site-intro-1">
               <Sparkles size={15} /> Windowsのための、やさしいメールアプリ
             </div>
-            <h1 className="site-intro-2">
-              メールに、<br />
-              <span>かわいい相棒</span><br />
-              を。
+            <h1 className="site-hero__brandmark site-intro-2">
+              <img src={titleBanner} alt="MioMail" draggable={false} />
             </h1>
+            <p className="site-hero__catch site-intro-2">
+              メールに、<span>かわいい相棒</span>を。
+            </p>
             <p className="site-hero__lead site-intro-3">
               MioMailは、毎日の「届いた」と「送れた」を
               <br />小さなよろこびに変えるメールアプリです。
