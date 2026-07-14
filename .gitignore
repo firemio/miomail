@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+out/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Local state / scratch
+tmp/
+*.log
+*.db
+
+# Secrets — real account credentials, never commit
+account_settings.txt
+
+# OS
+Thumbs.db
+.DS_Store

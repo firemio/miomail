@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "creator.fluffy-bear-3d",
+  "name": "Fluffy Bear 3D",
+  "version": "1.0.0",
+  "author": "Creator",
+  "description": "Blenderで作った配達くま",
+  "license": "CC-BY-4.0",
+  "behaviorProfile": "makko",
+  "renderer": "gltf-3d",
+  "thumbnail": "thumbnail.webp",
+  "source": {
+    "type": "model",
+    "file": "assets/character.glb",
+    "scale": 1,
+    "groundOffset": 0,
+    "rotationY": 0,
+    "motions": {
+      "idle": { "clip": "Idle", "loop": true },
+      "look-around": { "clip": "LookAround", "loop": true },
+      "walk": { "clip": "Walk", "loop": true },
+      "celebrate": { "clip": "Celebrate", "loop": false }
+    }
+  }
+}
+

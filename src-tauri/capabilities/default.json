@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main MioMail desktop capability set.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:app:allow-app-hide",
+    "core:app:allow-app-show",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-unminimize",
+    "notification:default",
+    "opener:default",
+    "opener:allow-open-url"
+  ]
+}

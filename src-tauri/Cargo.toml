@@ -1,0 +1,42 @@
+[package]
+name = "miomail"
+version = "2.0.0"
+edition = "2021"
+
+[lib]
+name = "miomail_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "miomail"
+path = "src/main.rs"
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-notification = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tokio = { version = "1", features = ["full"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+async-imap = "0.10"
+async-native-tls = "0.5"
+async-std = "1"
+futures = "0.3"
+lettre = { version = "0.11", default-features = false, features = ["tokio1-native-tls", "builder", "smtp-transport"] }
+mail-parser = "0.9"
+keyring = { version = "3" }
+thiserror = "2"
+anyhow = "1"
+log = "0.4"
+once_cell = "1"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+codegen-units = 1

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "creator.rendered-bird-2d",
+  "name": "Rendered Bird 2D",
+  "version": "1.0.0",
+  "author": "Creator",
+  "description": "Blenderから透過WebP連番としてレンダーした小鳥",
+  "behaviorProfile": "saeta",
+  "renderer": "sprite-2d",
+  "thumbnail": "thumbnail.webp",
+  "source": {
+    "type": "sequence",
+    "motions": {
+      "idle": {
+        "files": ["assets/idle/0001.webp", "assets/idle/0002.webp", "assets/idle/0003.webp"],
+        "fps": 8,
+        "loop": true
+      },
+      "walk": {
+        "files": ["assets/walk/0001.webp", "assets/walk/0002.webp", "assets/walk/0003.webp"],
+        "fps": 12,
+        "loop": true
+      }
+    }
+  }
+}
+

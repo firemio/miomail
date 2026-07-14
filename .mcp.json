@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "miomail": {
+      "command": "C:\\firemio\\miomail\\src-tauri\\target\\release\\miomail-mcp.exe",
+      "args": [],
+      "env": {}
+    }
+  }
+}
