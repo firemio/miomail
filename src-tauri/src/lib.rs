@@ -16,6 +16,7 @@ pub fn run() {
         .manage(commands::character_mod::CharacterModRegistry::default())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(|window, event| {
             tray::handle_window_event(window, event);
         })
@@ -56,6 +57,8 @@ pub fn run() {
             commands::app::app_show_main_window,
             commands::app::app_quit,
             commands::build::app_get_build_info,
+            commands::update::update_check,
+            commands::update::update_install,
             commands::character_mod::character_mod_list,
             commands::character_mod::character_mod_read_asset,
             commands::character_mod::character_mod_open_folder,

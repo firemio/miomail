@@ -29,6 +29,14 @@ export function SettingsModal() {
   const [debugStartPhase, setDebugStartPhase] = useState<MascotPhase>('egg')
   const [debugPoseIndex, setDebugPoseIndex] = useState(0)
   const [idleAutoPlay, setIdleAutoPlay] = useState(false)
+  const [updateState, setUpdateState] = useState<
+    | { phase: 'idle' }
+    | { phase: 'checking' }
+    | { phase: 'latest'; version: string }
+    | { phase: 'available'; version: string }
+    | { phase: 'installing' }
+    | { phase: 'error'; message: string }
+  >({ phase: 'idle' })
   const { closeSettings, openAccountSetup, openImport, themeId, setTheme } = useUIStore()
   const { selectedMascotId, selectMascot, bondByMascot, careByMascot, debugSetPhase, debugEvolveFrom } = useMascotStore()
   const {
@@ -75,6 +83,35 @@ export function SettingsModal() {
   const openImporter = () => {
     closeSettings()
     openImport()
+  }
+
+  const checkForUpdates = async () => {
+    setUpdateState({ phase: 'checking' })
+    try {
+      const status = await api.app.updateCheck()
+      if (status.available && status.latest_version) {
+        setUpdateState({ phase: 'available', version: status.latest_version })
+      } else {
+        setUpdateState({ phase: 'latest', version: status.current_version })
+      }
+    } catch (error) {
+      setUpdateState({
+        phase: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  const installUpdate = async () => {
+    setUpdateState({ phase: 'installing' })
+    try {
+      await api.app.updateInstall()
+    } catch (error) {
+      setUpdateState({
+        phase: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
   }
 
   const exportData = () => {
@@ -295,6 +332,23 @@ export function SettingsModal() {
             {section === 'data' && <div className="grid grid-cols-2 gap-4">
               <div className="rounded-[28px] border border-white/80 bg-white/72 p-6"><Database size={24} className="text-sumi-accent" /><h3 className="mt-4 text-lg font-semibold text-sumi-text">メールを取り込む</h3><p className="mt-2 text-xs leading-6 text-sumi-text-muted">OutlookのデータをMioMailへ移します。</p><button onClick={openImporter} className="mt-5 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white">インポートを開く</button></div>
               <div className="rounded-[28px] border border-white/80 bg-white/72 p-6"><Download size={24} className="text-sumi-accent" /><h3 className="mt-4 text-lg font-semibold text-sumi-text">設定を書き出す</h3><p className="mt-2 text-xs leading-6 text-sumi-text-muted">テーマや相棒の成長状態などのアプリ設定をJSONファイルとして保存します（メール本文はサーバーとローカルDBに保存されており、ここには含まれません）。</p><button onClick={exportData} className="mt-5 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white">JSONをエクスポート</button></div>
+              <div className="rounded-[28px] border border-white/80 bg-white/72 p-6">
+                <RefreshCw size={24} className="text-sumi-accent" />
+                <h3 className="mt-4 text-lg font-semibold text-sumi-text">アップデート</h3>
+                <p className="mt-2 text-xs leading-6 text-sumi-text-muted">
+                  {updateState.phase === 'checking' && '更新を確認しています…'}
+                  {updateState.phase === 'latest' && `お使いのバージョン（v${updateState.version}）は最新です。`}
+                  {updateState.phase === 'available' && `新しいバージョン v${updateState.version} が利用できます。更新するとダウンロード後に自動で再起動します。`}
+                  {updateState.phase === 'installing' && 'ダウンロード中… 完了すると自動で再起動します。'}
+                  {updateState.phase === 'error' && `更新の確認に失敗しました: ${updateState.message}`}
+                  {updateState.phase === 'idle' && '新しいバージョンが公開されているか確認します。起動時にも自動で確認されます。'}
+                </p>
+                {updateState.phase === 'available' ? (
+                  <button onClick={installUpdate} className="mt-5 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white">今すぐ更新</button>
+                ) : (
+                  <button onClick={checkForUpdates} disabled={updateState.phase === 'checking' || updateState.phase === 'installing' || !isTauriRuntime} className="mt-5 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">更新を確認</button>
+                )}
+              </div>
             </div>}
 
             {section === 'developer' && <div className="space-y-7">

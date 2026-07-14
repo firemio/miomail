@@ -10,6 +10,7 @@ import type {
   DemoMailEvent,
   OutlookFolder,
   OutlookMessage,
+  UpdateStatus,
 } from '../types'
 import type { CharacterModScanResult } from '../characters/types'
 import { mockApi } from './mockApi'
@@ -77,6 +78,8 @@ const appApi = isTauriRuntime
       showMainWindow: (): Promise<void> => invoke('app_show_main_window'),
       quit: (): Promise<void> => invoke('app_quit'),
       getBuildInfo: (): Promise<AppBuildInfo> => invoke('app_get_build_info'),
+      updateCheck: (): Promise<UpdateStatus> => invoke('update_check'),
+      updateInstall: (): Promise<void> => invoke('update_install'),
     }
   : mockApi.app
 

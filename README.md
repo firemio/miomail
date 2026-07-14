@@ -3,6 +3,20 @@
 Tauri 2 + React 製の IMAP/SMTP メールクライアント（Windows向け、日本語UI）。
 マスコット（相棒）システムとキャラクターMOD対応が特徴。
 
+## インストール
+
+[Releases](https://github.com/firemio/miomail/releases/latest) から
+`MioMail_x.y.z_x64-setup.exe` をダウンロードして実行してください。
+
+- 現在コード署名は行っていないため、Windows SmartScreen の警告が出る場合があります。
+  「詳細情報」→「実行」で続行できます
+- アプリは起動時に新バージョンを自動確認し、1クリックで更新できます
+  （更新パッケージは署名検証されます）。リリース手順は [docs/RELEASE.md](docs/RELEASE.md)
+
+## ライセンス
+
+[MIT](LICENSE)
+
 ## 構成
 
 | パス | 内容 |

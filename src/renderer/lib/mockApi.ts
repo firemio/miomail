@@ -855,5 +855,14 @@ export const mockApi = {
       commit: APP_COMMIT,
       runtime: 'preview',
     }),
+    updateCheck: async () => ({
+      available: false,
+      current_version: APP_VERSION,
+      latest_version: null,
+      notes: null,
+    }),
+    updateInstall: async (): Promise<void> => {
+      throw new Error('自動アップデートはデスクトップ版で利用できます')
+    },
   },
 }

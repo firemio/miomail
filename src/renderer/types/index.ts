@@ -108,6 +108,13 @@ export interface DemoMailEvent {
   unread_count: number
 }
 
+export interface UpdateStatus {
+  available: boolean
+  current_version: string
+  latest_version: string | null
+  notes: string | null
+}
+
 export interface AppBuildInfo {
   version: string
   buildId: string

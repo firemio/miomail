@@ -12,6 +12,7 @@ import { MessageList } from './components/layout/MessageList'
 import { MessageView } from './components/layout/MessageView'
 import { Sidebar } from './components/layout/Sidebar'
 import { TitleBar } from './components/layout/TitleBar'
+import { UpdateBanner } from './components/layout/UpdateBanner'
 import { WelcomeOnboarding } from './components/onboarding/WelcomeOnboarding'
 import { SettingsModal } from './components/settings/SettingsModal'
 import { getDefaultThemeId, parseThemeId } from './lib/theme'
@@ -175,6 +176,7 @@ export default function App() {
           </div>
         </div>
 
+        <UpdateBanner />
         {showAccountSetup && <AccountSetup />}
         {showImport && <ImportDialog />}
         {showSettings && <SettingsModal />}
