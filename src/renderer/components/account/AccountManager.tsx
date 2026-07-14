@@ -4,38 +4,93 @@ import { api } from '../../lib/ipc'
 import { useMailStore } from '../../stores/mailStore'
 import type { Account, AccountInput } from '../../types'
 
-export const ACCOUNT_PRESETS: Record<string, Partial<AccountInput>> = {
+interface AccountPreset {
+  label: string
+  /** ホスト名が契約ごとに異なる場合の注意書き */
+  hint?: string
+  values: Partial<AccountInput>
+}
+
+export const ACCOUNT_PRESETS: Record<string, AccountPreset> = {
   gmail: {
-    imap_host: 'imap.gmail.com',
-    imap_port: 993,
-    imap_tls: true,
-    smtp_host: 'smtp.gmail.com',
-    smtp_port: 587,
-    smtp_tls: false,
+    label: 'Gmail',
+    values: {
+      imap_host: 'imap.gmail.com',
+      imap_port: 993,
+      imap_tls: true,
+      smtp_host: 'smtp.gmail.com',
+      smtp_port: 587,
+      smtp_tls: false,
+    },
   },
   outlook: {
-    imap_host: 'imap-mail.outlook.com',
-    imap_port: 993,
-    imap_tls: true,
-    smtp_host: 'smtp-mail.outlook.com',
-    smtp_port: 587,
-    smtp_tls: false,
+    label: 'Outlook',
+    values: {
+      imap_host: 'imap-mail.outlook.com',
+      imap_port: 993,
+      imap_tls: true,
+      smtp_host: 'smtp-mail.outlook.com',
+      smtp_port: 587,
+      smtp_tls: false,
+    },
   },
   yahoo: {
-    imap_host: 'imap.mail.yahoo.co.jp',
-    imap_port: 993,
-    imap_tls: true,
-    smtp_host: 'smtp.mail.yahoo.co.jp',
-    smtp_port: 465,
-    smtp_tls: true,
+    label: 'Yahoo!メール',
+    values: {
+      imap_host: 'imap.mail.yahoo.co.jp',
+      imap_port: 993,
+      imap_tls: true,
+      smtp_host: 'smtp.mail.yahoo.co.jp',
+      smtp_port: 465,
+      smtp_tls: true,
+    },
   },
   lolipop: {
-    imap_host: 'imap.lolipop.jp',
-    imap_port: 993,
-    imap_tls: true,
-    smtp_host: 'smtp.lolipop.jp',
-    smtp_port: 465,
-    smtp_tls: true,
+    label: 'ロリポップ',
+    values: {
+      imap_host: 'imap.lolipop.jp',
+      imap_port: 993,
+      imap_tls: true,
+      smtp_host: 'smtp.lolipop.jp',
+      smtp_port: 465,
+      smtp_tls: true,
+    },
+  },
+  xserver: {
+    label: 'エックスサーバー',
+    hint: 'ホスト名のsvXXXXは契約サーバー番号(例: sv1234)に置き換えてください。',
+    values: {
+      imap_host: 'svXXXX.xserver.jp',
+      imap_port: 993,
+      imap_tls: true,
+      smtp_host: 'svXXXX.xserver.jp',
+      smtp_port: 465,
+      smtp_tls: true,
+    },
+  },
+  sakura: {
+    label: 'さくらのレンタルサーバ',
+    hint: 'ホスト名は契約時の初期ドメイン(例: example.sakura.ne.jp)に置き換えてください。',
+    values: {
+      imap_host: 'XXXX.sakura.ne.jp',
+      imap_port: 993,
+      imap_tls: true,
+      smtp_host: 'XXXX.sakura.ne.jp',
+      smtp_port: 587,
+      smtp_tls: false,
+    },
+  },
+  conoha: {
+    label: 'ConoHa WING',
+    hint: 'ホスト名はコントロールパネルの「メールサーバー名」(例: mail01.conoha.ne.jp)に置き換えてください。',
+    values: {
+      imap_host: 'mailXX.conoha.ne.jp',
+      imap_port: 993,
+      imap_tls: true,
+      smtp_host: 'mailXX.conoha.ne.jp',
+      smtp_port: 465,
+      smtp_tls: true,
+    },
   },
 }
 
@@ -88,10 +143,13 @@ export function AccountManager({ onClose }: AccountManagerProps) {
     setError(null)
   }
 
+  const [presetHint, setPresetHint] = useState<string | null>(null)
+
   const applyPreset = (key: string) => {
     const preset = ACCOUNT_PRESETS[key]
     if (preset) {
-      setForm((prev) => ({ ...prev, ...preset }))
+      setForm((prev) => ({ ...prev, ...preset.values }))
+      setPresetHint(preset.hint ?? null)
     }
   }
 
@@ -309,16 +367,21 @@ export function AccountManager({ onClose }: AccountManagerProps) {
             <div>
               <label className="mb-1.5 block text-[11px] text-sumi-text-muted">プリセット</label>
               <div className="flex flex-wrap gap-2">
-                {Object.keys(ACCOUNT_PRESETS).map((key) => (
+                {Object.entries(ACCOUNT_PRESETS).map(([key, preset]) => (
                   <button
                     key={key}
                     onClick={() => applyPreset(key)}
-                    className="h-9 rounded-full border border-white/80 bg-white/75 px-4 text-[11px] font-semibold capitalize text-sumi-text-muted transition hover:border-sumi-accent/40 hover:text-sumi-text"
+                    className="h-9 rounded-full border border-white/80 bg-white/75 px-4 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/40 hover:text-sumi-text"
                   >
-                    {key}
+                    {preset.label}
                   </button>
                 ))}
               </div>
+              {presetHint && (
+                <p className="mt-2 rounded-xl bg-sumi-surface/70 px-3 py-2 text-[11px] leading-5 text-sumi-text-muted">
+                  {presetHint}
+                </p>
+              )}
             </div>
 
             <div className="space-y-3">
