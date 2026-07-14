@@ -24,7 +24,8 @@ MioMail は GitHub Releases で配布し、Tauri updater が
    ```
 3. 署名付きでビルド:
    ```powershell
-   $env:TAURI_SIGNING_PRIVATE_KEY_PATH="$env:USERPROFILE\.tauri\miomail.key"
+   # 注意: _PATH 変数は読まれない。鍵の中身を渡すこと
+   $env:TAURI_SIGNING_PRIVATE_KEY=(Get-Content "$env:USERPROFILE\.tauri\miomail.key" -Raw)
    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
    npm run tauri build
    ```
@@ -61,7 +62,7 @@ MioMail は GitHub Releases で配布し、Tauri updater が
    （未対応バージョンはクラッシュせず issues として報告される設計になっている）
 3. **SQLiteスキーマの変更は必ず `db.rs` の `migrate()` に追加**（旧DBからの自動移行。
    カラム削除や型変更ではなく、カラム追加＋後方互換の形にする）
-4. `deleteAppDataOnUninstall` は `false` のまま維持（アンインストール時もデータを残す）
+4. アンインストール時のデータ削除は NSIS アンインストーラーのチェックボックス（デフォルトOFF＝データ保持）に任せる。設定で強制削除にしない
 5. localStorage のキー名（`miomail-*`）を変える場合は旧キーからの移行コードを入れる
 
 ## 注意
