@@ -13,6 +13,15 @@ use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
+        // 多重起動を防止。2つ目の起動要求時は既存ウィンドウを前面に出す。
+        // 他プラグインより先に登録すること(公式ドキュメントの推奨)。
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .manage(commands::character_mod::CharacterModRegistry::default())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
