@@ -553,10 +553,15 @@ body[data-theme='sakura-noir'] .bg-sumi-accent-strong.text-white {
 @layer utilities {
   .drag-region {
     -webkit-app-region: drag;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: default;
   }
 
   .no-drag {
     -webkit-app-region: no-drag;
+    -webkit-user-select: auto;
+    user-select: auto;
   }
 }
 

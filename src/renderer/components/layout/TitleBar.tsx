@@ -48,14 +48,14 @@ export function TitleBar() {
 
   return (
     <div className="drag-region flex h-[78px] shrink-0 items-center justify-between gap-4 px-5">
-      <div className="no-drag flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <div className="px-1">
           <p className="font-display text-[22px] font-semibold tracking-[-0.03em] text-sumi-text">MioMail</p>
         </div>
       </div>
 
-      <div className="mx-2 flex min-w-0 flex-1 justify-center no-drag">
-        <label className="glass-panel flex h-12 w-full max-w-xl items-center gap-3 rounded-full px-4 shadow-[0_18px_35px_rgba(255,229,221,0.95)]">
+      <div className="mx-2 flex min-w-0 flex-1 justify-center">
+        <label className="no-drag glass-panel flex h-12 w-full max-w-xl items-center gap-3 rounded-full px-4 shadow-[0_18px_35px_rgba(255,229,221,0.95)]">
           <Search size={16} className="text-sumi-accent" />
           <input
             type="text"
@@ -68,7 +68,7 @@ export function TitleBar() {
         </label>
       </div>
 
-      <div className="no-drag flex items-center gap-2">
+      <div className="flex items-center gap-2">
         {summonEvent && (
           <div className="hidden max-w-[320px] rounded-[22px] border border-white/75 bg-white/85 px-4 py-3 text-[11px] leading-5 text-sumi-text-muted shadow-[0_18px_45px_rgba(255,210,210,0.35)] xl:block">
             <span className="font-semibold text-sumi-text">{selectedMascot.name}</span>
@@ -79,7 +79,7 @@ export function TitleBar() {
         <button
           data-testid="settings-button"
           onClick={openSettings}
-          className="flex h-11 w-11 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted shadow-[0_10px_25px_rgba(255,255,255,0.65)] transition hover:-translate-y-0.5 hover:text-sumi-text"
+          className="no-drag flex h-11 w-11 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted shadow-[0_10px_25px_rgba(255,255,255,0.65)] transition hover:-translate-y-0.5 hover:text-sumi-text"
           title="設定"
           aria-label="設定を開く"
         >
@@ -89,7 +89,7 @@ export function TitleBar() {
         <button
           data-testid="title-compose-button"
           onClick={handleCompose}
-          className="rounded-full bg-sumi-accent px-4 py-2 text-xs font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:-translate-y-0.5 hover:bg-sumi-accent-strong"
+          className="no-drag rounded-full bg-sumi-accent px-4 py-2 text-xs font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:-translate-y-0.5 hover:bg-sumi-accent-strong"
           title="新規メール"
         >
           作成
@@ -99,13 +99,15 @@ export function TitleBar() {
 
         <button
           onClick={() => api.app.minimize()}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text"
+          aria-label="最小化"
+          className="no-drag flex h-10 w-10 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text"
         >
           <Minus size={14} />
         </button>
         <button
           onClick={() => api.app.maximize()}
-          className={`flex h-10 w-10 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text ${
+          aria-label="最大化"
+          className={`no-drag flex h-10 w-10 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text ${
             isMaximized ? 'text-sumi-accent' : ''
           }`}
         >
@@ -113,7 +115,8 @@ export function TitleBar() {
         </button>
         <button
           onClick={() => api.app.close()}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+          aria-label="閉じる"
+          className="no-drag flex h-10 w-10 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
         >
           <X size={14} />
         </button>
