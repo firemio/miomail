@@ -524,6 +524,66 @@ pub fn start_background_sync(app: AppHandle) {
     });
 }
 
+/// MCPサーバー(別プロセス)がapp_eventsキューへ入れたイベントを拾い、
+/// フロントへ転送してマスコットの配達アニメーションなどに反映する。
+pub fn start_mcp_event_bridge(app: AppHandle) {
+    use tauri::Emitter;
+
+    tauri::async_runtime::spawn(async move {
+        // アプリ起動前に溜まったイベントは演出しても意味がないので黙って消化する
+        {
+            let db = app.state::<DbState>();
+            let lock = db.conn.lock();
+            if let Ok(conn) = lock {
+                let _ = conn.execute("UPDATE app_events SET consumed = 1 WHERE consumed = 0", []);
+            }
+        }
+
+        loop {
+            sleep(Duration::from_secs(2)).await;
+
+            let events: Vec<(i64, String, String)> = {
+                let db = app.state::<DbState>();
+                let Ok(conn) = db.conn.lock() else { continue };
+                let Ok(mut stmt) = conn.prepare(
+                    "SELECT id, event_type, COALESCE(payload, '') FROM app_events
+                     WHERE consumed = 0 ORDER BY id LIMIT 20",
+                ) else {
+                    continue;
+                };
+                stmt.query_map([], |row| {
+                    Ok((row.get(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                })
+                .map(|rows| rows.filter_map(Result::ok).collect())
+                .unwrap_or_default()
+            };
+
+            if events.is_empty() {
+                continue;
+            }
+
+            for (_, event_type, payload) in &events {
+                if event_type == "mcp_mail_sent" {
+                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) {
+                        let _ = app.emit("miomail://mcp-mail-sent", value);
+                    }
+                }
+            }
+
+            let max_id = events.iter().map(|(id, _, _)| *id).max().unwrap_or(0);
+            let db = app.state::<DbState>();
+            let lock = db.conn.lock();
+            if let Ok(conn) = lock {
+                let _ = conn.execute("UPDATE app_events SET consumed = 1 WHERE id <= ?1", [max_id]);
+                let _ = conn.execute(
+                    "DELETE FROM app_events WHERE consumed = 1 AND created_ts < strftime('%s','now') - 86400",
+                    [],
+                );
+            }
+        }
+    });
+}
+
 #[tauri::command]
 pub async fn mail_sync_messages(
     app: AppHandle,

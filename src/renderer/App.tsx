@@ -83,6 +83,11 @@ export default function App() {
         gainBond(1)
         await handleIncomingMail(event.payload.message.folder_id)
       }),
+      // MCPサーバー(AIエージェント)経由の送信でも配達アニメーションを出す
+      listen<{ to?: string; subject?: string }>('miomail://mcp-mail-sent', (event) => {
+        notifySentMail(event.payload.to ?? '', event.payload.subject ?? '')
+        gainBond(1)
+      }),
     ]
 
     return () => {
@@ -91,7 +96,7 @@ export default function App() {
         unlisten()
       })
     }
-  }, [gainBond, handleIncomingMail, notifyIncomingMail])
+  }, [gainBond, handleIncomingMail, notifyIncomingMail, notifySentMail])
 
   useEffect(() => {
     const listener = async (event: Event) => {

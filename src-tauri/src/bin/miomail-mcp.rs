@@ -464,6 +464,18 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
             };
 
             mail_core::send_and_record(db, compose).await?;
+
+            // アプリが起動中ならマスコットの配達アニメーションを出せるよう、
+            // イベントキューに記録する(失敗しても送信自体は成功扱い)
+            if let Ok(conn) = db.conn.lock() {
+                let payload = json!({ "to": to, "subject": subject }).to_string();
+                let _ = conn.execute(
+                    "INSERT INTO app_events (event_type, payload, created_ts, consumed)
+                     VALUES ('mcp_mail_sent', ?1, strftime('%s','now'), 0)",
+                    rusqlite::params![payload],
+                );
+            }
+
             Ok(json!({ "sent": true, "from": from, "to": to, "subject": subject }))
         }
 

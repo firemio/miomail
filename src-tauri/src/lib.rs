@@ -35,6 +35,7 @@ pub fn run() {
             tray::setup_tray(app.handle())?;
             tray::update_tray_tooltip(app.handle(), 0);
             commands::mail::start_background_sync(app.handle().clone());
+            commands::mail::start_mcp_event_bridge(app.handle().clone());
 
             let window = app.get_webview_window("main").unwrap();
             window.show().unwrap();

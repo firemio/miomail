@@ -149,6 +149,18 @@ fn migrate(conn: &Connection) -> Result<()> {
          CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);",
     )?;
 
+    // v4: MCPサーバー等の別プロセスからアプリへイベントを渡すキュー
+    // (例: MCP経由の送信をマスコットの配達アニメーションに反映する)
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS app_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,
+            payload TEXT,
+            created_ts INTEGER NOT NULL,
+            consumed INTEGER NOT NULL DEFAULT 0
+        );",
+    )?;
+
     // v3: track whether attachments were extracted for a cached body, so
     // bodies cached before attachment support get re-fetched once
     if !column_exists(conn, "message_bodies", "attachments_synced") {
