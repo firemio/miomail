@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { type ThemeId } from '../data/themes'
-import { loadOnboardingComplete, persistOnboardingComplete } from '../lib/onboarding'
 import { loadThemeId, persistThemeId } from '../lib/theme'
 
 export type ComposeMode = 'new' | 'reply' | 'forward'
@@ -87,7 +86,6 @@ interface OpenComposeOptions {
 }
 
 interface UIState {
-  showOnboarding: boolean
   showSettings: boolean
   showAccountSetup: boolean
   showImport: boolean
@@ -96,7 +94,6 @@ interface UIState {
   composeDrafts: ComposeDraft[]
   activeDockedComposeId: string | null
   zCounter: number
-  completeOnboarding: () => void
   openSettings: () => void
   closeSettings: () => void
   setTheme: (themeId: ThemeId) => void
@@ -215,7 +212,6 @@ const initialComposeState = loadComposeState()
 const initialZCounter = Math.max(20, ...initialComposeState.drafts.map((draft) => draft.zIndex || 20))
 
 export const useUIStore = create<UIState>((set, get) => ({
-  showOnboarding: !loadOnboardingComplete(),
   showSettings: false,
   showAccountSetup: false,
   showImport: false,
@@ -224,11 +220,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   composeDrafts: initialComposeState.drafts,
   activeDockedComposeId: initialComposeState.activeDockedComposeId,
   zCounter: initialZCounter,
-
-  completeOnboarding: () => {
-    persistOnboardingComplete()
-    set({ showOnboarding: false })
-  },
 
   openSettings: () => set({ showSettings: true }),
   closeSettings: () => set({ showSettings: false }),

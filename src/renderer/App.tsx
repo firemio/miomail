@@ -13,14 +13,11 @@ import { MessageView } from './components/layout/MessageView'
 import { Sidebar } from './components/layout/Sidebar'
 import { TitleBar } from './components/layout/TitleBar'
 import { UpdateBanner } from './components/layout/UpdateBanner'
-import { WelcomeOnboarding } from './components/onboarding/WelcomeOnboarding'
 import { SettingsModal } from './components/settings/SettingsModal'
-import { getDefaultThemeId, parseThemeId } from './lib/theme'
 import { useMailStore } from './stores/mailStore'
 import { useMascotStore } from './stores/mascotStore'
 import { useCharacterStore } from './stores/characterStore'
 import { useUIStore } from './stores/uiStore'
-import type { MascotId } from './data/mascots'
 
 const isTauriRuntime =
   typeof window !== 'undefined' &&
@@ -38,16 +35,11 @@ export default function App() {
     openAccountSetup,
     composeDrafts,
     themeId,
-    setTheme,
-    showOnboarding,
-    completeOnboarding,
   } = useUIStore()
   const hasComposeDraft = composeDrafts.length > 0
   const { packages: characterPackages, selectedModId, refreshMods } = useCharacterStore()
-  const [draftMascotId, setDraftMascotId] = useState<MascotId>(selectedMascotId)
-  const [draftThemeId, setDraftThemeId] = useState(themeId)
   const [sentDelivery, setSentDelivery] = useState<SentDeliveryHandoff | null>(null)
-  const activeThemeId = showOnboarding ? draftThemeId : themeId
+  const activeThemeId = themeId
 
   const completeSentDeliveryHandoff = useCallback((key: number) => {
     setSentDelivery((current) => current?.key === key ? null : current)
@@ -69,30 +61,16 @@ export default function App() {
     document.body.dataset.theme = activeThemeId
   }, [activeThemeId])
 
-  useEffect(() => {
-    if (!showOnboarding) return
-    setDraftMascotId(selectedMascotId)
-    setDraftThemeId(themeId || getDefaultThemeId())
-  }, [selectedMascotId, showOnboarding, themeId])
-
+  // First run: go straight to account setup (the one required step). Mascot
+  // and theme keep their defaults and are customizable in Settings anytime.
   useEffect(() => {
     loadAccounts().then(() => {
       const { accounts } = useMailStore.getState()
-      if (accounts.length === 0 && !useUIStore.getState().showOnboarding) {
+      if (accounts.length === 0) {
         openAccountSetup()
       }
     })
   }, [loadAccounts, openAccountSetup])
-
-  const handleCompleteOnboarding = () => {
-    selectMascot(draftMascotId)
-    setTheme(parseThemeId(draftThemeId))
-    completeOnboarding()
-    const { accounts } = useMailStore.getState()
-    if (accounts.length === 0) {
-      openAccountSetup()
-    }
-  }
 
   useEffect(() => {
     if (!isTauriRuntime) {
@@ -186,15 +164,6 @@ export default function App() {
         />
         <CourierDeliveryOverlay onSentDeliveryChange={setSentDelivery} />
         <EvolutionCelebrationOverlay />
-        {showOnboarding && (
-          <WelcomeOnboarding
-            selectedMascotId={draftMascotId}
-            themeId={draftThemeId}
-            onSelectMascot={setDraftMascotId}
-            onSelectTheme={setDraftThemeId}
-            onContinue={handleCompleteOnboarding}
-          />
-        )}
       </div>
     </div>
   )
