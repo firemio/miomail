@@ -9,6 +9,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { useCharacterStore } from '../../stores/characterStore'
 import { MascotRenderer } from '../characters/MascotRenderer'
 import { ModThumbnail } from '../characters/ModThumbnail'
+import { AccountManager } from '../account/AccountManager'
 
 type SettingsSection = 'appearance' | 'mail' | 'data' | 'developer'
 
@@ -37,7 +38,7 @@ export function SettingsModal() {
     | { phase: 'installing' }
     | { phase: 'error'; message: string }
   >({ phase: 'idle' })
-  const { closeSettings, openAccountSetup, openImport, themeId, setTheme } = useUIStore()
+  const { closeSettings, openImport, themeId, setTheme } = useUIStore()
   const { selectedMascotId, selectMascot, bondByMascot, careByMascot, debugSetPhase, debugEvolveFrom } = useMascotStore()
   const {
     builtinRenderer,
@@ -74,11 +75,6 @@ export function SettingsModal() {
     }, MASCOT_IDLE_MOTION_DURATIONS[debugPoseIndex])
     return () => window.clearTimeout(timer)
   }, [debugPoseIndex, idleAutoPlay, section])
-
-  const openAccountSettings = () => {
-    closeSettings()
-    openAccountSetup()
-  }
 
   const openImporter = () => {
     closeSettings()
@@ -327,7 +323,11 @@ export function SettingsModal() {
               </div>
             )}
 
-            {section === 'mail' && <div className="rounded-[28px] border border-white/80 bg-white/72 p-6"><Mail size={24} className="text-sumi-accent" /><h3 className="mt-4 text-xl font-semibold text-sumi-text">メールアカウント</h3><p className="mt-2 max-w-xl text-sm leading-7 text-sumi-text-muted">IMAP・SMTP、表示名、接続テスト、アカウントの追加と削除を管理します。</p><button onClick={openAccountSettings} className="mt-6 rounded-full bg-sumi-accent px-5 py-3 text-sm font-semibold text-white">アカウント設定を開く</button></div>}
+            {section === 'mail' && (
+              <div className="h-full overflow-hidden rounded-[28px] border border-white/80 bg-white/60">
+                <AccountManager />
+              </div>
+            )}
 
             {section === 'data' && <div className="grid grid-cols-2 gap-4">
               <div className="rounded-[28px] border border-white/80 bg-white/72 p-6"><Database size={24} className="text-sumi-accent" /><h3 className="mt-4 text-lg font-semibold text-sumi-text">メールを取り込む</h3><p className="mt-2 text-xs leading-6 text-sumi-text-muted">OutlookのデータをMioMailへ移します。</p><button onClick={openImporter} className="mt-5 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white">インポートを開く</button></div>
