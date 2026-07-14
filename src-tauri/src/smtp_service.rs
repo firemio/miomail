@@ -144,3 +144,68 @@ pub async fn send(config: &SmtpConfig, data: &ComposeData) -> Result<Vec<u8>> {
     transport.send(email).await?;
     Ok(raw)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn base_data() -> ComposeData {
+        ComposeData {
+            from: "Makko <makko@example.com>".to_string(),
+            to: "a@example.com, Bee <b@example.com>".to_string(),
+            cc: Some("c@example.com".to_string()),
+            subject: "テスト件名".to_string(),
+            html: "<p>こんにちは &amp; さようなら</p>".to_string(),
+            text: Some("こんにちは & さようなら".to_string()),
+            in_reply_to: Some("<parent-123@example.com>".to_string()),
+            references: Some("<root-1@example.com> <parent-123@example.com>".to_string()),
+        }
+    }
+
+    #[test]
+    fn build_message_supports_multiple_recipients_cc_and_threading() {
+        let email = build_message(&base_data()).expect("message should build");
+        let raw = String::from_utf8_lossy(&email.formatted()).to_string();
+
+        assert!(raw.contains("a@example.com"), "first To recipient missing");
+        assert!(raw.contains("b@example.com"), "second To recipient missing");
+        assert!(raw.contains("Cc:"), "Cc header missing");
+        assert!(raw.contains("c@example.com"), "Cc recipient missing");
+        assert!(
+            raw.contains("In-Reply-To: <parent-123@example.com>"),
+            "In-Reply-To header missing"
+        );
+        assert!(raw.contains("References:"), "References header missing");
+        assert!(
+            raw.contains("multipart/alternative"),
+            "should send text + html alternative"
+        );
+        assert!(raw.contains("text/plain"), "plain part missing");
+        assert!(raw.contains("text/html"), "html part missing");
+    }
+
+    #[test]
+    fn build_message_rejects_invalid_recipients() {
+        let mut data = base_data();
+        data.to = "not-an-address".to_string();
+        assert!(build_message(&data).is_err());
+    }
+
+    #[test]
+    fn build_message_derives_text_from_html_when_missing() {
+        let mut data = base_data();
+        data.text = None;
+        data.html = "<p>hello<br>world &amp; more</p>".to_string();
+        let email = build_message(&data).expect("message should build");
+        let raw = String::from_utf8_lossy(&email.formatted()).to_string();
+        assert!(raw.contains("multipart/alternative"));
+    }
+
+    #[test]
+    fn html_fallback_strips_tags_and_entities() {
+        let text = html_to_fallback_text("<p>hello<br>world &amp; <b>more</b></p>");
+        assert!(text.contains("hello"));
+        assert!(text.contains("world & more"));
+        assert!(!text.contains('<'));
+    }
+}

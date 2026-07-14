@@ -221,3 +221,73 @@ pub fn parse_date_to_timestamp(date: &str) -> i64 {
 fn dirs_next_appdata() -> Option<PathBuf> {
     std::env::var("APPDATA").ok().map(PathBuf::from)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_flag_converts_debug_format() {
+        assert_eq!(normalize_flag("Seen"), "\\Seen");
+        assert_eq!(normalize_flag("Answered"), "\\Answered");
+        assert_eq!(normalize_flag("Custom(\"NonJunk\")"), "NonJunk");
+        // Already-canonical flags pass through untouched
+        assert_eq!(normalize_flag("\\Seen"), "\\Seen");
+        assert_eq!(normalize_flag("NonJunk"), "NonJunk");
+    }
+
+    #[test]
+    fn parse_date_to_timestamp_handles_rfc2822() {
+        let ts = parse_date_to_timestamp("Mon, 14 Jul 2025 12:00:00 +0900");
+        assert_eq!(ts, 1752462000);
+        assert_eq!(parse_date_to_timestamp("garbage"), 0);
+        assert_eq!(parse_date_to_timestamp(""), 0);
+    }
+
+    #[test]
+    fn rfc2047_japanese_subject_is_decoded() {
+        // "テスト件名" base64-encoded as an RFC2047 encoded word
+        let header = "Subject: =?UTF-8?B?44OG44K544OI5Lu25ZCN?=\r\nFrom: =?UTF-8?B?5bGx55Sw?= <yamada@example.com>\r\n\r\n";
+        let parsed = mail_parser::MessageParser::default()
+            .parse(header.as_bytes())
+            .expect("header block should parse");
+        assert_eq!(parsed.subject(), Some("テスト件名"));
+        let from = parsed.from().and_then(|a| a.first()).expect("from address");
+        assert_eq!(from.name.as_deref(), Some("山田"));
+        assert_eq!(from.address.as_deref(), Some("yamada@example.com"));
+    }
+
+    #[test]
+    fn migration_adds_date_ts_and_normalizes_flags() {
+        let dir = std::env::temp_dir().join(format!("miomail-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("migrate.db");
+        std::fs::remove_file(&path).ok();
+
+        // Simulate a legacy database: no date_ts column, Debug-format flags
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL);
+                 CREATE TABLE folders (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, path TEXT NOT NULL, name TEXT NOT NULL, delimiter TEXT, flags TEXT, unread_count INTEGER DEFAULT 0, total_count INTEGER DEFAULT 0, UNIQUE(account_id, path));
+                 CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, folder_id INTEGER, uid INTEGER, message_id TEXT, subject TEXT, from_address TEXT, to_addresses TEXT, cc_addresses TEXT, date TEXT, flags TEXT, snippet TEXT, has_attachments INTEGER DEFAULT 0, UNIQUE(account_id, folder_id, uid));
+                 CREATE TABLE message_bodies (message_id INTEGER PRIMARY KEY, html_body TEXT, text_body TEXT);
+                 INSERT INTO messages (account_id, folder_id, uid, subject, date, flags) VALUES (1, 1, 10, 'old', 'Mon, 14 Jul 2025 12:00:00 +0900', '[\"Seen\",\"Custom(\\\"NonJunk\\\")\"]');",
+            )
+            .unwrap();
+        }
+
+        let conn = open_connection(&path).unwrap();
+        let (date_ts, flags): (i64, String) = conn
+            .query_row("SELECT date_ts, flags FROM messages WHERE uid = 10", [], |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(date_ts, 1752462000);
+        let flags: Vec<String> = serde_json::from_str(&flags).unwrap();
+        assert_eq!(flags, vec!["\\Seen".to_string(), "NonJunk".to_string()]);
+
+        drop(conn);
+        std::fs::remove_file(&path).ok();
+    }
+}
