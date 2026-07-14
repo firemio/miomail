@@ -567,6 +567,82 @@ body[data-theme='amber-command'] .bg-sumi-accent[class*='shadow-[0_'] {
   box-shadow: 0 14px 30px rgb(var(--sumi-accent) / 0.28) !important;
 }
 
+/*
+ * ポップアップ・通知バナー類(下書き削除ポップオーバー、アップデートバナー、
+ * 警告ストリップなど)はライトテーマの色が直書きされているため、
+ * ダークテーマでは属性セレクタで一括補正する。
+ */
+body[data-theme='sakura-noir'] { --danger: 236 86 130; }
+body[data-theme='terminal-hacker'] { --danger: 255 95 86; }
+body[data-theme='amber-command'] { --danger: 226 92 62; }
+
+/* 明色サーフェス(ポップオーバー/バナー/警告ストリップ)をコントロール背景へ */
+body[data-theme='sakura-noir'] [class*='bg-[#fffaf7]'],
+body[data-theme='terminal-hacker'] [class*='bg-[#fffaf7]'],
+body[data-theme='amber-command'] [class*='bg-[#fffaf7]'],
+body[data-theme='sakura-noir'] [class*='bg-[#fff2dc]'],
+body[data-theme='terminal-hacker'] [class*='bg-[#fff2dc]'],
+body[data-theme='amber-command'] [class*='bg-[#fff2dc]'],
+body[data-theme='sakura-noir'] [class*='bg-[#fff0ed]'],
+body[data-theme='terminal-hacker'] [class*='bg-[#fff0ed]'],
+body[data-theme='amber-command'] [class*='bg-[#fff0ed]'],
+body[data-theme='sakura-noir'] [class*='bg-amber-50'],
+body[data-theme='terminal-hacker'] [class*='bg-amber-50'],
+body[data-theme='amber-command'] [class*='bg-amber-50'],
+body[data-theme='sakura-noir'] [class*='bg-red-50/'],
+body[data-theme='terminal-hacker'] [class*='bg-red-50/'],
+body[data-theme='amber-command'] [class*='bg-red-50/'] {
+  background-color: rgb(var(--control-bg) / 0.96);
+}
+
+/* 警告・エラーストリップの文字色を読める明るさへ */
+body[data-theme='sakura-noir'] [class*='text-amber-9'],
+body[data-theme='terminal-hacker'] [class*='text-amber-9'],
+body[data-theme='amber-command'] [class*='text-amber-9'],
+body[data-theme='sakura-noir'] [class*='text-amber-8'],
+body[data-theme='terminal-hacker'] [class*='text-amber-8'],
+body[data-theme='amber-command'] [class*='text-amber-8'],
+body[data-theme='sakura-noir'] [class*='text-[#98632d]'],
+body[data-theme='terminal-hacker'] [class*='text-[#98632d]'],
+body[data-theme='amber-command'] [class*='text-[#98632d]'] {
+  color: rgb(245 205 140);
+}
+
+body[data-theme='sakura-noir'] [class*='text-[#a9554a]'],
+body[data-theme='terminal-hacker'] [class*='text-[#a9554a]'],
+body[data-theme='amber-command'] [class*='text-[#a9554a]'] {
+  color: rgb(242 153 141);
+}
+
+/* 明色ボーダーをテーマボーダーへ */
+body[data-theme='sakura-noir'] [class*='border-amber-'],
+body[data-theme='terminal-hacker'] [class*='border-amber-'],
+body[data-theme='amber-command'] [class*='border-amber-'],
+body[data-theme='sakura-noir'] [class*='border-[#e7b674]'],
+body[data-theme='terminal-hacker'] [class*='border-[#e7b674]'],
+body[data-theme='amber-command'] [class*='border-[#e7b674]'],
+body[data-theme='sakura-noir'] [class*='border-[#efb1a7]'],
+body[data-theme='terminal-hacker'] [class*='border-[#efb1a7]'],
+body[data-theme='amber-command'] [class*='border-[#efb1a7]'],
+body[data-theme='sakura-noir'] [class*='border-red-100'],
+body[data-theme='terminal-hacker'] [class*='border-red-100'],
+body[data-theme='amber-command'] [class*='border-red-100'] {
+  border-color: rgb(var(--sumi-border) / 0.9);
+}
+
+/* 破壊的アクションのボタン(サーモン系の直書き)をテーマに合う危険色へ */
+body[data-theme='sakura-noir'] [class*='bg-[#e77865]'],
+body[data-theme='terminal-hacker'] [class*='bg-[#e77865]'],
+body[data-theme='amber-command'] [class*='bg-[#e77865]'],
+body[data-theme='sakura-noir'] [class*='bg-[#f58b76]'],
+body[data-theme='terminal-hacker'] [class*='bg-[#f58b76]'],
+body[data-theme='amber-command'] [class*='bg-[#f58b76]'],
+body[data-theme='sakura-noir'] [class*='bg-[#d96f5d]'],
+body[data-theme='terminal-hacker'] [class*='bg-[#d96f5d]'],
+body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
+  background-color: rgb(var(--danger)) !important;
+}
+
 @layer utilities {
   .drag-region {
     -webkit-app-region: drag;
