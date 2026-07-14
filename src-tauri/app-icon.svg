@@ -1,0 +1,51 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="512" y1="96" x2="512" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE1EC"/>
+      <stop offset="1" stop-color="#FF9FBB"/>
+    </linearGradient>
+    <linearGradient id="flap" x1="512" y1="360" x2="512" y2="600" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FF9DB8"/>
+      <stop offset="1" stop-color="#FB7C9E"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="512" y1="330" x2="512" y2="720" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#FFF3F7"/>
+    </linearGradient>
+  </defs>
+
+  <!-- rounded-square background -->
+  <rect x="96" y="96" width="832" height="832" rx="236" fill="url(#bg)"/>
+  <!-- soft top highlight -->
+  <rect x="96" y="96" width="832" height="416" rx="236" fill="#FFFFFF" opacity="0.14"/>
+
+  <!-- drop shadow under the envelope -->
+  <rect x="228" y="356" width="568" height="392" rx="60" fill="#D65E7E" opacity="0.22"/>
+
+  <!-- envelope body (white letter) -->
+  <rect x="212" y="332" width="600" height="392" rx="60" fill="url(#paper)"/>
+
+  <!-- bottom fold lines -->
+  <path d="M232 700 L486 512 Q512 493 538 512 L792 700" stroke="#FBD3DE" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.85"/>
+
+  <!-- opened flap -->
+  <path d="M212 392 Q212 332 272 332 L752 332 Q812 332 812 392 L546 566 Q512 590 478 566 Z" fill="url(#flap)"/>
+  <!-- flap inner edge highlight -->
+  <path d="M244 372 L500 540 Q512 548 524 540 L780 372" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.55"/>
+
+  <!-- heart seal -->
+  <path d="M512 590
+           C500 566 470 560 452 578
+           C433 597 436 626 460 646
+           L512 690 L564 646
+           C588 626 591 597 572 578
+           C554 560 524 566 512 590 Z"
+        fill="#FFFFFF"/>
+  <path d="M512 604
+           C503 586 481 582 468 595
+           C454 609 456 630 474 645
+           L512 677 L550 645
+           C568 630 570 609 556 595
+           C543 582 521 586 512 604 Z"
+        fill="#FF7C9C"/>
+</svg>

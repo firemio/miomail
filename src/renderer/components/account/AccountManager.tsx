@@ -174,6 +174,8 @@ export function AccountManager({ onClose }: AccountManagerProps) {
   }
 
   const canTest = Boolean(form.email && form.imap_host && form.smtp_host && form.imap_password)
+  const looksLikeGmail =
+    /@gmail\.com\s*$/i.test(form.email) || /gmail\.com/i.test(form.imap_host)
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -349,6 +351,16 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                 />
               </div>
             </div>
+
+            {looksLikeGmail && (
+              <div className="rounded-[18px] border border-amber-200 bg-amber-50/80 px-4 py-3">
+                <p className="text-[11px] font-semibold text-amber-900">Gmailは通常のパスワードでは接続できません</p>
+                <p className="mt-1 text-[10px] leading-4 text-amber-800/90">
+                  Googleアカウントで2段階認証を有効にし、「アプリパスワード」（16桁）を発行して、上のパスワード欄に入力してください。
+                  発行ページ: myaccount.google.com/apppasswords
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="mb-1.5 block text-[11px] text-sumi-text-muted">IMAP 設定</label>
