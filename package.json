@@ -1,6 +1,6 @@
 {
   "name": "miomail",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "MioMail - Modern IMAP/SMTP Email Client",
   "type": "module",
   "scripts": {
@@ -23,6 +23,7 @@
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
     "@types/dompurify": "^3.2.0",
+    "@types/node": "^26.1.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@types/three": "^0.185.1",
