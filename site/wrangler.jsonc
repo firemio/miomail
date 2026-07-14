@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "miomail-site",
+  "compatibility_date": "2026-07-01",
+  // 静的アセットのみのWorker。デプロイ前に npm run site:build で dist/ を生成しておくこと
+  "assets": {
+    "directory": "./dist"
+  },
+  "routes": [
+    { "pattern": "miomail.app", "custom_domain": true },
+    { "pattern": "www.miomail.app", "custom_domain": true }
+  ]
+}

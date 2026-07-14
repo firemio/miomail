@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 1420
+    },
+    {
+      "name": "miomail-site",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "site:dev"],
+      "port": 4173
     }
   ]
 }

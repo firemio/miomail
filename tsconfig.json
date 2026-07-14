@@ -15,6 +15,6 @@
       "@/*": ["src/renderer/*"]
     }
   },
-  "include": ["src/renderer/**/*"],
+  "include": ["src/renderer/**/*", "site/**/*"],
   "exclude": ["node_modules", "dist", "src-tauri"]
 }

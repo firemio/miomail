@@ -1149,9 +1149,9 @@ export function CourierMascot({
   return (
     <div
       className={`relative mascot-stage mascot-model-${mascot.model} ${
-        spinOnClick ? 'mascot-stage-interactive' : ''
-      } ${className}`}
-      style={{ width: size, height: size, perspective: size * 4 }}
+        isStar ? 'mascot-phase-star-stage' : ''
+      } ${spinOnClick ? 'mascot-stage-interactive' : ''} ${className}`}
+      style={{ width: size, height: size, perspective: size * 4, opacity: bodyOpacity }}
       onClick={spinOnClick ? () => setSpinCycle((cycle) => cycle + 1) : undefined}
       title={spinOnClick ? 'クリックでくるっと回る' : undefined}
     >
@@ -1165,8 +1165,9 @@ export function CourierMascot({
         className={`absolute inset-0 mascot-spin-shell ${spinCycle > 0 ? 'mascot-spin-once' : ''}`}
       >
         <div
+          // filter/opacityをここに置くとpreserve-3dが平面化されて回転時の背面が消えるため、外側のステージ要素に掛ける
           className={`absolute inset-0 mascot-tilt mascot-idle-${mascot.model} mascot-phase-${phase}`}
-          style={{ transformStyle: 'preserve-3d', opacity: bodyOpacity }}
+          style={{ transformStyle: 'preserve-3d' }}
         >
           <div
             className="absolute inset-0"

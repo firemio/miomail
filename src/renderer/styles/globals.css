@@ -621,13 +621,27 @@ body[data-theme='amber-command'] .bg-sumi-accent[class*='shadow-[0_'] {
 }
 
 .mascot-spin-once {
-  animation: mascot-spin-once 900ms cubic-bezier(.22,.72,.18,1) both;
+  animation: mascot-spin-once 900ms both;
 }
 
+/*
+ * イージングはキーフレーム区間ごとに適用されるため、区間境界で
+ * 角速度が一致するよう曲線を選んである(境界で減速ゼロ→再加速に
+ * なると回転が引っかかって見える)。変更時は境界速度を合わせること。
+ */
 @keyframes mascot-spin-once {
-  0% { transform: rotateY(0deg) translateY(0) scale(1); }
-  42% { transform: rotateY(170deg) translateY(-5px) scale(.96); }
-  72% { transform: rotateY(292deg) translateY(-2px) scale(1.025); }
+  0% {
+    transform: rotateY(0deg) translateY(0) scale(1);
+    animation-timing-function: cubic-bezier(.55, 0, .8, .7);
+  }
+  42% {
+    transform: rotateY(170deg) translateY(-5px) scale(.96);
+    animation-timing-function: cubic-bezier(.3, .45, .7, .9);
+  }
+  72% {
+    transform: rotateY(292deg) translateY(-2px) scale(1.025);
+    animation-timing-function: cubic-bezier(.36, .2, .25, 1);
+  }
   100% { transform: rotateY(360deg) translateY(0) scale(1); }
 }
 
@@ -667,7 +681,11 @@ body[data-theme='amber-command'] .bg-sumi-accent[class*='shadow-[0_'] {
     egg-phase-wobble 2.6s ease-in-out infinite;
 }
 
-.mascot-stage .mascot-phase-star {
+/*
+ * 注意: .mascot-tilt(preserve-3d)にfilterを掛けると3Dが平面化され、
+ * クリック回転時に背面が消える。色調整が必要なら .mascot-stage 側に掛けること。
+ */
+.mascot-stage.mascot-phase-star-stage {
   filter: saturate(1.05) brightness(1.02);
 }
 
