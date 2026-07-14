@@ -199,6 +199,54 @@ function isRead(flags: string) {
   }
 }
 
+/** Tags that stay dangerous even inside the sandboxed iframe. Everything
+ *  else (style/font/center/bgcolor tables…) is kept so real-world HTML
+ *  mail renders faithfully; scripts and remote loads are stopped by
+ *  DOMPurify + the iframe sandbox + its CSP. */
+const EMAIL_FORBID_TAGS = [
+  'script',
+  'iframe',
+  'frame',
+  'frameset',
+  'object',
+  'embed',
+  'applet',
+  'form',
+  'input',
+  'textarea',
+  'select',
+  'option',
+  'button',
+  'base',
+  'link',
+  'meta',
+  'dialog',
+]
+
+/** Sanitize a full HTML mail document, preserving <style> blocks from the
+ *  head by moving them in front of the body content. */
+function sanitizeEmailHtml(html: string): string {
+  const dom = DOMPurify.sanitize(html, {
+    WHOLE_DOCUMENT: true,
+    RETURN_DOM: true,
+    FORBID_TAGS: EMAIL_FORBID_TAGS,
+  }) as HTMLElement
+  const headStyles = Array.from(dom.querySelectorAll('head style'))
+    .map((style) => style.outerHTML)
+    .join('')
+  const body = dom.querySelector('body')
+  return headStyles + (body ? body.innerHTML : dom.innerHTML)
+}
+
+/** True when the mail references images (or CSS backgrounds) on remote
+ *  servers — those are blocked until the user opts in. */
+function detectRemoteImages(html: string): boolean {
+  return (
+    /(?:src|background)\s*=\s*["']?https?:\/\//i.test(html) ||
+    /url\(\s*["']?https?:\/\//i.test(html)
+  )
+}
+
 async function openExternalLink(url: string) {
   if (!/^https?:\/\//i.test(url) && !/^mailto:/i.test(url)) {
     return
@@ -221,10 +269,17 @@ export function MessageView() {
   const { gainBond } = useMascotStore()
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [showRemoteImages, setShowRemoteImages] = useState(false)
 
   useEffect(() => {
     setConfirmDelete(false)
+    setShowRemoteImages(false)
   }, [currentMessage?.id])
+
+  const hasRemoteImages = useMemo(
+    () => detectRemoteImages(currentMessage?.html_body || ''),
+    [currentMessage]
+  )
 
   // Links inside the sandboxed iframe post a message; open them in the
   // system browser instead of navigating the (blocked) iframe
@@ -256,63 +311,14 @@ export function MessageView() {
         currentMessage.text_body || ''
       )}</pre>`
 
-    const sanitized = DOMPurify.sanitize(html, {
-      ALLOWED_TAGS: [
-        'p',
-        'br',
-        'div',
-        'span',
-        'a',
-        'b',
-        'strong',
-        'i',
-        'em',
-        'u',
-        'ul',
-        'ol',
-        'li',
-        'table',
-        'tr',
-        'td',
-        'th',
-        'thead',
-        'tbody',
-        'h1',
-        'h2',
-        'h3',
-        'h4',
-        'h5',
-        'h6',
-        'blockquote',
-        'pre',
-        'code',
-        'img',
-        'hr',
-      ],
-      ALLOWED_ATTR: [
-        'href',
-        'src',
-        'alt',
-        'style',
-        'class',
-        'width',
-        'height',
-        'border',
-        'cellpadding',
-        'cellspacing',
-        'colspan',
-        'rowspan',
-        'align',
-        'valign',
-      ],
-      FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'style'],
-    })
+    const sanitized = sanitizeEmailHtml(html)
+    const imgSrc = showRemoteImages ? 'data: cid: https: http:' : 'data: cid:'
 
     const doc = `
       <!DOCTYPE html>
       <html>
       <head>
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: cid:;">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src ${imgSrc}; font-src data:;">
         <style>
           body {
             font-family: 'Yu Gothic UI', 'Meiryo', sans-serif;
@@ -354,7 +360,7 @@ export function MessageView() {
     return () => {
       iframe.srcdoc = ''
     }
-  }, [currentMessage])
+  }, [currentMessage, showRemoteImages])
 
   if (!currentMessage) return null
 
@@ -506,6 +512,21 @@ export function MessageView() {
         attachments={currentMessage.attachments ?? []}
         messageId={currentMessage.id}
       />
+
+      {hasRemoteImages && !showRemoteImages && (
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-100 bg-amber-50/80 px-8 py-2">
+          <p className="text-[11px] leading-4 text-amber-800">
+            プライバシー保護のため、外部サーバーの画像を表示していません
+          </p>
+          <button
+            onClick={() => setShowRemoteImages(true)}
+            data-testid="show-remote-images"
+            className="shrink-0 rounded-full border border-amber-200 bg-white/85 px-3 py-1 text-[11px] font-semibold text-amber-800 transition hover:bg-white"
+          >
+            画像を表示
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-hidden">
         <iframe

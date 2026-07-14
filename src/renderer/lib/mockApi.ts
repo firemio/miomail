@@ -341,6 +341,26 @@ function seedDb(): PreviewDb {
       attachments: [],
     },
     {
+      id: 5,
+      account_id: 1,
+      folder_id: 1,
+      uid: 104,
+      message_id: '<preview-html@miomail.local>',
+      subject: 'HTMLニュースレター表示テスト',
+      from_address: 'Mio News <news@example.com>',
+      to_addresses: 'makko@miomail.local',
+      cc_addresses: '',
+      date: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+      flags: '[]',
+      snippet: 'スタイル付きHTMLメール（styleタグ・bgcolor・外部画像）の表示テストです。',
+      has_attachments: 0,
+      html_body:
+        '<html><head><style>.hero{background-color:#ffe3ec;padding:18px;border-radius:14px;font-family:sans-serif}.hero h1{color:#d6336c;font-size:20px;margin:0 0 8px}.hero p{margin:0 0 12px}</style></head><body><center><table width="100%" bgcolor="#fff5f8" cellpadding="12"><tr><td align="center"><div class="hero"><h1>MioMail News</h1><p><font color="#8a5a44">styleタグ・bgcolorテーブル・fontタグ・外部画像を含む表示テストです。</font></p><img src="https://picsum.photos/480/160" alt="外部画像（許可すると表示されます）" width="480" height="160"></div></td></tr></table></center></body></html>',
+      text_body:
+        'MioMail News\nstyleタグ・bgcolorテーブル・fontタグ・外部画像を含む表示テストです。',
+      attachments: [],
+    },
+    {
       id: 4,
       account_id: 1,
       folder_id: 2,
@@ -373,7 +393,7 @@ function seedDb(): PreviewDb {
     messages,
     nextAccountId: 2,
     nextFolderId: 5,
-    nextMessageId: 5,
+    nextMessageId: 6,
   }
 
   recalcFolders(db)
