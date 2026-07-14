@@ -42,6 +42,28 @@ MioMail は GitHub Releases で配布し、Tauri updater が
 これだけで、既存ユーザーのアプリが起動時（15秒後、以降6時間ごと）に更新を検知し、
 バナーから1クリックで更新→自動再起動します。設定 → データ管理 → アップデート からも手動確認できます。
 
+## ユーザーデータの保護（アップデートで壊さないために）
+
+ユーザーデータは全てインストールフォルダの**外**にあり、アップデートでは触られません:
+
+| データ | 場所 |
+|--------|------|
+| キャラクターMOD | `%LOCALAPPDATA%\com.firemio.miomail\character-mods\` |
+| メールDB | `%APPDATA%\com.firemio.miomail\miomail.db` |
+| 設定・相棒の成長状態・下書き | WebView2 localStorage（`%LOCALAPPDATA%\com.firemio.miomail\`） |
+| メールパスワード | Windows 資格情報マネージャー |
+
+守るべきルール:
+
+1. **バンドルにユーザーデータのパスを含めない**（インストーラーが上書き対象にしない）
+2. **MODマニフェストの `schemaVersion: 1` の後方互換を壊さない。**
+   形式を変える場合は `schemaVersion: 2` を追加し、1も読み続けること
+   （未対応バージョンはクラッシュせず issues として報告される設計になっている）
+3. **SQLiteスキーマの変更は必ず `db.rs` の `migrate()` に追加**（旧DBからの自動移行。
+   カラム削除や型変更ではなく、カラム追加＋後方互換の形にする）
+4. `deleteAppDataOnUninstall` は `false` のまま維持（アンインストール時もデータを残す）
+5. localStorage のキー名（`miomail-*`）を変える場合は旧キーからの移行コードを入れる
+
 ## 注意
 
 - **latest.json は必ず各リリースにアップロード**すること（updaterは `releases/latest/download/latest.json` を見るため、最新リリースに無いと更新検知が止まる）

@@ -50,7 +50,8 @@
     "windows": {
       "nsis": {
         "languages": ["Japanese"],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "deleteAppDataOnUninstall": false
       }
     }
   }
