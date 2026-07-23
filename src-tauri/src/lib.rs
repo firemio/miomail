@@ -62,6 +62,7 @@ pub fn run() {
             commands::mail::mail_mark_read,
             commands::mail::mail_delete,
             commands::mail::mail_search,
+            commands::mail::mail_semantic_search,
             commands::mail::mail_job_progress,
             commands::mail::mail_semantic_status,
             commands::mail::mail_semantic_enable,

@@ -1302,6 +1302,18 @@ pub fn mail_search(
     search_messages(&conn, account_id, &query, 50)
 }
 
+/// セマンティック検索(FTS + ベクトルの RRF ハイブリッド)をメール UI から使うための
+/// コマンド。モデル未ダウンロード時は明示エラーを返す(呼び出し側は従来検索に
+/// フォールバックする想定)。
+#[tauri::command]
+pub async fn mail_semantic_search(
+    account_id: i64,
+    query: String,
+    db: State<'_, DbState>,
+) -> Result<Vec<Message>, String> {
+    semantic_search_messages(db.inner(), account_id, &query, 50).await
+}
+
 /// 従来の LIKE '%q%' 全表走査。1〜2文字のクエリ(trigram は3文字未満を索引化
 /// できない)と、FTS の MATCH 構文エラー時のフォールバックに使う。
 fn search_messages_like(

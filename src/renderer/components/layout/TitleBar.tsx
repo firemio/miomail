@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Minus, Search, Settings, Square, X } from 'lucide-react'
+import { Minus, Search, Settings, Sparkles, Square, X } from 'lucide-react'
 import logoImage from '../../assets/miomail-logo.png'
 import { getMascotMeta } from '../../data/mascots'
 import { api } from '../../lib/ipc'
@@ -10,7 +10,7 @@ import { useUIStore } from '../../stores/uiStore'
 export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false)
   const { openSettings, searchQuery, setSearchQuery } = useUIStore()
-  const { searchMessages } = useMailStore()
+  const { searchMessages, semanticSearchActive } = useMailStore()
   const {
     selectedMascotId,
     summonEvent,
@@ -54,6 +54,14 @@ export function TitleBar() {
       <div className="mx-2 flex min-w-0 flex-1 justify-center">
         <label className="no-drag glass-panel flex h-10 w-full max-w-xl items-center gap-3 rounded-full px-4 shadow-[0_18px_35px_rgba(255,229,221,0.95)]">
           <Search size={16} className="text-sumi-accent" />
+          {semanticSearchActive && (
+            <span
+              className="flex shrink-0 items-center gap-1 rounded-full bg-sumi-accent/15 px-2 py-0.5 text-[10px] font-semibold text-sumi-accent"
+              title="AI検索(セマンティック)で探しています"
+            >
+              <Sparkles size={11} /> AI
+            </span>
+          )}
           <input
             type="text"
             placeholder="差出人、件名、本文からおたよりを探す"

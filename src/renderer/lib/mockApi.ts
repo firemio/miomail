@@ -745,6 +745,11 @@ export const mockApi = {
         .map(toSummary)
     },
 
+    semanticSearch: async (accountId: number, query: string): Promise<Message[]> => {
+      // プレビュー用スタブ: 実際の意味検索は行わず、従来検索と同じ結果を返す
+      return mockApi.mail.search(accountId, query)
+    },
+
     demoReceive: async (): Promise<DemoMailEvent> => {
       const db = loadDb()
       const account = db.accounts[0]

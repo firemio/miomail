@@ -56,6 +56,7 @@ interface MailState {
   searching: boolean
   searchMode: boolean
   lastQuery: string
+  semanticSearchActive: boolean
   selectedMessageIds: number[]
   syncError: string | null
   clearSyncError: () => void
@@ -94,6 +95,7 @@ export const useMailStore = create<MailState>((set, get) => ({
   searching: false,
   searchMode: false,
   lastQuery: '',
+  semanticSearchActive: false,
   selectedMessageIds: [],
   syncError: null,
 
@@ -317,15 +319,35 @@ export const useMailStore = create<MailState>((set, get) => ({
 
     set({ loading: true, searching: true, searchMode: true, lastQuery: trimmed, currentMessage: null })
 
+    // AI検索(セマンティック)が有効なら FTS+ベクトルのハイブリッド検索を使う。
+    // 失敗したアカウントは従来の FTS 検索にフォールバックする。
+    let semanticReady = false
+    try {
+      const status = await api.semantic.status()
+      semanticReady = status.state === 'ready'
+    } catch {}
+
     try {
       const results: Message[] = []
 
       await Promise.all(
         accounts.map(async (account) => {
+          if (!semanticReady) {
+            try {
+              const messages = await api.mail.search(account.id, trimmed)
+              results.push(...messages)
+            } catch {}
+            return
+          }
           try {
-            const messages = await api.mail.search(account.id, trimmed)
+            const messages = await api.mail.semanticSearch(account.id, trimmed)
             results.push(...messages)
-          } catch {}
+          } catch {
+            try {
+              const messages = await api.mail.search(account.id, trimmed)
+              results.push(...messages)
+            } catch {}
+          }
         })
       )
 
@@ -333,6 +355,7 @@ export const useMailStore = create<MailState>((set, get) => ({
         messages: sortMessagesByDate(results).slice(0, 80),
         hasMoreMessages: false,
         selectedMessageIds: [],
+        semanticSearchActive: semanticReady,
       })
     } finally {
       set({ loading: false, searching: false })
@@ -340,7 +363,7 @@ export const useMailStore = create<MailState>((set, get) => ({
   },
 
   clearSearch: async () => {
-    set({ searchMode: false, lastQuery: '', searching: false, currentMessage: null })
+    set({ searchMode: false, lastQuery: '', searching: false, semanticSearchActive: false, currentMessage: null })
     await get().loadMessages()
   },
 

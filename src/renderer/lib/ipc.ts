@@ -57,6 +57,8 @@ const mailApi = isTauriRuntime
       delete: (messageId: number): Promise<void> => invoke('mail_delete', { messageId }),
       search: (accountId: number, query: string): Promise<Message[]> =>
         invoke('mail_search', { accountId, query }),
+      semanticSearch: (accountId: number, query: string): Promise<Message[]> =>
+        invoke('mail_semantic_search', { accountId, query }),
       demoReceive: async (): Promise<DemoMailEvent | null> => null,
       demoSend: async (): Promise<{ to: string; subject: string } | null> => null,
     }
