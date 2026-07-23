@@ -13,9 +13,10 @@ import {
   X,
 } from 'lucide-react'
 import { api } from '../../lib/ipc'
+import { buildFolderTree, flattenFolderTree } from '../../lib/folderTree'
 import { useMailStore } from '../../stores/mailStore'
 import { useUIStore } from '../../stores/uiStore'
-import type { Folder, OutlookFolder, OutlookMessage } from '../../types'
+import type { OutlookFolder, OutlookMessage } from '../../types'
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return ''
@@ -63,11 +64,15 @@ export function ImportDialog() {
   const flatFolders = useMemo(
     () =>
       accounts.flatMap((account) =>
-        (allFolders.get(account.id) || []).map((folder: Folder) => ({
-          accountId: account.id,
-          accountName: account.name || account.email,
-          folder,
-        }))
+        // ツリー化して深さ優先でフラット化し、階層が分かるよう深さを保持する
+        flattenFolderTree(buildFolderTree(allFolders.get(account.id) || [])).map(
+          ({ folder, depth }) => ({
+            accountId: account.id,
+            accountName: account.name || account.email,
+            folder,
+            depth,
+          })
+        )
       ),
     [accounts, allFolders]
   )
@@ -275,9 +280,10 @@ export function ImportDialog() {
                 onChange={(event) => setTargetFolder(Number(event.target.value))}
                 className="h-10 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
               >
-                {flatFolders.map(({ accountName, folder }) => (
+                {flatFolders.map(({ accountName, folder, depth }) => (
                   <option key={folder.id} value={folder.id}>
-                    [{accountName}] {folder.name}
+                    [{accountName}] {'　'.repeat(depth)}
+                    {folder.name || folder.path}
                   </option>
                 ))}
               </select>

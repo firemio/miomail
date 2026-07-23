@@ -1,11 +1,13 @@
 use anyhow::Result;
-use async_imap::types::{Fetch, Flag, NameAttribute};
+use async_imap::types::{Fetch, Flag, Name, NameAttribute};
 use async_imap::Session;
 use async_native_tls::TlsConnector;
 use async_std::net::TcpStream;
 use futures::StreamExt;
 use async_imap::imap_proto::types::BodyStructure;
 use serde::{Deserialize, Serialize};
+
+use crate::utf7;
 
 #[derive(Clone, Debug)]
 pub struct ImapConfig {
@@ -133,24 +135,75 @@ pub async fn test_connection(config: &ImapConfig) -> Result<()> {
     Ok(())
 }
 
+/// Run one LIST command and collect all returned names.
+async fn collect_list(session: &mut ImapSession, reference: &str, pattern: &str) -> Result<Vec<Name>> {
+    let stream = session.list(Some(reference), Some(pattern)).await?;
+    let names = stream
+        .filter_map(|r| async { r.ok() })
+        .collect::<Vec<_>>()
+        .await;
+    Ok(names)
+}
+
 pub async fn list_folders(config: &ImapConfig) -> Result<Vec<FolderInfo>> {
     let mut session = connect(config).await?;
-    let names_stream = session.list(Some(""), Some("*")).await?;
-    let names: Vec<_> = names_stream
-        .filter_map(|r| async { r.ok() })
-        .collect()
-        .await;
+
+    // まずは一般的な LIST "" "*" を試す。サーバーによってはこれを
+    // "BAD Invalid pattern" で拒否する(imaplib 経由で観測)ため、
+    // Err または 0 件の場合は LIST "" "" でルートの prefix(例: "INBOX.")を
+    // 取得し、「prefix + *」で再試行する。それでも駄目なら最初の結果を返す。
+    let first = collect_list(&mut session, "", "*").await;
+    let need_fallback = match &first {
+        Err(_) => true,
+        Ok(v) => v.is_empty(),
+    };
+
+    let names_result = if need_fallback {
+        let mut retried: Option<Vec<Name>> = None;
+        if let Ok(roots) = collect_list(&mut session, "", "").await {
+            if let Some(prefix) = roots.iter().map(|n| n.name()).find(|p| !p.is_empty()) {
+                let pattern = format!("{}*", prefix);
+                if let Ok(v) = collect_list(&mut session, "", &pattern).await {
+                    if !v.is_empty() {
+                        log::info!(
+                            "LIST \"{}\" fallback found {} folders",
+                            pattern,
+                            v.len()
+                        );
+                        retried = Some(v);
+                    }
+                }
+            }
+        }
+        match retried {
+            Some(v) => Ok(v),
+            None => first, // フォールバック不成立: 最初の Err / 空をそのまま返す
+        }
+    } else {
+        first
+    };
+
+    session.logout().await?;
+    let names = names_result?;
 
     log::info!("IMAP listed {} folders", names.len());
 
     let mut folders = Vec::new();
     for name in &names {
+        // path は wire 生名(modified UTF-7 のまま)を保持する。
+        // SELECT/COPY/APPEND などのコマンドにそのまま渡すためデコードしない。
         let path = name.name().to_string();
         let delimiter = name.delimiter().map(|d| d.to_string()).unwrap_or_default();
+        // name は表示用の短縮名。path を delimiter でセグメント分割し、
+        // 各セグメントを modified UTF-7 デコードしたうちの最後(葉)を使う。
+        // delimiter が空なら全体をデコードする。
         let short_name = if !delimiter.is_empty() {
-            path.rsplit(&delimiter).next().unwrap_or(&path).to_string()
+            path.split(delimiter.as_str())
+                .map(utf7::decode)
+                .last()
+                .unwrap_or_else(|| path.clone())
         } else {
-            path.clone()
+            utf7::decode(&path)
         };
         let flags: Vec<String> = name
             .attributes()
@@ -166,7 +219,6 @@ pub async fn list_folders(config: &ImapConfig) -> Result<Vec<FolderInfo>> {
         });
     }
 
-    session.logout().await?;
     Ok(folders)
 }
 
@@ -628,27 +680,75 @@ async fn expunge_uid(session: &mut ImapSession, uid: u32) -> Result<()> {
     Ok(())
 }
 
+/// 既に wire 形式の `&-` / `&<base64>-` セクションは温存しつつ、それ以外の
+/// 部分だけを modified UTF-7 にエンコードする。DB 由来の wire path と
+/// ユーザー入力の生 Unicode が混ざったパスにも安全に使える(冪等)。
+fn encode_wire_path(path: &str) -> String {
+    let bytes = path.as_bytes();
+    let mut out = String::with_capacity(path.len());
+    let mut raw = String::new(); // エンコード待ちの生テキスト
+    let mut i = 0;
+
+    fn flush(out: &mut String, raw: &mut String) {
+        if !raw.is_empty() {
+            out.push_str(&utf7::encode(raw));
+            raw.clear();
+        }
+    }
+
+    while i < bytes.len() {
+        if bytes[i] == b'&' {
+            // `&…-` セクションとしてデコードできれば既に wire 形式とみなす
+            let section_end = bytes[i + 1..]
+                .iter()
+                .position(|&b| b == b'-')
+                .map(|p| i + 1 + p);
+            if let Some(end) = section_end {
+                let section = &path[i..=end]; // `&` から `-` まで両端含む
+                if section == "&-" || utf7::decode(section) != section {
+                    flush(&mut out, &mut raw);
+                    out.push_str(section);
+                    i = end + 1;
+                    continue;
+                }
+            }
+        }
+        // 1 文字分(マルチバイト考慮)を生テキスト側へ積む
+        let ch_len = path[i..].chars().next().map(char::len_utf8).unwrap_or(1);
+        raw.push_str(&path[i..i + ch_len]);
+        i += ch_len;
+    }
+    flush(&mut out, &mut raw);
+    out
+}
+
 /// Create a new mailbox (folder) on the server.
 pub async fn create_folder(config: &ImapConfig, path: &str) -> Result<()> {
+    // ユーザー入力の非ASCII名を送信前に modified UTF-7 へエンコードする。
+    // 既に wire 形式の部分は二重エンコードされない。
+    let wire_path = encode_wire_path(path);
     let mut session = connect(config).await?;
     session
-        .create(path)
+        .create(&wire_path)
         .await
         .map_err(|e| anyhow::anyhow!("フォルダ '{}' の作成に失敗しました: {}", path, e))?;
     // Subscribe so it shows up in clients that only list subscribed folders
-    session.subscribe(path).await.ok();
+    session.subscribe(&wire_path).await.ok();
     session.logout().await?;
     Ok(())
 }
 
 /// Rename / move a mailbox on the server.
 pub async fn rename_folder(config: &ImapConfig, from: &str, to: &str) -> Result<()> {
+    // create_folder と同様に wire 形式へエンコードしてから送信する。
+    let wire_from = encode_wire_path(from);
+    let wire_to = encode_wire_path(to);
     let mut session = connect(config).await?;
     session
-        .rename(from, to)
+        .rename(&wire_from, &wire_to)
         .await
         .map_err(|e| anyhow::anyhow!("フォルダの名前変更に失敗しました: {}", e))?;
-    session.subscribe(to).await.ok();
+    session.subscribe(&wire_to).await.ok();
     session.logout().await?;
     Ok(())
 }
@@ -668,6 +768,22 @@ pub async fn delete_folder(config: &ImapConfig, path: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wire_path_encoding_is_idempotent() {
+        // 生の Unicode はエンコードされる
+        assert_eq!(encode_wire_path("仕事"), "&TtVOiw-");
+        assert_eq!(encode_wire_path("案件A"), "&aEhO9g-A");
+        // 既に wire 形式のパス(DB 由来)はそのまま
+        assert_eq!(encode_wire_path("&TtVOiw-"), "&TtVOiw-");
+        assert_eq!(encode_wire_path("INBOX"), "INBOX");
+        assert_eq!(encode_wire_path("INBOX.&TtVOiw-"), "INBOX.&TtVOiw-");
+        // wire 親パス + 生の葉名が混ざったパスは葉だけエンコード
+        assert_eq!(encode_wire_path("&TtVOiw-.新規"), "&TtVOiw-.&ZbCJjw-");
+        // 生の `&` は `&-` に、`&-` はそのまま
+        assert_eq!(encode_wire_path("R&D"), "R&-D");
+        assert_eq!(encode_wire_path("R&-D"), "R&-D");
+    }
 
     const MULTIPART_MAIL: &str = "From: sender@example.com\r\n\
 To: receiver@example.com\r\n\

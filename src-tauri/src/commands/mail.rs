@@ -1083,6 +1083,9 @@ pub async fn mail_create_folder(
         if name.contains(&delimiter) {
             return Err(format!("フォルダ名に区切り文字「{}」は使えません", delimiter));
         }
+        // ユーザー入力の表示名を modified UTF-7 の wire 形式にエンコードする。
+        // 親パスは DB 上の wire 生名なので、葉だけをエンコードして連結する。
+        let wire_name = crate::utf7::encode(&name);
         let path = match parent_id {
             Some(pid) => {
                 let parent_path: String = conn
@@ -1092,9 +1095,9 @@ pub async fn mail_create_folder(
                         |row| row.get(0),
                     )
                     .map_err(|_| "親フォルダが見つかりません".to_string())?;
-                format!("{}{}{}", parent_path, delimiter, name)
+                format!("{}{}{}", parent_path, delimiter, wire_name)
             }
-            None => name.clone(),
+            None => wire_name.clone(),
         };
         (config, path)
     };
@@ -1134,10 +1137,12 @@ pub async fn mail_rename_folder(
         if new_name.contains(&delimiter) {
             return Err(format!("フォルダ名に区切り文字「{}」は使えません", delimiter));
         }
-        // Preserve the parent path, replace only the leaf name
+        // Preserve the parent path, replace only the leaf name.
+        // 葉名は modified UTF-7 にエンコードする(親パスは DB 上の wire 生名)。
+        let wire_new_name = crate::utf7::encode(&new_name);
         let to_path = match from_path.rsplit_once(delimiter.as_str()) {
-            Some((parent, _)) => format!("{}{}{}", parent, delimiter, new_name),
-            None => new_name.clone(),
+            Some((parent, _)) => format!("{}{}{}", parent, delimiter, wire_new_name),
+            None => wire_new_name.clone(),
         };
         (config, account_id, from_path, to_path)
     };

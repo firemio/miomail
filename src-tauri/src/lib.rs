@@ -5,6 +5,7 @@ pub mod imap_service;
 mod outlook_import;
 pub mod smtp_service;
 mod tray;
+pub mod utf7;
 
 #[cfg(test)]
 mod test_imap;
