@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Box, Code2, Database, Download, FolderOpen, Image as ImageIcon, Mail, Palette, Puzzle, RefreshCw, Settings2, ShieldCheck, Sparkles, Star, TriangleAlert, X } from 'lucide-react'
+import { Box, Code2, Cpu, Database, Download, FolderOpen, Image as ImageIcon, Mail, Palette, Puzzle, RefreshCw, Settings2, ShieldCheck, Sparkles, Star, TriangleAlert, X } from 'lucide-react'
 import { mascotCatalog, type MascotId } from '../../data/mascots'
 import { MASCOT_IDLE_MOTION_DURATIONS, MASCOT_IDLE_MOTION_LABELS } from '../../data/mascotIdleMotions'
 import { themeCatalog } from '../../data/themes'
@@ -10,14 +10,16 @@ import { useCharacterStore } from '../../stores/characterStore'
 import { MascotRenderer } from '../characters/MascotRenderer'
 import { ModThumbnail } from '../characters/ModThumbnail'
 import { AccountManager } from '../account/AccountManager'
+import { SystemSection } from './SystemSection'
 import { ThemePreview } from './ThemePreview'
 
-type SettingsSection = 'appearance' | 'mail' | 'data' | 'developer'
+type SettingsSection = 'appearance' | 'mail' | 'data' | 'system' | 'developer'
 
 const sections = [
   { id: 'appearance' as const, label: '見た目と相棒', icon: Palette, note: 'テーマ・マスコット' },
   { id: 'mail' as const, label: 'メール設定', icon: Mail, note: 'アカウント・接続' },
   { id: 'data' as const, label: 'データ管理', icon: Database, note: 'インポート・エクスポート' },
+  { id: 'system' as const, label: 'システム', icon: Cpu, note: '動作環境・アクセラレータ' },
   { id: 'developer' as const, label: '開発者メニュー', icon: Code2, note: '成長一覧・動作デモ' },
 ]
 
@@ -391,6 +393,8 @@ export function SettingsModal() {
                 )}
               </div>
             </div>}
+
+            {section === 'system' && <SystemSection />}
 
             {section === 'developer' && <div className="space-y-7">
               <section className="rounded-[28px] border border-[#ffd8a8] bg-[linear-gradient(135deg,rgba(255,252,245,0.96),rgba(255,239,222,0.88))] p-5 shadow-[0_16px_36px_rgba(229,157,91,0.1)]">

@@ -5,4 +5,5 @@ pub mod build;
 pub mod character_mod;
 pub mod import;
 pub mod mail;
+pub mod system;
 pub mod update;

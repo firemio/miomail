@@ -166,3 +166,25 @@ export interface SemanticStatus {
   model_size_mb: number
   error: string | null
 }
+
+export type AcceleratorId = 'intel_npu' | 'amd_npu' | 'directml' | 'cpu'
+
+export type AcceleratorStatus = 'active' | 'available' | 'unavailable' | 'not_built'
+
+/** mail_system_info コマンドのアクセラレータ1件分。バックエンドIF契約で固定。 */
+export interface AcceleratorInfo {
+  id: AcceleratorId
+  label: string
+  status: AcceleratorStatus
+  note: string
+}
+
+/** mail_system_info コマンドの戻り値。バックエンドIF契約で固定。 */
+export interface SystemInfo {
+  app_version: string
+  os: string
+  arch: string
+  cpu_name: string
+  accelerators: AcceleratorInfo[]
+  semantic: SemanticStatus
+}

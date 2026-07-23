@@ -455,31 +455,103 @@ fn ensure_ort_env() -> Result<(), String> {
         .clone()
 }
 
+// ---------------------------------------------------------------------------
+// EP 検出(ep_chain / system info 共有)
+// ---------------------------------------------------------------------------
+
+/// EP の検出結果。ort 呼び出しは初回のみ行い、結果をプロセス内でキャッシュする。
+#[derive(Debug, Clone, Copy)]
+pub struct EpAvailability {
+    /// cargo feature `npu` 有効ビルドか(OpenVINO / Vitis を候補に含めるか)。
+    pub npu_built: bool,
+    /// OpenVINO (Intel NPU) EP が利用可能か。
+    pub openvino: bool,
+    /// Vitis (AMD NPU / Ryzen AI) EP が利用可能か。
+    pub vitis: bool,
+    /// DirectML EP が利用可能か。
+    pub directml: bool,
+    /// onnxruntime.dll の初期化に失敗した場合の理由(この場合 EP 検出自体が不能)。
+    pub ort_error: Option<&'static str>,
+}
+
+/// EP 可用性を返す(初回のみ検出しキャッシュ。DLL ロード失敗時は全 EP 不可)。
+pub fn ep_availability() -> EpAvailability {
+    static AVAIL: OnceCell<EpAvailability> = OnceCell::new();
+    *AVAIL.get_or_init(detect_ep_availability)
+}
+
+fn detect_ep_availability() -> EpAvailability {
+    use ort::ep::ExecutionProvider;
+
+    // is_available() は ORT 環境の初期化が前提。DLL 不在なら検出不能として扱う。
+    let ort_error: Option<&'static str> = match ensure_ort_env() {
+        Ok(()) => None,
+        Err(_) => Some("onnxruntime.dll を読み込めないため EP を検出できません"),
+    };
+
+    let mut avail = EpAvailability {
+        npu_built: cfg!(feature = "npu"),
+        openvino: false,
+        vitis: false,
+        directml: false,
+        ort_error,
+    };
+    if ort_error.is_some() {
+        return avail;
+    }
+
+    #[cfg(feature = "npu")]
+    {
+        avail.openvino = ort::ep::OpenVINO::default().is_available().unwrap_or(false);
+        avail.vitis = ort::ep::Vitis::default().is_available().unwrap_or(false);
+    }
+
+    let dml = ort::ep::DirectML::default();
+    avail.directml = dml.supported_by_platform() && dml.is_available().unwrap_or(false);
+
+    avail
+}
+
+/// 優先順位チェーン(OpenVINO > Vitis > DirectML > CPU)で実際に選ばれる EP の
+/// 識別子を返す。セッション未初期化でも「使う予定の EP」として同じ規則で決まる。
+/// 戻り値: 'intel_npu' | 'amd_npu' | 'directml' | 'cpu'
+pub fn active_ep_id(avail: &EpAvailability) -> &'static str {
+    if avail.npu_built {
+        if avail.openvino {
+            return "intel_npu";
+        }
+        if avail.vitis {
+            return "amd_npu";
+        }
+    }
+    if avail.directml {
+        return "directml";
+    }
+    "cpu"
+}
+
 /// EP 優先順位チェーンを組み立てる。検出できたものだけを登録候補にする。
 fn ep_chain() -> Vec<ort::ep::ExecutionProviderDispatch> {
-    use ort::ep::ExecutionProvider;
+    let avail = ep_availability();
 
     let mut eps: Vec<ort::ep::ExecutionProviderDispatch> = Vec::new();
 
     // NPU は cargo feature `npu` で opt-in された場合のみ候補に入れる
     #[cfg(feature = "npu")]
     {
-        let openvino = ort::ep::OpenVINO::default();
-        if openvino.is_available().unwrap_or(false) {
+        if avail.openvino {
             log::info!("semantic: OpenVINO (NPU) EP を候補に追加");
-            eps.push(openvino.build());
+            eps.push(ort::ep::OpenVINO::default().build());
         }
-        let vitis = ort::ep::Vitis::default();
-        if vitis.is_available().unwrap_or(false) {
+        if avail.vitis {
             log::info!("semantic: Vitis (NPU) EP を候補に追加");
-            eps.push(vitis.build());
+            eps.push(ort::ep::Vitis::default().build());
         }
     }
 
-    let dml = ort::ep::DirectML::default();
-    if dml.supported_by_platform() && dml.is_available().unwrap_or(false) {
+    if avail.directml {
         log::info!("semantic: DirectML EP を候補に追加");
-        eps.push(dml.build());
+        eps.push(ort::ep::DirectML::default().build());
     }
 
     // 最後は必ず CPU

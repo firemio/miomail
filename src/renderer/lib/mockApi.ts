@@ -12,6 +12,7 @@ import type {
   OutlookMessage,
   PickedFile,
   SemanticStatus,
+  SystemInfo,
 } from '../types'
 import { APP_BUILD_ID, APP_COMMIT, APP_VERSION } from '../version'
 
@@ -1062,5 +1063,41 @@ export const mockApi = {
       mockSemanticState.downloadStartedAt = Date.now()
       return mockSemanticState.status
     },
+  },
+
+  system: {
+    info: async (): Promise<SystemInfo> => ({
+      app_version: APP_VERSION,
+      os: 'Windows 11 (プレビュー)',
+      arch: 'x86_64',
+      cpu_name: 'Intel Core Ultra 7 155H (プレビュー)',
+      accelerators: [
+        {
+          id: 'intel_npu',
+          label: 'Intel NPU (AI Boost)',
+          status: 'not_built',
+          note: 'NPU対応ビルドが未導入のため利用できません。',
+        },
+        {
+          id: 'amd_npu',
+          label: 'AMD NPU (Ryzen AI)',
+          status: 'not_built',
+          note: 'NPU対応ビルドが未導入のため利用できません。',
+        },
+        {
+          id: 'directml',
+          label: 'DirectML (GPU)',
+          status: 'active',
+          note: 'GPU経由でAI検索を高速化しています。',
+        },
+        {
+          id: 'cpu',
+          label: 'CPU',
+          status: 'available',
+          note: 'フォールバックとして常に利用できます。',
+        },
+      ],
+      semantic: tickMockSemantic(),
+    }),
   },
 }

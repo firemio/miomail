@@ -84,6 +84,7 @@ pub fn run() {
             commands::app::app_show_main_window,
             commands::app::app_quit,
             commands::build::app_get_build_info,
+            commands::system::mail_system_info,
             commands::update::update_check,
             commands::update::update_install,
             commands::character_mod::character_mod_list,

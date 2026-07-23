@@ -37,6 +37,8 @@ thiserror = "2"
 anyhow = "1"
 log = "0.4"
 once_cell = "1"
+# CPU 名の取得(mail_system_info 用。x86/x86_64 のみ有効、他アーチは "不明")
+raw-cpuid = "11"
 # --- セマンティック検索(embed.rs / vectorize.rs)用 ---
 # ort: ONNX Runtime バインディング。`load-dynamic` で onnxruntime.dll を
 # 実行時ロードするため、リンク時に DLL は不要(配布はアプリ同梱 or 開発時 DL)。

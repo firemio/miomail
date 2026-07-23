@@ -13,6 +13,7 @@ import type {
   OutlookMessage,
   PickedFile,
   SemanticStatus,
+  SystemInfo,
   UpdateStatus,
 } from '../types'
 import type { CharacterModScanResult } from '../characters/types'
@@ -139,6 +140,12 @@ const semanticApi = isTauriRuntime
     }
   : mockApi.semantic
 
+const systemApi = isTauriRuntime
+  ? {
+      info: (): Promise<SystemInfo> => invoke('mail_system_info'),
+    }
+  : mockApi.system
+
 export const api = {
   account: accountApi,
   mail: mailApi,
@@ -149,4 +156,5 @@ export const api = {
   characterMods: characterModsApi,
   jobs: jobsApi,
   semantic: semanticApi,
+  system: systemApi,
 }
