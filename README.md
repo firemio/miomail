@@ -1,12 +1,15 @@
 # MioMail
 
+公式サイト: **https://miomail.app/**
+
 Tauri 2 + React 製の IMAP/SMTP メールクライアント（Windows向け、日本語UI）。
 マスコット（相棒）システムとキャラクターMOD対応が特徴。
 
 ## インストール
 
-[Releases](https://github.com/firemio/miomail/releases/latest) から
-`MioMail_x.y.z_x64-setup.exe` をダウンロードして実行してください。
+[公式サイト](https://miomail.app/) からダウンロードして実行してください。
+[Releases](https://github.com/firemio/miomail/releases/latest) の
+`MioMail_x.y.z_x64-setup.exe` からでも同じものが入手できます。
 
 - 現在コード署名は行っていないため、Windows SmartScreen の警告が出る場合があります。
   「詳細情報」→「実行」で続行できます

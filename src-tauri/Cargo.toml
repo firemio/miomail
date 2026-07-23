@@ -2,6 +2,8 @@
 name = "miomail"
 version = "2.1.3"
 edition = "2021"
+homepage = "https://miomail.app/"
+repository = "https://github.com/firemio/miomail"
 
 [lib]
 name = "miomail_lib"

@@ -240,25 +240,25 @@ function ComposeEditor({
         </div>
 
         <div className={`flex shrink-0 items-center ${docked ? 'gap-1' : 'gap-2'}`}>
-          <button
-            onClick={() =>
-              openCompose({
-                mode: 'new',
-                fromAddress: draft.from || defaultSender,
-                layout: draft.layout,
-              })
-            }
-            data-testid="compose-add-draft"
-            className={`flex items-center justify-center rounded-full border border-white/70 bg-white/80 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/30 hover:text-sumi-text ${
-              docked ? 'h-10 w-10' : 'px-3 py-2'
-            }`}
-            title="新しい下書きを追加"
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <FilePlus2 size={12} />
-              {!docked && '追加'}
-            </span>
-          </button>
+          {!docked && (
+            <button
+              onClick={() =>
+                openCompose({
+                  mode: 'new',
+                  fromAddress: draft.from || defaultSender,
+                  layout: draft.layout,
+                })
+              }
+              data-testid="compose-add-draft"
+              className="flex items-center justify-center rounded-full border border-white/70 bg-white/80 px-3 py-2 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/30 hover:text-sumi-text"
+              title="新しい下書きを追加"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <FilePlus2 size={12} />
+                追加
+              </span>
+            </button>
+          )}
           <button
             onClick={() => toggleComposeLayout(draft.id)}
             data-testid={`compose-toggle-layout-${draft.id}`}

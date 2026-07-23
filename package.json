@@ -2,6 +2,11 @@
   "name": "miomail",
   "version": "2.1.3",
   "description": "MioMail - Modern IMAP/SMTP Email Client",
+  "homepage": "https://miomail.app/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/firemio/miomail.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

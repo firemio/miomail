@@ -24,9 +24,10 @@ body {
   min-width: 320px;
   background: var(--site-paper);
   color: var(--site-ink);
-  /* globals.css(アプリ用)の overflow: hidden を打ち消してページスクロールを有効化 */
-  overflow-x: hidden;
-  overflow-y: auto;
+  /* globals.css(アプリ用)の overflow: hidden を打ち消してページスクロールを有効化
+     ビルド後のリンク順でmain.cssがsite.cssより後に読み込まれ上書きされるため!importantで固定 */
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
 
 a { color: inherit; text-decoration: none; }
