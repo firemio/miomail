@@ -800,3 +800,44 @@ mod tests {
         );
     }
 }
+
+
+#[cfg(test)]
+mod diag_real_tests {
+    use crate::embed::*;
+    use crate::vectorize::{SqliteVectorStore, VectorStore};
+
+    /// 実 DB のベクトルに対する実クエリのスコア分布を出す診断用。
+    /// 実行: ORT_DYLIB_PATH=... cargo test --lib diag_real_scores -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn diag_real_scores() {
+        let db_path = crate::db::default_db_path().expect("db path");
+        let conn = rusqlite::Connection::open(&db_path).expect("open db");
+        let mut stmt = conn
+            .prepare("SELECT id, subject FROM messages WHERE account_id = 2 ORDER BY id")
+            .unwrap();
+        let subjects: Vec<(i64, String)> = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect();
+
+        let store = SqliteVectorStore { conn: &conn };
+        for q in ["温泉の宿を予約したい", "お金の支払いに関する案内", "請求書", "payment deadline", "新製品の案内"] {
+            let qv = encode_query(q).expect("encode query");
+            let hits = store.search_cosine(&qv, Some(2), MODEL_VERSION, 8).unwrap();
+            eprintln!("
+== query: {}", q);
+            for (id, score) in &hits {
+                let subj = subjects
+                    .iter()
+                    .find(|(rid, _)| rid == id)
+                    .map(|r| r.1.clone())
+                    .unwrap_or_default();
+                let short: String = subj.chars().take(34).collect();
+                eprintln!("  {:.4}  id={}  {}", score, id, short);
+            }
+        }
+    }
+}

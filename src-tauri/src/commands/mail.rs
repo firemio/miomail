@@ -36,6 +36,9 @@ pub struct Message {
     pub flags: String,
     pub snippet: String,
     pub has_attachments: i64,
+    /// セマンティック検索時のコサイン類似度(それ以外の経路では None)。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub score: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -126,6 +129,7 @@ fn message_from_row(row: &rusqlite::Row) -> Result<Message, rusqlite::Error> {
         flags: row.get::<_, Option<String>>(11)?.unwrap_or_default(),
         snippet: row.get::<_, Option<String>>(12)?.unwrap_or_default(),
         has_attachments: row.get::<_, Option<i64>>(13)?.unwrap_or(0),
+        score: None,
     })
 }
 
@@ -465,6 +469,7 @@ pub async fn sync_messages_for_folder(
                     flags: serde_json::to_string(&m.flags).unwrap_or_default(),
                     snippet: m.snippet.clone(),
                     has_attachments: if m.has_attachments { 1 } else { 0 },
+                    score: None,
                 })
                 .collect();
             tray::notify_new_mail(app, total_unread, fresh_unread)?;
@@ -1879,7 +1884,14 @@ pub async fn semantic_search_messages(
         crate::embed::MODEL_VERSION,
         vector_k,
     )?;
-    let vector_ranked: Vec<i64> = vector_hits.iter().map(|(id, _)| *id).collect();
+    // ruri-v3 の実測分布では関連ヒット ≒ 0.78、無関係は ～0.78 に分かれる。
+    // ノイズを結果に混ぜないため類似度の下限で切る(FTS 側のヒットは別経路で残る)。
+    let filtered_hits: Vec<(i64, f32)> = vector_hits
+        .into_iter()
+        .filter(|(_, score)| *score >= crate::vectorize::SEMANTIC_VECTOR_MIN_SCORE)
+        .collect();
+    let score_map: HashMap<i64, f32> = filtered_hits.iter().copied().collect();
+    let vector_ranked: Vec<i64> = filtered_hits.iter().map(|(id, _)| *id).collect();
 
     // FTS 側: 既存の共通実装(FTS+BM25、LIKE フォールバック込み)をそのまま使う
     let fts_msgs = search_messages(&conn, account_id, trimmed, limit)?;
@@ -1913,6 +1925,9 @@ pub async fn semantic_search_messages(
         .map(|(i, id)| (*id, i))
         .collect();
     msgs.sort_by_key(|m| order.get(&m.id).copied().unwrap_or(usize::MAX));
+    for m in &mut msgs {
+        m.score = score_map.get(&m.id).copied();
+    }
     Ok(msgs)
 }
 

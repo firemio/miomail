@@ -23,6 +23,10 @@ pub const VECTORIZE_BODY_CHARS: usize = 1000;
 /// RRF(Reciprocal Rank Fusion)の定数 k。
 pub const RRF_K: f64 = 60.0;
 
+/// セマンティック検索でベクトルヒットを採用するコサイン類似度の下限。
+/// ruri-v3-70m の実データ実測で関連ヒット ≒ 0.79、ノイズ ～0.78 だったことに基づく。
+pub const SEMANTIC_VECTOR_MIN_SCORE: f32 = 0.78;
+
 // ジョブ種別(job_progress.kind)
 pub const JOB_SYNC: &str = "sync";
 pub const JOB_BACKFILL: &str = "backfill";

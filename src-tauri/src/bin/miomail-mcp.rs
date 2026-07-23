@@ -410,7 +410,7 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
 
         "semantic_search" => {
             let query = arg_str(args, "query").ok_or("missing required argument: query")?;
-            let limit = arg_i64(args, "limit").unwrap_or(50).clamp(1, 100) as usize;
+            let limit = arg_i64(args, "limit").unwrap_or(10).clamp(1, 50) as usize;
 
             // モデル未DLの場合は FTS にフォールバックせず、分かりやすいエラーを返す
             // (キーワード検索の結果と誤解されるのを防ぐため)
@@ -447,7 +447,7 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
                     mail_core::semantic_search_messages(db, account_id, &query, limit).await?;
                 all.extend(messages);
             }
-            all.sort_by_key(|m| -m.date_ts);
+            // 関連度順を維持する(日付順で並べ直すと関連順位が失われる)
             all.truncate(80);
             Ok(json!({ "messages": summarize(&all) }))
         }
@@ -592,6 +592,7 @@ fn summarize(messages: &[mail_core::Message]) -> Vec<Value> {
                 "unread": unread,
                 "has_attachments": m.has_attachments != 0,
                 "snippet": m.snippet,
+                "score": m.score.map(|s| ((s as f64) * 1000.0).round() / 1000.0),
             })
         })
         .collect()
