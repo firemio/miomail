@@ -210,6 +210,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .site-docs-steps { margin: 18px 0; padding-left: 26px; display: grid; gap: 10px; }
 .site-docs-steps li svg { display: inline; vertical-align: -2px; }
 .site-docs-code { overflow-x: auto; margin: 18px 0; padding: 20px 24px; border: 2px solid var(--site-ink); border-radius: 18px; background: #2e2522; box-shadow: 6px 7px 0 rgba(81,62,59,.14); color: #ffeadf; font-family: 'Consolas', 'Cascadia Mono', monospace; font-size: 12.5px; line-height: 1.8; }
+.site-docs-prompt { position: relative; margin: 18px 0; }
+.site-docs-prompt .site-docs-code { max-height: 260px; overflow-y: auto; margin: 0; padding-right: 24px; white-space: pre-wrap; word-break: break-all; }
+.site-docs-prompt__copy { margin-top: 12px; }
 .site-docs-table { width: 100%; margin: 18px 0; border-collapse: collapse; font-size: 13px; }
 .site-docs-table th { background: var(--site-pink-pale); font-weight: 900; }
 .site-docs-table th, .site-docs-table td { padding: 10px 14px; border: 2px solid #f3d9e1; text-align: left; vertical-align: top; line-height: 1.9; }

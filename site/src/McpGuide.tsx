@@ -1,8 +1,56 @@
-import { AlertTriangle, ArrowLeft, Bot, Download, ShieldCheck, Terminal } from 'lucide-react'
+import { useState } from 'react'
+import { AlertTriangle, ArrowLeft, Bot, Check, Copy, Download, ShieldCheck, Sparkles, Terminal } from 'lucide-react'
 import { DOWNLOAD_URL } from './links'
 import logoImage from '../../src/renderer/assets/miomail-logo.png'
 
 const EXE_PATH = '%LOCALAPPDATA%\\MioMail\\miomail-mcp.exe'
+
+const AUTO_SETUP_PROMPT = `MioMail MCP サーバーを、あなた(AIエージェント)が使えるように自動設定してください。
+
+【サーバー実行ファイル】
+%LOCALAPPDATA%\\MioMail\\miomail-mcp.exe
+(= C:\\Users\\<ユーザー名>\\AppData\\Local\\MioMail\\miomail-mcp.exe。MioMail インストール時に同梱されています)
+
+【手順】
+1. 上記パスの環境変数を展開して実際のパスを特定し、ファイルの存在を確認してください。無い場合は設定を進めず、私に報告してください。
+2. あなた自身(いまこの会話で使っているクライアント)の MCP 設定に、stdio サーバー "miomail" として登録してください。
+   ・Codex の場合: ~/.codex/config.toml に次を追記(シングルクォートのリテラル文字列で書くこと)
+     [mcp_servers.miomail]
+     command = '<実際のパス>'
+   ・Claude Code の場合: claude mcp add miomail -- "<実際のパス>" を実行
+   ・Claude Desktop の場合: claude_desktop_config.json の mcpServers に
+     "miomail": { "command": "<実際のパス>" } を追加(JSONではバックスラッシュを二重に書くこと)
+   ・それ以外の場合: そのクライアントの MCP サーバー登録方法に従って stdio で登録
+3. 登録した内容を私に報告してください。クライアントの再起動が必要な場合は、その旨も案内してください。
+
+【登録後に使えるツール】
+sync / list_accounts / list_folders / list_messages / get_message / search_messages / send_mail / mark_read / delete_message
+
+【重要】send_mail(即時送信)と delete_message(削除)は取り消せません。これらを実行する前には、必ず内容を提示して私の確認を取ってください。`
+
+function CopyPromptButton() {
+  const [copied, setCopied] = useState(false)
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(AUTO_SETUP_PROMPT)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = AUTO_SETUP_PROMPT
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      ta.remove()
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2500)
+  }
+  return (
+    <button type="button" className="site-button site-button--primary site-docs-prompt__copy" onClick={copy}>
+      {copied ? <Check size={16} /> : <Copy size={16} />}
+      {copied ? 'コピーしました!' : 'プロンプトをコピー'}
+    </button>
+  )
+}
 
 const CODEX_TOML = `[mcp_servers.miomail]
 command = 'C:\\Users\\<ユーザー名>\\AppData\\Local\\MioMail\\miomail-mcp.exe'`
@@ -81,6 +129,21 @@ export function McpGuide() {
           <li>stdio MCPに対応したAIクライアント(Codex、Claude Code、Claude Desktop など)を使っていること。</li>
         </ol>
 
+        <h2><Sparkles size={20} /> かんたん設定: AIエージェントに自動設定してもらう(おすすめ)</h2>
+        <p>
+          設定ファイルを手で編集する必要はありません。
+          <strong>下の文章をコピーして、MioMailと連携させたいAIエージェント(Codex、Claude Code など)との会話にそのまま貼り付けるだけ</strong>です。
+          エージェントが実行ファイルの場所を確認し、自分自身の設定に miomail を登録してくれます。
+        </p>
+        <div className="site-docs-prompt">
+          <pre className="site-docs-code">{AUTO_SETUP_PROMPT}</pre>
+          <CopyPromptButton />
+        </div>
+        <ul>
+          <li>貼り付け先は「連携させたいクライアントそのもの」です。MCPの設定はクライアントごとに必要なので、CodexとClaudeの両方で使いたい場合は、それぞれの会話に貼り付けてください。</li>
+          <li>登録が完了したら、クライアントの再起動が必要な場合があります(エージェントが案内します)。</li>
+        </ul>
+
         <h2>実行ファイルの場所</h2>
         <p>インストール版は次の場所にあります(<code>%LOCALAPPDATA%</code> は <code>C:\Users\&lt;ユーザー名&gt;\AppData\Local</code>)。</p>
         <pre className="site-docs-code">{EXE_PATH}</pre>
@@ -89,8 +152,8 @@ export function McpGuide() {
           <li>ソースからビルドした開発版は <code>src-tauri/target/release/miomail-mcp.exe</code> にあります</li>
         </ul>
 
-        <h2>クライアント別の登録方法</h2>
-        <p>MCPサーバーは「使うクライアントごと」に登録します。お使いのクライアントに合わせて、以下の設定をコピー＆ペーストしてください。</p>
+        <h2>手動で登録する場合(上級者向け)</h2>
+        <p>上の自動設定が使えない環境では、手動でも登録できます。MCPサーバーは「使うクライアントごと」に登録します。お使いのクライアントに合わせて、以下の設定をコピー＆ペーストしてください。</p>
 
         <h3>a. Codex(OpenAI codex CLI)</h3>
         <p><code>~/.codex/config.toml</code> に次を追記して、Codexを再起動します。</p>
