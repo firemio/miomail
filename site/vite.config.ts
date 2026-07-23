@@ -18,7 +18,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        mods: resolve(__dirname, 'mods.html')
+        mods: resolve(__dirname, 'mods.html'),
+        mcp: resolve(__dirname, 'mcp.html')
       }
     }
   }

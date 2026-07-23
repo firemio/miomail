@@ -49,13 +49,20 @@ npm run tauri build    # NSISインストーラ作成
 
 ## MCP（AIエージェント連携）
 
+インストール版には MCP サーバー（`miomail-mcp.exe`）が同梱されており、
+Claude Code / Claude Desktop / Codex などの AI エージェントから MioMail の
+メールを操作できます（`%LOCALAPPDATA%\MioMail\miomail-mcp.exe`）。
+エンドユーザー向けガイド: https://miomail.app/mcp.html
+
+開発ビルド:
+
 ```powershell
 cd src-tauri
 cargo build --release --bin miomail-mcp
 ```
 
-リポジトリ直下の `.mcp.json` で Claude Code から自動認識されます。
-詳細は [docs/MCP.md](docs/MCP.md) を参照。
+リポジトリ直下の `.mcp.json`（開発用パス）で Claude Code から自動認識されます。
+登録方法の詳細は [docs/MCP.md](docs/MCP.md) を参照。
 
 ## ライブIMAPテスト
 

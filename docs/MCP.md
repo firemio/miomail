@@ -1,7 +1,9 @@
 # MioMail MCP サーバー
 
-MioMail のメールを AI エージェント（Claude Code / Claude Desktop など）から操作するための
+MioMail のメールを AI エージェント（Claude Code / Claude Desktop / Codex など）から操作するための
 MCP (Model Context Protocol) サーバーです。stdio で動作します。
+
+エンドユーザー向けには、公式サイトのガイド（https://miomail.app/mcp.html）もあわせて参照してください。
 
 ## 仕組み
 
@@ -11,7 +13,16 @@ MCP (Model Context Protocol) サーバーです。stdio で動作します。
 - IMAP / SMTP へは直接接続するため、アプリが起動していなくても動作します。
   （エージェント側の変更は、アプリの次回同期時に画面へ反映されます）
 
-## ビルド
+## 実行ファイルの場所
+
+- **インストール版（正規）**: NSIS インストーラに `miomail-mcp.exe` が同梱され、
+  アプリと一緒に以下へインストールされます。
+  `%LOCALAPPDATA%\MioMail\miomail-mcp.exe`
+  （= `C:\Users\<ユーザー名>\AppData\Local\MioMail\miomail-mcp.exe`）
+- **開発ビルド（開発者向け）**: このリポジトリからビルドした場合は
+  `src-tauri/target/release/miomail-mcp.exe` に生成されます（下記「ビルド」参照）。
+
+## ビルド（開発者向け）
 
 ```powershell
 cd src-tauri
@@ -21,14 +32,19 @@ cargo build --release --bin miomail-mcp
 
 ## 登録
 
+MCP クライアントはそれぞれ独自の登録設定を持つため、使いたいクライアントごとに
+MCP サーバーの登録が必要です。以下はインストール版のパス
+（`%LOCALAPPDATA%\MioMail\miomail-mcp.exe`）を使う例です。開発ビルドを使う場合は
+パスを `src-tauri/target/release/miomail-mcp.exe` に読み替えてください。
+
 ### Claude Code
 
-このリポジトリには `.mcp.json` が含まれているため、リポジトリ内でセッションを開けば
-そのまま使えます。グローバルに登録する場合:
-
 ```powershell
-claude mcp add miomail -- C:\firemio\miomail\src-tauri\target\release\miomail-mcp.exe
+claude mcp add miomail -- "$env:LOCALAPPDATA\MioMail\miomail-mcp.exe"
 ```
+
+開発者向け: リポジトリ直下の `.mcp.json` は開発ビルドのパスを指しているため、
+リポジトリ内でセッションを開けば開発ビルドをそのまま使えます。
 
 ### Claude Desktop
 
@@ -38,11 +54,29 @@ claude mcp add miomail -- C:\firemio\miomail\src-tauri\target\release\miomail-mc
 {
   "mcpServers": {
     "miomail": {
-      "command": "C:\\firemio\\miomail\\src-tauri\\target\\release\\miomail-mcp.exe"
+      "command": "C:\\Users\\<ユーザー名>\\AppData\\Local\\MioMail\\miomail-mcp.exe"
     }
   }
 }
 ```
+
+- `<ユーザー名>` は実際の Windows ユーザー名に置き換えてください。
+- JSON ではバックスラッシュを `\\` とエスケープする必要があります。
+
+### Codex（codex CLI）
+
+`~/.codex/config.toml`（`C:\Users\<ユーザー名>\.codex\config.toml`）に以下を追加して、
+Codex を再起動します:
+
+```toml
+[mcp_servers.miomail]
+command = 'C:\Users\<ユーザー名>\AppData\Local\MioMail\miomail-mcp.exe'
+```
+
+- `<ユーザー名>` は実際の Windows ユーザー名に置き換えてください。
+- シングルクォート（`'...'`）は TOML のリテラル文字列で、バックスラッシュは
+  エスケープされずそのまま解釈されます。ダブルクォート（`"..."`）の基本文字列で
+  書く場合は `"C:\\Users\\...\\miomail-mcp.exe"` のように二重にしてください。
 
 ## ツール一覧
 
@@ -72,3 +106,21 @@ claude mcp add miomail -- C:\firemio\miomail\src-tauri\target\release\miomail-mc
 
 `send_mail` と `delete_message` は取り消しができないため、エージェントは実行前に
 ユーザーへ内容を確認する想定です（ツール説明にもその旨を記載済み）。
+
+## トラブルシューティング
+
+- **「登録されていない」「ツールが見つからない」と言われる**
+  MCP サーバーの登録はクライアントごとに行います。あるクライアント
+  （例: Claude Code）で登録済みでも、別のクライアント（例: Codex）では
+  改めてそのクライアントの設定への登録が必要です。上記「登録」セクションの
+  手順を、使いたいクライアントで実施済みか確認してください。
+- **実行ファイルの存在を確認**
+  インストール版では `%LOCALAPPDATA%\MioMail\miomail-mcp.exe` にあります。
+  エクスプローラーでパスを開き、`miomail-mcp.exe` が実際に存在するか確認してください。
+  （開発ビルドの場合は `src-tauri/target/release/miomail-mcp.exe`）
+- **設定変更後はクライアントを再起動**
+  設定ファイルを編集しただけでは反映されないクライアントが多いため、
+  登録・編集後はクライアントを再起動してください。
+- **先に MioMail アプリでアカウントを設定**
+  MCP サーバーはアプリと同じデータベース・キーリングを読むため、先にアプリ側で
+  アカウント設定を済ませておく必要があります。

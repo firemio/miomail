@@ -106,6 +106,7 @@ export function ModsGuide() {
         </a>
         <nav>
           <a href="/">トップ</a>
+          <a href="./mcp.html">MCPガイド</a>
           <a href={DOWNLOAD_URL}><Download size={13} /> ダウンロード</a>
         </nav>
       </header>
@@ -239,7 +240,10 @@ export function ModsGuide() {
 
       <footer className="site-docs-footer">
         <span>© 2026 MioMail</span>
-        <a href="https://github.com/firemio/miomail">GitHub</a>
+        <span style={{ display: 'inline-flex', gap: 18 }}>
+          <a href="./mcp.html">MCPガイド</a>
+          <a href="https://github.com/firemio/miomail">GitHub</a>
+        </span>
       </footer>
     </div>
   )

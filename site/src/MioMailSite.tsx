@@ -252,6 +252,9 @@ export function MioMailSite() {
                   <span>mark_read</span>
                   <span>sync</span>
                 </div>
+                <a className="site-text-link" href="./mcp.html">
+                  MCPサーバーの設定方法を見る <ArrowRight size={14} />
+                </a>
               </div>
               <span className="site-feature-card__scribble" aria-hidden="true">〜〜〜</span>
             </article>
@@ -341,6 +344,7 @@ export function MioMailSite() {
         <p>メールを、もっとやさしく。もっとあなたらしく。</p>
         <div>
           <a href="/mods.html">MODガイド</a>
+          <a href="./mcp.html">MCPガイド</a>
           <a href="https://github.com/firemio/miomail">GitHub</a>
           <a href={RELEASE_PAGE_URL}>Releases</a>
           <span>© 2026 MioMail</span>
