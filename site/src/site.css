@@ -189,6 +189,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 /* ===== LPのMOD紹介バンド ===== */
 .site-mods-band { display: grid; gap: 14px; justify-items: center; padding: 95px 24px 100px; border-top: 2px solid var(--site-ink); background: #f4edff; text-align: center; }
+.site-mcp-setup { display: grid; gap: 14px; justify-items: center; padding: 95px 24px 100px; border-top: 2px solid var(--site-ink); background: #e9f3ee; text-align: center; }
+.site-mcp-setup__kicker { margin: 0; color: #3f8f6e; font-size: 12px; font-weight: 900; letter-spacing: .2em; }
+.site-mcp-setup h2 { margin: 0; font-family: 'Kaisei Decol', serif; font-size: clamp(30px, 4vw, 44px); letter-spacing: -.055em; }
+.site-mcp-setup__lead { max-width: 620px; margin: 0 0 10px; color: var(--site-ink-soft); font-size: 14px; font-weight: 500; line-height: 2.1; }
+.site-mcp-setup__prompt { width: min(720px, 100%); margin: 6px 0 4px; text-align: left; }
+.site-mcp-setup__prompt .site-docs-code { font-size: 11.5px; }
 .site-mods-band__kicker { margin: 0; color: #7f66c3; font-size: 12px; font-weight: 900; letter-spacing: .2em; }
 .site-mods-band h2 { margin: 0; font-family: 'Kaisei Decol', serif; font-size: clamp(30px, 4vw, 44px); letter-spacing: -.055em; }
 .site-mods-band > p:not(.site-mods-band__kicker) { max-width: 560px; margin: 0 0 10px; color: var(--site-ink-soft); font-size: 14px; font-weight: 500; line-height: 2.1; }

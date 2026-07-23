@@ -21,6 +21,7 @@ import logoImage from '../../src/renderer/assets/miomail-logo.png'
 import titleBanner from './assets/miomail-title-banner.png'
 
 import { DOWNLOAD_URL, RELEASE_PAGE_URL } from './links'
+import { AUTO_SETUP_PROMPT, CopyPromptButton } from './mcpSetup'
 
 const features = [
   {
@@ -149,6 +150,7 @@ export function MioMailSite() {
         <nav className={`site-nav ${menuOpen ? 'is-open' : ''}`} aria-label="メインナビゲーション">
           <a href="#features" onClick={() => setMenuOpen(false)}>できること</a>
           <a href="#companion" onClick={() => setMenuOpen(false)}>相棒について</a>
+          <a href="#mcp" onClick={() => setMenuOpen(false)}>AIエージェントとつながる</a>
           <a href="#security" onClick={() => setMenuOpen(false)}>安心設計</a>
           <a className="site-nav__download" href={DOWNLOAD_URL}>
             ダウンロード <ArrowRight size={14} />
@@ -252,13 +254,30 @@ export function MioMailSite() {
                   <span>mark_read</span>
                   <span>sync</span>
                 </div>
-                <a className="site-text-link" href="./mcp.html">
-                  MCPサーバーの設定方法を見る <ArrowRight size={14} />
+                <a className="site-text-link" href="#mcp">
+                  設定プロンプトはこちら <ArrowRight size={14} />
                 </a>
               </div>
               <span className="site-feature-card__scribble" aria-hidden="true">〜〜〜</span>
             </article>
           </div>
+        </section>
+
+        <section className="site-mcp-setup" id="mcp" data-reveal>
+          <p className="site-mcp-setup__kicker">MCP SERVER</p>
+          <h2>AIエージェントと、<br />つながる。</h2>
+          <p className="site-mcp-setup__lead">
+            MioMailにはMCPサーバーを同梱。設定ファイルを手で編集する必要はありません。
+            <strong>下の文章をコピーして、お使いのAIエージェント(Claude・Codexなど)との会話に貼り付けるだけ</strong>で、
+            エージェントが自分自身にMioMailを登録してくれます。
+          </p>
+          <div className="site-docs-prompt site-mcp-setup__prompt">
+            <pre className="site-docs-code">{AUTO_SETUP_PROMPT}</pre>
+            <CopyPromptButton />
+          </div>
+          <a className="site-text-link" href="./mcp.html">
+            詳しい仕組み・手動設定・ツール一覧はMCPガイドへ <ArrowRight size={14} />
+          </a>
         </section>
 
         <section className="site-companion" id="companion">
