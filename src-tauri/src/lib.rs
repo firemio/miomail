@@ -1,3 +1,4 @@
+pub mod backfill;
 pub mod commands;
 pub mod credentials;
 pub mod db;

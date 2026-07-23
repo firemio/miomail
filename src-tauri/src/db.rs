@@ -127,6 +127,15 @@ pub fn open_connection(db_path: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
+fn table_exists(conn: &Connection, name: &str) -> bool {
+    conn.query_row(
+        "SELECT 1 FROM sqlite_master WHERE name = ?1 AND type = 'table'",
+        [name],
+        |_| Ok(()),
+    )
+    .is_ok()
+}
+
 fn column_exists(conn: &Connection, table: &str, column: &str) -> bool {
     let mut stmt = match conn.prepare(&format!("PRAGMA table_info({})", table)) {
         Ok(s) => s,
@@ -169,6 +178,87 @@ fn migrate(conn: &Connection) -> Result<()> {
             [],
         )?;
     }
+
+    // v5: バックフィル(全メールのローカル化)の進捗をフォルダ単位で保持する。
+    // oldest_uid_synced = ローカル取得済みの最古 UID(0 = 未開始)、
+    // backfill_done = サーバー上の全履歴を取得し終えたか。
+    if !column_exists(conn, "folders", "oldest_uid_synced") {
+        conn.execute(
+            "ALTER TABLE folders ADD COLUMN oldest_uid_synced INTEGER DEFAULT 0",
+            [],
+        )?;
+    }
+    if !column_exists(conn, "folders", "backfill_done") {
+        conn.execute(
+            "ALTER TABLE folders ADD COLUMN backfill_done INTEGER DEFAULT 0",
+            [],
+        )?;
+    }
+
+    // v6: FTS5 全文検索索引(trigram トークナイザ: 日本語など単語区切りのない
+    // 言語でも3文字以上の部分文字列を索引化できる)。
+    // messages_fts = messages の外部コンテンツ型(件名/差出人/宛先/snippet)。
+    // bodies_fts   = 本文用の通常 FTS5(rowid = message_bodies.message_id)。
+    // どちらもトリガーで自動同期し、テーブル新規作成時のみ既存行を一括投入する。
+    if !table_exists(conn, "messages_fts") {
+        conn.execute_batch(
+            "CREATE VIRTUAL TABLE messages_fts USING fts5(
+                subject, from_address, to_addresses, cc_addresses, snippet,
+                content='messages', content_rowid='id',
+                tokenize='trigram'
+            );",
+        )?;
+        // 既存行の一括投入(外部コンテンツ型の標準 rebuild)
+        conn.execute_batch("INSERT INTO messages_fts(messages_fts) VALUES('rebuild');")?;
+    }
+    conn.execute_batch(
+        "CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+            INSERT INTO messages_fts(rowid, subject, from_address, to_addresses, cc_addresses, snippet)
+            VALUES (new.id, new.subject, new.from_address, new.to_addresses, new.cc_addresses, new.snippet);
+        END;
+        CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+            INSERT INTO messages_fts(messages_fts, rowid, subject, from_address, to_addresses, cc_addresses, snippet)
+            VALUES ('delete', old.id, old.subject, old.from_address, old.to_addresses, old.cc_addresses, old.snippet);
+        END;
+        CREATE TRIGGER IF NOT EXISTS messages_fts_au AFTER UPDATE ON messages BEGIN
+            INSERT INTO messages_fts(messages_fts, rowid, subject, from_address, to_addresses, cc_addresses, snippet)
+            VALUES ('delete', old.id, old.subject, old.from_address, old.to_addresses, old.cc_addresses, old.snippet);
+            INSERT INTO messages_fts(rowid, subject, from_address, to_addresses, cc_addresses, snippet)
+            VALUES (new.id, new.subject, new.from_address, new.to_addresses, new.cc_addresses, new.snippet);
+        END;",
+    )?;
+
+    if !table_exists(conn, "bodies_fts") {
+        conn.execute_batch(
+            "CREATE VIRTUAL TABLE bodies_fts USING fts5(
+                text_body,
+                tokenize='trigram'
+            );",
+        )?;
+        // 既存本文の一括投入
+        conn.execute_batch(
+            "INSERT INTO bodies_fts(rowid, text_body)
+             SELECT message_id, text_body FROM message_bodies
+             WHERE text_body IS NOT NULL AND text_body != '';",
+        )?;
+    }
+    // INSERT OR REPLACE(message_bodies へのキャッシュ保存で使用)では REPLACE の
+    // 暗黙 DELETE にトリガーが乗らない(recursive_triggers 無効のため)場合がある。
+    // そのため INSERT/UPDATE トリガーは先に同 rowid を消してから入れ直し、
+    // 索引の重複・残滓を防ぐ。
+    conn.execute_batch(
+        "CREATE TRIGGER IF NOT EXISTS bodies_fts_ai AFTER INSERT ON message_bodies BEGIN
+            DELETE FROM bodies_fts WHERE rowid = new.message_id;
+            INSERT INTO bodies_fts(rowid, text_body) VALUES (new.message_id, new.text_body);
+        END;
+        CREATE TRIGGER IF NOT EXISTS bodies_fts_ad AFTER DELETE ON message_bodies BEGIN
+            DELETE FROM bodies_fts WHERE rowid = old.message_id;
+        END;
+        CREATE TRIGGER IF NOT EXISTS bodies_fts_au AFTER UPDATE ON message_bodies BEGIN
+            DELETE FROM bodies_fts WHERE rowid = old.message_id;
+            INSERT INTO bodies_fts(rowid, text_body) VALUES (new.message_id, new.text_body);
+        END;",
+    )?;
 
     // Backfill date_ts for legacy rows
     {
@@ -305,6 +395,7 @@ mod tests {
                  CREATE TABLE folders (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, path TEXT NOT NULL, name TEXT NOT NULL, delimiter TEXT, flags TEXT, unread_count INTEGER DEFAULT 0, total_count INTEGER DEFAULT 0, UNIQUE(account_id, path));
                  CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, folder_id INTEGER, uid INTEGER, message_id TEXT, subject TEXT, from_address TEXT, to_addresses TEXT, cc_addresses TEXT, date TEXT, flags TEXT, snippet TEXT, has_attachments INTEGER DEFAULT 0, UNIQUE(account_id, folder_id, uid));
                  CREATE TABLE message_bodies (message_id INTEGER PRIMARY KEY, html_body TEXT, text_body TEXT);
+                 INSERT INTO folders (id, account_id, path, name) VALUES (1, 1, 'INBOX', 'INBOX');
                  INSERT INTO messages (account_id, folder_id, uid, subject, date, flags) VALUES (1, 1, 10, 'old', 'Mon, 14 Jul 2025 12:00:00 +0900', '[\"Seen\",\"Custom(\\\"NonJunk\\\")\"]');",
             )
             .unwrap();
@@ -319,6 +410,132 @@ mod tests {
         assert_eq!(date_ts, 1752462000);
         let flags: Vec<String> = serde_json::from_str(&flags).unwrap();
         assert_eq!(flags, vec!["\\Seen".to_string(), "NonJunk".to_string()]);
+
+        // v5: backfill state columns are added to legacy folders tables
+        assert!(column_exists(&conn, "folders", "oldest_uid_synced"));
+        assert!(column_exists(&conn, "folders", "backfill_done"));
+        let (oldest, done): (i64, i64) = conn
+            .query_row(
+                "SELECT COALESCE(oldest_uid_synced, -1), COALESCE(backfill_done, -1) FROM folders LIMIT 1",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((oldest, done), (0, 0), "初期状態は未開始・未完了");
+
+        drop(conn);
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// v6 テスト用の最小データ(accounts / folders / messages 各1件)を入れる。
+    /// foreign_keys = ON なので参照先から順に作る。
+    fn seed_one_message(conn: &Connection, subject: &str) {
+        conn.execute_batch(
+            "INSERT INTO accounts (id, name, email) VALUES (1, 'test', 't@example.com');
+             INSERT INTO folders (id, account_id, path, name) VALUES (1, 1, 'INBOX', 'INBOX');",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO messages (id, account_id, folder_id, uid, subject, from_address, snippet, date_ts)
+             VALUES (1, 1, 1, 100, ?1, 'boss@example.com', '', 1000)",
+            [subject],
+        )
+        .unwrap();
+    }
+
+    fn fts_match_count(conn: &Connection, table: &str, query: &str) -> i64 {
+        conn.query_row(
+            &format!("SELECT count(*) FROM {table} WHERE {table} MATCH ?1"),
+            [query],
+            |r| r.get(0),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn fts_tables_created_and_synced_via_triggers() {
+        let conn = open_connection(Path::new(":memory:")).unwrap();
+        assert!(table_exists(&conn, "messages_fts"));
+        assert!(table_exists(&conn, "bodies_fts"));
+
+        // INSERT トリガー: 日本語件名が即座に索引化される
+        seed_one_message(&conn, "週次レポート提出のお知らせ");
+        assert_eq!(fts_match_count(&conn, "messages_fts", "レポート"), 1);
+
+        // UPDATE トリガー: 古い語は消え、新しい語がヒットする
+        conn.execute("UPDATE messages SET subject = '定例会議の案内' WHERE id = 1", [])
+            .unwrap();
+        assert_eq!(fts_match_count(&conn, "messages_fts", "レポート"), 0);
+        assert_eq!(fts_match_count(&conn, "messages_fts", "定例会議"), 1);
+
+        // DELETE トリガー: 削除後はヒットしない
+        conn.execute("DELETE FROM messages WHERE id = 1", []).unwrap();
+        assert_eq!(fts_match_count(&conn, "messages_fts", "定例会議"), 0);
+    }
+
+    #[test]
+    fn bodies_fts_synced_via_triggers() {
+        let conn = open_connection(Path::new(":memory:")).unwrap();
+        seed_one_message(&conn, "plain subject");
+
+        // 本文 INSERT → bodies_fts に即反映
+        conn.execute(
+            "INSERT INTO message_bodies (message_id, text_body) VALUES (1, 'プロジェクト進捗報告書を添付します')",
+            [],
+        )
+        .unwrap();
+        assert_eq!(fts_match_count(&conn, "bodies_fts", "進捗報告"), 1);
+
+        // INSERT OR REPLACE(本文キャッシュの保存経路)でも索引が重複・残存しない
+        conn.execute(
+            "INSERT OR REPLACE INTO message_bodies (message_id, text_body) VALUES (1, '差し替え後の本文です')",
+            [],
+        )
+        .unwrap();
+        assert_eq!(fts_match_count(&conn, "bodies_fts", "進捗報告"), 0);
+        assert_eq!(fts_match_count(&conn, "bodies_fts", "差し替え後"), 1);
+
+        // DELETE 後はヒットしない
+        conn.execute("DELETE FROM message_bodies WHERE message_id = 1", [])
+            .unwrap();
+        assert_eq!(fts_match_count(&conn, "bodies_fts", "差し替え後"), 0);
+    }
+
+    #[test]
+    fn fts_migration_backfills_existing_rows() {
+        let dir = std::env::temp_dir().join(format!("miomail-fts-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("fts-migrate.db");
+        std::fs::remove_file(&path).ok();
+
+        // v6 より前の DB を模擬: FTS テーブルなしで既存データだけがある
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL);
+                 CREATE TABLE folders (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, path TEXT NOT NULL, name TEXT NOT NULL, delimiter TEXT, flags TEXT, unread_count INTEGER DEFAULT 0, total_count INTEGER DEFAULT 0, UNIQUE(account_id, path));
+                 CREATE TABLE messages (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id INTEGER, folder_id INTEGER, uid INTEGER, message_id TEXT, subject TEXT, from_address TEXT, to_addresses TEXT, cc_addresses TEXT, date TEXT, flags TEXT, snippet TEXT, has_attachments INTEGER DEFAULT 0, UNIQUE(account_id, folder_id, uid));
+                 CREATE TABLE message_bodies (message_id INTEGER PRIMARY KEY, html_body TEXT, text_body TEXT);
+                 INSERT INTO folders (id, account_id, path, name) VALUES (1, 1, 'INBOX', 'INBOX');
+                 INSERT INTO messages (id, account_id, folder_id, uid, subject, from_address, snippet) VALUES (1, 1, 1, 10, '既存メール件名テスト', 'a@example.com', '');
+                 INSERT INTO message_bodies (message_id, text_body) VALUES (1, '事前に保存済みの本文内容');",
+            )
+            .unwrap();
+        }
+
+        let conn = open_connection(&path).unwrap();
+        // rebuild により既存ヘッダが索引化されている
+        assert_eq!(fts_match_count(&conn, "messages_fts", "件名テスト"), 1);
+        // 既存本文の一括投入も効いている
+        assert_eq!(fts_match_count(&conn, "bodies_fts", "保存済み"), 1);
+
+        // マイグレーションは冪等: 再オープンしても重複投入されない
+        drop(conn);
+        let conn = open_connection(&path).unwrap();
+        let n: i64 = conn
+            .query_row("SELECT count(*) FROM bodies_fts", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 1, "rebuild/一括投入は初回のみ");
 
         drop(conn);
         std::fs::remove_file(&path).ok();

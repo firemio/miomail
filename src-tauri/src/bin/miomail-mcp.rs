@@ -384,14 +384,9 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
             };
 
             let mut all = Vec::new();
-            let q = format!("%{}%", query);
             let conn = db.conn.lock().map_err(|e| e.to_string())?;
             for account_id in account_ids {
-                let messages = mail_core::query_messages(
-                    &conn,
-                    "SELECT id, account_id, folder_id, uid, message_id, subject, from_address, to_addresses, cc_addresses, date, date_ts, flags, snippet, has_attachments FROM messages WHERE account_id = ?1 AND (subject LIKE ?2 OR from_address LIKE ?3 OR snippet LIKE ?4 OR id IN (SELECT message_id FROM message_bodies WHERE text_body LIKE ?5)) ORDER BY date_ts DESC LIMIT 50",
-                    &[&account_id, &q as &dyn rusqlite::types::ToSql, &q, &q, &q],
-                )?;
+                let messages = mail_core::search_messages(&conn, account_id, &query, 50)?;
                 all.extend(messages);
             }
             all.sort_by_key(|m| -m.date_ts);
@@ -501,6 +496,14 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
                     }) {
                         mail_core::sync_messages_for_folder(None, account_id, folder.id, db)
                             .await?;
+                    }
+                    // 単一アカウント指定でもバックフィル+本文プリフェッチを1サイクル進める
+                    // (sync_all_accounts 経由でないと動かないため)
+                    if let Err(error) = mail_core::run_backfill_step(account_id, db).await {
+                        log::error!("backfill failed for account {}: {}", account_id, error);
+                    }
+                    if let Err(error) = mail_core::run_prefetch_for_account(account_id, db).await {
+                        log::error!("body prefetch failed for account {}: {}", account_id, error);
                     }
                 }
                 None => {

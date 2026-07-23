@@ -414,6 +414,123 @@ pub async fn fetch_messages(
     Ok(result)
 }
 
+/// ヘッダ部(例: HEADER.FIELDS の結果)と本文部(BODY[TEXT])を結合して
+/// 1つの RFC822 メッセージとしてパースし、(html, text) を返す。
+/// プリフェッチの `BODY.PEEK[TEXT]` 経路用の純粋関数(添付は含めない)。
+fn parse_text_body(header: &[u8], text: &[u8]) -> (String, String) {
+    let mut raw = Vec::with_capacity(header.len() + text.len() + 4);
+    raw.extend_from_slice(header);
+    raw.extend_from_slice(b"\r\n");
+    raw.extend_from_slice(text);
+
+    let parsed = mail_parser::MessageParser::default()
+        .parse(&raw)
+        .unwrap_or_default();
+    let html = parsed
+        .body_html(0)
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+    let text = parsed
+        .body_text(0)
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+    (html, text)
+}
+
+/// バックフィル / 本文プリフェッチのように1ジョブ内で複数回の FETCH を
+/// 行う処理向けに、IMAP セッションを使い回すためのラッパー。
+/// 1通ごと・1チャンクごとの再接続を避ける。
+pub struct FolderSession {
+    session: ImapSession,
+}
+
+impl FolderSession {
+    pub async fn connect(config: &ImapConfig) -> Result<Self> {
+        Ok(FolderSession {
+            session: connect(config).await?,
+        })
+    }
+
+    /// SELECT してサーバー側のメール数と UIDNEXT を返す(バックフィルのシード用)。
+    pub async fn mailbox_status(&mut self, folder: &str) -> Result<(u32, Option<u32>)> {
+        let mailbox = self
+            .session
+            .select(folder)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to SELECT '{}': {}", folder, e))?;
+        Ok((mailbox.exists, mailbox.uid_next))
+    }
+
+    /// UID 範囲 [low, high](両端含む)のヘッダを取得する(バックフィル用)。
+    pub async fn fetch_headers_uid_range(
+        &mut self,
+        folder: &str,
+        low: u32,
+        high: u32,
+    ) -> Result<Vec<MessageHeader>> {
+        self.session
+            .select(folder)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to SELECT '{}': {}", folder, e))?;
+
+        let range = format!("{}:{}", low, high);
+        log::info!("IMAP backfill uid_fetch range: {} ('{}')", range, folder);
+        let stream = self
+            .session
+            .uid_fetch(&range, HEADER_ITEMS)
+            .await
+            .map_err(|e| anyhow::anyhow!("IMAP UID FETCH (backfill) failed: {}", e))?;
+        let raw_messages: Vec<Fetch> =
+            stream.filter_map(|r| async move { r.ok() }).collect().await;
+
+        let mut result: Vec<MessageHeader> = raw_messages
+            .iter()
+            .filter_map(parse_header_fetch)
+            .filter(|h| h.uid >= low && h.uid <= high)
+            .collect();
+        result.sort_by_key(|h| h.uid);
+        Ok(result)
+    }
+
+    /// 本文テキストのみを取得する(プリフェッチ用)。添付は取らない。
+    /// `BODY.PEEK[TEXT]<0.N>` の部分取得で1通あたりの転送量を制限し、
+    /// MIME 解釈に必要な Content-Type 系ヘッダだけ別途取って結合する。
+    pub async fn fetch_body_text(&mut self, folder: &str, uid: u32) -> Result<MessageBody> {
+        self.session
+            .select(folder)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to SELECT '{}': {}", folder, e))?;
+
+        let items = format!(
+            "(UID BODY.PEEK[HEADER.FIELDS (MIME-VERSION CONTENT-TYPE CONTENT-TRANSFER-ENCODING)] BODY.PEEK[TEXT]<0.{}>)",
+            crate::backfill::PREFETCH_TEXT_MAX_BYTES
+        );
+        let stream = self.session.uid_fetch(uid.to_string(), &items).await?;
+        let messages: Vec<Fetch> = stream.filter_map(|r| async { r.ok() }).collect().await;
+        let msg = messages
+            .iter()
+            .find(|m| m.uid == Some(uid))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "UID {} の本文を取得できませんでした(サーバー上で削除された可能性があります)",
+                    uid
+                )
+            })?;
+
+        let (html, text) = parse_text_body(msg.header().unwrap_or(&[]), msg.text().unwrap_or(&[]));
+        Ok(MessageBody {
+            html,
+            text,
+            attachments: Vec::new(),
+        })
+    }
+
+    pub async fn logout(mut self) -> Result<()> {
+        self.session.logout().await?;
+        Ok(())
+    }
+}
+
 /// Fetch current flags for all messages with UID >= min_uid.
 /// Used to reconcile local state (read/unread, deletions) with the server.
 pub async fn fetch_flags(
@@ -857,6 +974,22 @@ JVBERi0xLjQ=\r\n\
             fix_extension_whitespace("odd.name with space"),
             "odd.name with space"
         );
+    }
+
+    #[test]
+    fn text_body_prefetch_parses_plain_and_multipart() {
+        // text/plain 単一パート: ヘッダ無しの生テキストが本文として取り出せる
+        // (mail-parser は text から html も合成するので html は問わない)
+        let (_html, text) = parse_text_body(b"", "こんにちは\r\nこれは本文です。\r\n".as_bytes());
+        assert!(text.contains("これは本文です"));
+
+        // multipart: Content-Type ヘッダと TEXT 部を結合すれば MIME 解釈できる。
+        // text/plain パートだけが本文として取り出され、添付の base64 は本文に混ざらない。
+        let header = b"Content-Type: multipart/mixed; boundary=\"x\"\r\nMIME-Version: 1.0\r\n";
+        let body = b"--x\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nhello prefetch\r\n--x\r\nContent-Type: application/pdf\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; filename=\"a.pdf\"\r\n\r\nJVBERi0xLjQ=\r\n--x--\r\n";
+        let (_html, text) = parse_text_body(header, body);
+        assert_eq!(text.trim(), "hello prefetch");
+        assert!(!text.contains("JVBERi0xLjQ="), "添付データが本文に混入: {}", text);
     }
 
     #[test]

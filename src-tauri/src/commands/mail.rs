@@ -406,14 +406,16 @@ pub async fn sync_messages_for_folder(
         .map_err(|e| e.to_string())?;
 
     {
-        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
         for m in &messages {
             let flags_json = serde_json::to_string(&m.flags).unwrap_or_default();
-            conn.execute(
+            tx.execute(
                 "INSERT OR IGNORE INTO messages (account_id, folder_id, uid, message_id, subject, from_address, to_addresses, cc_addresses, date, date_ts, flags, snippet, has_attachments) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
                 rusqlite::params![account_id, folder_id, m.uid as i64, m.message_id, m.subject, m.from, m.to, m.cc, m.date, m.date_ts, flags_json, m.snippet, if m.has_attachments { 1i64 } else { 0i64 }],
             ).ok();
         }
+        tx.commit().map_err(|e| e.to_string())?;
 
         recompute_folder_counts(&conn, folder_id);
     }
@@ -495,11 +497,235 @@ pub async fn sync_all_accounts(app: Option<&AppHandle>, db: &DbState) -> Result<
                 );
             }
         }
+
+        // 新着の増分同期を優先したあと、全メールのローカル化を1サイクル分だけ
+        // 進める。失敗しても通常同期には影響させない。
+        if let Err(error) = run_backfill_step(account_id, db).await {
+            log::error!("backfill failed for account {}: {}", account_id, error);
+        }
+        if let Err(error) = run_prefetch_for_account(account_id, db).await {
+            log::error!("body prefetch failed for account {}: {}", account_id, error);
+        }
     }
 
     if let Some(app) = app {
         tray::update_tray_tooltip(app, total_unread_count(db)?);
     }
+    Ok(())
+}
+
+/// バックフィル(全メールのヘッダのローカル化)を1チャンク分だけ進める。
+///
+/// アカウント内で最初の未完了フォルダを選び、新着同期のあとに過去方向へ
+/// `backfill::BACKFILL_CHUNK_SIZE` 件の UID 範囲を UID FETCH する。
+/// 既存行との重複は UNIQUE(account_id, folder_id, uid) + INSERT OR IGNORE で
+/// 自然に排除される。取得チャンクはトランザクションで一括コミットする。
+pub async fn run_backfill_step(account_id: i64, db: &DbState) -> Result<(), String> {
+    let (config, folder_id, folder_path, stored_oldest) = {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        let config = get_imap_config(&conn, account_id)?;
+        // 最初の未完了フォルダ(完了したら次のフォルダへ順に進む)
+        let row: Option<(i64, String, i64)> = conn
+            .query_row(
+                "SELECT id, path, COALESCE(oldest_uid_synced, 0) FROM folders
+                 WHERE account_id = ?1 AND COALESCE(backfill_done, 0) = 0
+                 ORDER BY id LIMIT 1",
+                [account_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .ok();
+        let Some((folder_id, folder_path, stored_oldest)) = row else {
+            return Ok(()); // 全フォルダ完了済み
+        };
+        (config, folder_id, folder_path, stored_oldest)
+    };
+
+    let mut session = imap_service::FolderSession::connect(&config)
+        .await
+        .map_err(|e| e.to_string())?;
+    let result = run_backfill_step_inner(account_id, folder_id, &folder_path, stored_oldest, db, &mut session).await;
+    session.logout().await.ok();
+    result
+}
+
+async fn run_backfill_step_inner(
+    account_id: i64,
+    folder_id: i64,
+    folder_path: &str,
+    stored_oldest: i64,
+    db: &DbState,
+    session: &mut imap_service::FolderSession,
+) -> Result<(), String> {
+    let mut state = crate::backfill::BackfillState {
+        oldest_uid_synced: stored_oldest.max(0) as u32,
+        done: false,
+    };
+
+    // 未シード(oldest_uid_synced = 0)なら、ローカルの最古 UID または
+    // サーバーの UIDNEXT を起点に初期状態を決めて保存する。
+    if state.oldest_uid_synced == 0 {
+        let local_min_uid: Option<u32> = {
+            let conn = db.conn.lock().map_err(|e| e.to_string())?;
+            conn.query_row(
+                "SELECT MIN(uid) FROM messages WHERE account_id = ?1 AND folder_id = ?2 AND uid > 0",
+                [account_id, folder_id],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .ok()
+            .flatten()
+            .and_then(|v| u32::try_from(v).ok())
+        };
+        let (exists, uid_next) = session
+            .mailbox_status(folder_path)
+            .await
+            .map_err(|e| e.to_string())?;
+        state = crate::backfill::seed(local_min_uid, exists, uid_next);
+        {
+            let conn = db.conn.lock().map_err(|e| e.to_string())?;
+            conn.execute(
+                "UPDATE folders SET oldest_uid_synced = ?1, backfill_done = ?2 WHERE id = ?3",
+                rusqlite::params![
+                    state.oldest_uid_synced as i64,
+                    if state.done { 1i64 } else { 0i64 },
+                    folder_id
+                ],
+            )
+            .ok();
+        }
+    }
+
+    let Some((low, high)) = crate::backfill::next_chunk_range(state) else {
+        return Ok(());
+    };
+
+    let headers = session
+        .fetch_headers_uid_range(folder_path, low, high)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // チャンクの INSERT と進捗更新を1トランザクションでコミットする
+    {
+        let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
+        let tx = conn.transaction().map_err(|e| e.to_string())?;
+        for m in &headers {
+            let flags_json = serde_json::to_string(&m.flags).unwrap_or_default();
+            tx.execute(
+                "INSERT OR IGNORE INTO messages (account_id, folder_id, uid, message_id, subject, from_address, to_addresses, cc_addresses, date, date_ts, flags, snippet, has_attachments) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)",
+                rusqlite::params![account_id, folder_id, m.uid as i64, m.message_id, m.subject, m.from, m.to, m.cc, m.date, m.date_ts, flags_json, m.snippet, if m.has_attachments { 1i64 } else { 0i64 }],
+            ).ok();
+        }
+        let new_state = crate::backfill::advance(state, headers.first().map(|h| h.uid));
+        tx.execute(
+            "UPDATE folders SET oldest_uid_synced = ?1, backfill_done = ?2 WHERE id = ?3",
+            rusqlite::params![
+                new_state.oldest_uid_synced as i64,
+                if new_state.done { 1i64 } else { 0i64 },
+                folder_id
+            ],
+        )
+        .ok();
+        tx.commit().map_err(|e| e.to_string())?;
+        log::info!(
+            "backfill: folder '{}' fetched {} headers (uid {}..{}), done={}",
+            folder_path,
+            headers.len(),
+            low,
+            high,
+            new_state.done
+        );
+    }
+
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        recompute_folder_counts(&conn, folder_id);
+    }
+    Ok(())
+}
+
+/// 本文プリフェッチ: message_bodies に無い本文を新しい順に
+/// `backfill::PREFETCH_PER_CYCLE` 通だけ取得し、全文検索できる
+/// ローカルコーパスを段階的に構築する。
+///
+/// - 対象はアカウントの直近 `backfill::PREFETCH_LOOKBACK_LIMIT` 通まで(安全弁)。
+/// - 添付を避けるため `BODY.PEEK[TEXT]`(バイト上限付き)を使い、1ジョブ内では
+///   同一 IMAP セッションを使い回す。開封時の従来経路(添付込み全文)は変えない。
+pub async fn run_prefetch_for_account(account_id: i64, db: &DbState) -> Result<(), String> {
+    let (config, candidates) = {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        let config = get_imap_config(&conn, account_id)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT m.id, m.uid, f.path FROM messages m
+                 JOIN folders f ON f.id = m.folder_id
+                 LEFT JOIN message_bodies mb ON mb.message_id = m.id
+                 WHERE m.account_id = ?1 AND m.uid > 0 AND mb.message_id IS NULL
+                   AND m.id IN (
+                       SELECT id FROM messages WHERE account_id = ?1
+                       ORDER BY date_ts DESC, uid DESC LIMIT ?2
+                   )
+                 ORDER BY m.date_ts DESC, m.uid DESC LIMIT ?3",
+            )
+            .map_err(|e| e.to_string())?;
+        let candidates: Vec<(i64, i64, String)> = stmt
+            .query_map(
+                rusqlite::params![
+                    account_id,
+                    crate::backfill::PREFETCH_LOOKBACK_LIMIT,
+                    crate::backfill::PREFETCH_PER_CYCLE
+                ],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(|e| e.to_string())?
+            .filter_map(|r| r.ok())
+            .collect();
+        (config, candidates)
+    };
+
+    if candidates.is_empty() {
+        return Ok(());
+    }
+
+    let mut session = imap_service::FolderSession::connect(&config)
+        .await
+        .map_err(|e| e.to_string())?;
+    let mut fetched = 0usize;
+    for (message_id, uid, folder_path) in &candidates {
+        let body = match session.fetch_body_text(folder_path, *uid as u32).await {
+            Ok(body) if !body.text.is_empty() || !body.html.is_empty() => Some(body),
+            Ok(_) => {
+                log::debug!("prefetch: UID {} の本文が空のためスキップ", uid);
+                None
+            }
+            Err(e) => {
+                // 部分取得に失敗した場合は従来通りの全文取得にフォールバック
+                log::warn!(
+                    "prefetch: BODY.PEEK[TEXT] failed for UID {} ({}), falling back to full fetch",
+                    uid,
+                    e
+                );
+                match imap_service::fetch_body(&config, folder_path, *uid as u32, true).await {
+                    Ok(body) => Some(body),
+                    Err(e2) => {
+                        log::warn!("prefetch: full fetch also failed for UID {}: {}", uid, e2);
+                        None
+                    }
+                }
+            }
+        };
+
+        if let Some(body) = body {
+            let conn = db.conn.lock().map_err(|e| e.to_string())?;
+            store_prefetched_body(&conn, *message_id, &body.html, &body.text);
+            fetched += 1;
+        }
+    }
+    session.logout().await.ok();
+    log::info!(
+        "prefetch: account {} cached {}/{} bodies",
+        account_id,
+        fetched,
+        candidates.len()
+    );
     Ok(())
 }
 
@@ -618,6 +844,43 @@ fn make_snippet(text: &str) -> String {
         .collect()
 }
 
+/// 本文(html/text)からプレビュー用 snippet を生成する。
+/// 開封時の本文キャッシュ経路とプリフェッチ経路で共通利用する。
+pub(crate) fn snippet_from_body(html: &str, text: &str) -> String {
+    make_snippet(if text.is_empty() { html } else { text })
+}
+
+/// プリフェッチ等で取得した本文を message_bodies に保存し、snippet を更新する。
+/// 添付を含まない部分取得なので attachments_synced = 0 とし、開封時の従来経路
+/// (添付込み全文取得)が後で必ず再取得する。既に全文キャッシュ済み
+/// (attachments_synced = 1)の行は上書きしない。
+pub(crate) fn store_prefetched_body(
+    conn: &rusqlite::Connection,
+    message_id: i64,
+    html: &str,
+    text: &str,
+) {
+    conn.execute(
+        "INSERT INTO message_bodies (message_id, html_body, text_body, attachments_synced)
+         VALUES (?1, ?2, ?3, 0)
+         ON CONFLICT(message_id) DO UPDATE SET
+             html_body = excluded.html_body,
+             text_body = excluded.text_body,
+             attachments_synced = 0
+         WHERE message_bodies.attachments_synced = 0",
+        rusqlite::params![message_id, html, text],
+    )
+    .ok();
+    let snippet = snippet_from_body(html, text);
+    if !snippet.is_empty() {
+        conn.execute(
+            "UPDATE messages SET snippet = ?1 WHERE id = ?2",
+            rusqlite::params![snippet, message_id],
+        )
+        .ok();
+    }
+}
+
 #[tauri::command]
 pub async fn mail_get_message(
     message_id: i64,
@@ -720,7 +983,7 @@ pub async fn get_message_core(
         )
         .ok();
         // Now that we have the body, store a real preview snippet
-        let snippet = make_snippet(if body.text.is_empty() { &body.html } else { &body.text });
+        let snippet = snippet_from_body(&body.html, &body.text);
         if !snippet.is_empty() {
             conn.execute(
                 "UPDATE messages SET snippet = ?1 WHERE id = ?2",
@@ -942,10 +1205,98 @@ pub fn mail_search(
     db: State<'_, DbState>,
 ) -> Result<Vec<Message>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    search_messages(&conn, account_id, &query, 50)
+}
+
+/// 従来の LIKE '%q%' 全表走査。1〜2文字のクエリ(trigram は3文字未満を索引化
+/// できない)と、FTS の MATCH 構文エラー時のフォールバックに使う。
+fn search_messages_like(
+    conn: &rusqlite::Connection,
+    account_id: i64,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<Message>, String> {
     let q = format!("%{}%", query);
-    query_messages(&conn,
-        &format!("SELECT {} FROM messages WHERE account_id = ?1 AND (subject LIKE ?2 OR from_address LIKE ?3 OR snippet LIKE ?4 OR id IN (SELECT message_id FROM message_bodies WHERE text_body LIKE ?5)) ORDER BY date_ts DESC LIMIT 50", MESSAGE_COLUMNS),
-        &[&account_id, &q as &dyn rusqlite::types::ToSql, &q, &q, &q])
+    query_messages(
+        conn,
+        &format!("SELECT {} FROM messages WHERE account_id = ?1 AND (subject LIKE ?2 OR from_address LIKE ?3 OR snippet LIKE ?4 OR id IN (SELECT message_id FROM message_bodies WHERE text_body LIKE ?5)) ORDER BY date_ts DESC LIMIT ?6", MESSAGE_COLUMNS),
+        &[&account_id, &q as &dyn rusqlite::types::ToSql, &q, &q, &q, &(limit as i64)])
+}
+
+/// FTS5(trigram)検索。messages_fts(件名/差出人/宛先/snippet)と bodies_fts(本文)を
+/// message id で OR 統合し、bm25 昇順(小さいほど関連度が高い)+ date_ts 降順で返す。
+/// MATCH 構文エラー(特殊文字入力など)は Err として呼び出し側にフォールバックさせる。
+fn search_messages_fts(
+    conn: &rusqlite::Connection,
+    account_id: i64,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<Message>, String> {
+    let ranked_sql = "
+        SELECT id, MIN(rank) AS rank, MAX(date_ts) AS date_ts FROM (
+            SELECT m.id AS id, bm25(messages_fts) AS rank, m.date_ts AS date_ts
+            FROM messages_fts JOIN messages m ON m.id = messages_fts.rowid
+            WHERE messages_fts MATCH ?1 AND m.account_id = ?2
+            UNION ALL
+            SELECT m.id AS id, bm25(bodies_fts) AS rank, m.date_ts AS date_ts
+            FROM bodies_fts JOIN messages m ON m.id = bodies_fts.rowid
+            WHERE bodies_fts MATCH ?1 AND m.account_id = ?2
+        )
+        GROUP BY id
+        ORDER BY rank ASC, date_ts DESC
+        LIMIT ?3";
+    let mut stmt = conn.prepare(ranked_sql).map_err(|e| e.to_string())?;
+    // FTS5 の MATCH 構文エラーは prepare ではなく行のステップ実行時に出ることが
+    // あるため、filter_map で握り潰さず明示的に Err を伝播させる(LIKE フォールバックに回す)。
+    let rows = stmt
+        .query_map(rusqlite::params![query, account_id, limit as i64], |row| {
+            row.get::<_, i64>(0)
+        })
+        .map_err(|e| e.to_string())?;
+    let mut ids: Vec<i64> = Vec::new();
+    for r in rows {
+        ids.push(r.map_err(|e| e.to_string())?);
+    }
+    drop(stmt);
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // ヒットした id を FTS のランク順のまま Message 行として読み直す
+    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let fetch_sql = format!(
+        "SELECT {} FROM messages WHERE id IN ({})",
+        MESSAGE_COLUMNS, placeholders
+    );
+    let params: Vec<&dyn rusqlite::types::ToSql> =
+        ids.iter().map(|id| id as &dyn rusqlite::types::ToSql).collect();
+    let mut msgs = query_messages(conn, &fetch_sql, &params)?;
+    let order: HashMap<i64, usize> = ids
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (*id, i))
+        .collect();
+    msgs.sort_by_key(|m| order.get(&m.id).copied().unwrap_or(usize::MAX));
+    Ok(msgs)
+}
+
+/// 検索の共通実装(app の mail_search と MCP の search_messages で共有)。
+/// 3文字以上は FTS5(trigram)、1〜2文字や MATCH 構文エラー時は従来 LIKE に
+/// フォールバックする。LIKE 側は旧実装と同一条件なので退行しない。
+pub fn search_messages(
+    conn: &rusqlite::Connection,
+    account_id: i64,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<Message>, String> {
+    let trimmed = query.trim();
+    if trimmed.chars().count() >= 3 {
+        match search_messages_fts(conn, account_id, trimmed, limit) {
+            Ok(msgs) => return Ok(msgs),
+            Err(e) => log::warn!("FTS search failed, falling back to LIKE: {}", e),
+        }
+    }
+    search_messages_like(conn, account_id, query, limit)
 }
 
 pub async fn send_and_record(db: &DbState, data: ComposeData) -> Result<(), String> {
@@ -1344,4 +1695,112 @@ pub async fn compose_send(data: ComposeInput, db: State<'_, DbState>) -> Result<
         attachments,
     };
     send_and_record(db.inner(), compose).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+    use std::path::Path;
+
+    /// in-memory DB に検索テスト用の最小データを作る。
+    /// msg1: 日本語件名のみ / msg2: 本文のみに語を含む / msg3: 記号入り件名
+    fn setup_conn() -> rusqlite::Connection {
+        let conn = db::open_connection(Path::new(":memory:")).unwrap();
+        conn.execute_batch(
+            "INSERT INTO accounts (id, name, email) VALUES (1, 'test', 't@example.com');
+             INSERT INTO folders (id, account_id, path, name) VALUES (1, 1, 'INBOX', 'INBOX');
+             INSERT INTO messages (id, account_id, folder_id, uid, subject, from_address, snippet, date_ts)
+             VALUES (1, 1, 1, 100, '週次レポート提出のお知らせ', 'boss@example.com', '', 1000);
+             INSERT INTO messages (id, account_id, folder_id, uid, subject, from_address, snippet, date_ts)
+             VALUES (2, 1, 1, 101, 'Meeting notes', 'alice@example.com', '', 2000);
+             INSERT INTO message_bodies (message_id, text_body)
+             VALUES (2, '四半期決算の概要を共有します');
+             INSERT INTO messages (id, account_id, folder_id, uid, subject, from_address, snippet, date_ts)
+             VALUES (3, 1, 1, 102, 'セール 50%OFF のご案内', 'shop@example.com', '', 3000);",
+        )
+        .unwrap();
+        conn
+    }
+
+    fn hit_ids(conn: &rusqlite::Connection, query: &str) -> Vec<i64> {
+        search_messages(conn, 1, query, 50)
+            .unwrap()
+            .iter()
+            .map(|m| m.id)
+            .collect()
+    }
+
+    #[test]
+    fn japanese_subject_hits_via_fts() {
+        let conn = setup_conn();
+        // 日本語件名「週次レポート提出のお知らせ」に「レポート」でヒット
+        assert_eq!(hit_ids(&conn, "レポート"), vec![1]);
+    }
+
+    #[test]
+    fn body_only_term_hits_via_bodies_fts() {
+        let conn = setup_conn();
+        // 件名にも snippet にも無く本文にだけある語 → bodies_fts 経由
+        assert_eq!(hit_ids(&conn, "四半期決算"), vec![2]);
+    }
+
+    #[test]
+    fn fts_results_merge_header_and_body_hits() {
+        let conn = setup_conn();
+        // ヘッダ側(msg1)と本文側(msg2)の両方が OR 統合で返る
+        conn.execute(
+            "UPDATE message_bodies SET text_body = 'レポートを確認してください' WHERE message_id = 2",
+            [],
+        )
+        .unwrap();
+        let ids = hit_ids(&conn, "レポート");
+        assert!(ids.contains(&1) && ids.contains(&2), "ids = {:?}", ids);
+        assert_eq!(ids.len(), 2, "重複排除されている: {:?}", ids);
+    }
+
+    #[test]
+    fn trigger_sync_insert_then_delete() {
+        let conn = setup_conn();
+        // INSERT 直後に即ヒット
+        conn.execute(
+            "INSERT INTO messages (id, account_id, folder_id, uid, subject, date_ts)
+             VALUES (9, 1, 1, 200, '臨時取締役会の招集通知', 4000)",
+            [],
+        )
+        .unwrap();
+        assert_eq!(hit_ids(&conn, "取締役会"), vec![9]);
+        // DELETE 後はヒットしない
+        conn.execute("DELETE FROM messages WHERE id = 9", []).unwrap();
+        assert!(hit_ids(&conn, "取締役会").is_empty());
+    }
+
+    #[test]
+    fn two_char_query_falls_back_to_like() {
+        let conn = setup_conn();
+        // trigram は3文字未満を索引化できない → LIKE フォールバックでヒット
+        assert_eq!(hit_ids(&conn, "レポ"), vec![1]);
+        // 本文側も LIKE でヒットする
+        assert_eq!(hit_ids(&conn, "決算"), vec![2]);
+    }
+
+    #[test]
+    fn match_syntax_error_falls_back_to_like() {
+        let conn = setup_conn();
+        // クラッシュせず Err にもならない(空結果 or LIKE 結果)
+        assert!(search_messages(&conn, 1, "\"", 50).is_ok());
+        assert!(search_messages(&conn, 1, "\"\"\"", 50).is_ok());
+        assert!(search_messages(&conn, 1, "NEAR/(", 50).is_ok());
+        assert!(search_messages(&conn, 1, "foo AND (", 50).is_ok());
+        // FTS が構文エラーになる入力でも、旧 LIKE がヒットしていたものは拾う
+        assert_eq!(hit_ids(&conn, "50%OFF"), vec![3]);
+    }
+
+    #[test]
+    fn ascii_and_mixed_queries_hit() {
+        let conn = setup_conn();
+        assert_eq!(hit_ids(&conn, "meeting"), vec![2]); // 大小文字無視
+        assert_eq!(hit_ids(&conn, "alice@example.com"), vec![2]); // from_address
+        assert_eq!(hit_ids(&conn, "レポート提出"), vec![1]); // 混在・長めの部分列
+    }
 }
