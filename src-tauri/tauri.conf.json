@@ -48,7 +48,11 @@
       "icons/128x128@2x.png",
       "icons/icon.ico"
     ],
-    "resources": ["../scripts/extract_outlook.py"],
+    "resources": {
+      "../scripts/extract_outlook.py": "_up_/scripts/extract_outlook.py",
+      "target/release/onnxruntime.dll": "onnxruntime.dll",
+      "target/release/onnxruntime_providers_shared.dll": "onnxruntime_providers_shared.dll"
+    },
     "windows": {
       "nsis": {
         "languages": ["Japanese"],
