@@ -4,6 +4,7 @@ import type { DemoMailEvent, NewMailEvent } from './types'
 import { ComposePanel } from './components/compose/ComposePanel'
 import { AccountSetup } from './components/account/AccountSetup'
 import { ImportDialog } from './components/import/ImportDialog'
+import { JobProgressBar } from './components/layout/JobProgressBar'
 import { CourierWelcome } from './components/layout/CourierWelcome'
 import { CompanionOverlay } from './components/layout/CompanionOverlay'
 import { CourierDeliveryOverlay, type SentDeliveryHandoff } from './components/layout/CourierDeliveryOverlay'
@@ -158,6 +159,8 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        <JobProgressBar />
 
         <UpdateBanner />
         {showAccountSetup && <AccountSetup />}

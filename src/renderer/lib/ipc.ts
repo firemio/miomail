@@ -4,6 +4,7 @@ import type {
   AppBuildInfo,
   AccountInput,
   Folder,
+  JobProgress,
   Message,
   MessageFull,
   ComposeData,
@@ -11,6 +12,7 @@ import type {
   OutlookFolder,
   OutlookMessage,
   PickedFile,
+  SemanticStatus,
   UpdateStatus,
 } from '../types'
 import type { CharacterModScanResult } from '../characters/types'
@@ -123,6 +125,20 @@ const characterModsApi = isTauriRuntime
       },
     }
 
+const jobsApi = isTauriRuntime
+  ? {
+      progress: (accountId: number): Promise<JobProgress[]> =>
+        invoke('mail_job_progress', { accountId }),
+    }
+  : mockApi.jobs
+
+const semanticApi = isTauriRuntime
+  ? {
+      status: (): Promise<SemanticStatus> => invoke('mail_semantic_status'),
+      enable: (): Promise<SemanticStatus> => invoke('mail_semantic_enable'),
+    }
+  : mockApi.semantic
+
 export const api = {
   account: accountApi,
   mail: mailApi,
@@ -131,4 +147,6 @@ export const api = {
   import: importApi,
   app: appApi,
   characterMods: characterModsApi,
+  jobs: jobsApi,
+  semantic: semanticApi,
 }

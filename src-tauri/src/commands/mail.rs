@@ -405,6 +405,19 @@ pub async fn sync_messages_for_folder(
         .await
         .map_err(|e| e.to_string())?;
 
+    // 進捗記録: 新規ヘッダの取り込み(0件でも完了状態として記録する)
+    if !messages.is_empty() {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        crate::vectorize::job_progress_upsert(
+            &conn,
+            crate::vectorize::JOB_SYNC,
+            account_id,
+            0,
+            messages.len() as i64,
+            &format!("{}: 新規メッセージ {} 件を取り込み中", folder_path, messages.len()),
+        );
+    }
+
     {
         let mut conn = db.conn.lock().map_err(|e| e.to_string())?;
         let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -416,6 +429,15 @@ pub async fn sync_messages_for_folder(
             ).ok();
         }
         tx.commit().map_err(|e| e.to_string())?;
+
+        crate::vectorize::job_progress_upsert(
+            &conn,
+            crate::vectorize::JOB_SYNC,
+            account_id,
+            messages.len() as i64,
+            messages.len() as i64,
+            &format!("{}: 新規 {} 件", folder_path, messages.len()),
+        );
 
         recompute_folder_counts(&conn, folder_id);
     }
@@ -506,6 +528,12 @@ pub async fn sync_all_accounts(app: Option<&AppHandle>, db: &DbState) -> Result<
         if let Err(error) = run_prefetch_for_account(account_id, db).await {
             log::error!("body prefetch failed for account {}: {}", account_id, error);
         }
+
+        // セマンティック検索が有効な場合のみ、本文キャッシュ済みメールの
+        // ベクトル化を1サイクル分進める(内部で有効性を再チェックする)。
+        if let Err(error) = crate::vectorize::run_vectorize_step(account_id, db).await {
+            log::error!("vectorize failed for account {}: {}", account_id, error);
+        }
     }
 
     if let Some(app) = app {
@@ -535,6 +563,12 @@ pub async fn run_backfill_step(account_id: i64, db: &DbState) -> Result<(), Stri
             )
             .ok();
         let Some((folder_id, folder_path, stored_oldest)) = row else {
+            crate::vectorize::job_progress_finish(
+                &conn,
+                crate::vectorize::JOB_BACKFILL,
+                account_id,
+                "バックフィルは全フォルダで完了しています",
+            );
             return Ok(()); // 全フォルダ完了済み
         };
         (config, folder_id, folder_path, stored_oldest)
@@ -625,6 +659,31 @@ async fn run_backfill_step_inner(
         )
         .ok();
         tx.commit().map_err(|e| e.to_string())?;
+
+        // 進捗記録: このフォルダの残り UID 数を分母にする
+        {
+            let remaining = new_state.oldest_uid_synced.saturating_sub(1) as i64;
+            if new_state.done {
+                crate::vectorize::job_progress_upsert(
+                    &conn,
+                    crate::vectorize::JOB_BACKFILL,
+                    account_id,
+                    1,
+                    1,
+                    &format!("{}: バックフィル完了", folder_path),
+                );
+            } else {
+                crate::vectorize::job_progress_upsert(
+                    &conn,
+                    crate::vectorize::JOB_BACKFILL,
+                    account_id,
+                    0,
+                    remaining.max(1),
+                    &format!("{}: 履歴取得中(残り約 {} 件)", folder_path, remaining),
+                );
+            }
+        }
+
         log::info!(
             "backfill: folder '{}' fetched {} headers (uid {}..{}), done={}",
             folder_path,
@@ -682,6 +741,13 @@ pub async fn run_prefetch_for_account(account_id: i64, db: &DbState) -> Result<(
     };
 
     if candidates.is_empty() {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        crate::vectorize::job_progress_finish(
+            &conn,
+            crate::vectorize::JOB_PREFETCH,
+            account_id,
+            "本文プリフェッチは完了しています",
+        );
         return Ok(());
     }
 
@@ -689,6 +755,17 @@ pub async fn run_prefetch_for_account(account_id: i64, db: &DbState) -> Result<(
         .await
         .map_err(|e| e.to_string())?;
     let mut fetched = 0usize;
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        crate::vectorize::job_progress_upsert(
+            &conn,
+            crate::vectorize::JOB_PREFETCH,
+            account_id,
+            0,
+            candidates.len() as i64,
+            &format!("本文プリフェッチ中 (0/{})", candidates.len()),
+        );
+    }
     for (message_id, uid, folder_path) in &candidates {
         let body = match session.fetch_body_text(folder_path, *uid as u32).await {
             Ok(body) if !body.text.is_empty() || !body.html.is_empty() => Some(body),
@@ -717,9 +794,26 @@ pub async fn run_prefetch_for_account(account_id: i64, db: &DbState) -> Result<(
             let conn = db.conn.lock().map_err(|e| e.to_string())?;
             store_prefetched_body(&conn, *message_id, &body.html, &body.text);
             fetched += 1;
+            crate::vectorize::job_progress_upsert(
+                &conn,
+                crate::vectorize::JOB_PREFETCH,
+                account_id,
+                fetched as i64,
+                candidates.len() as i64,
+                &format!("本文プリフェッチ中 ({}/{})", fetched, candidates.len()),
+            );
         }
     }
     session.logout().await.ok();
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        crate::vectorize::job_progress_finish(
+            &conn,
+            crate::vectorize::JOB_PREFETCH,
+            account_id,
+            &format!("本文プリフェッチ: {}/{} 件", fetched, candidates.len()),
+        );
+    }
     log::info!(
         "prefetch: account {} cached {}/{} bodies",
         account_id,
@@ -1695,6 +1789,119 @@ pub async fn compose_send(data: ComposeInput, db: State<'_, DbState>) -> Result<
         attachments,
     };
     send_and_record(db.inner(), compose).await
+}
+
+// ---------------------------------------------------------------------------
+// セマンティック検索(embed.rs / vectorize.rs)
+// ---------------------------------------------------------------------------
+
+/// IF 契約: バックグラウンドジョブの進捗一覧。
+/// kind: 'sync' | 'backfill' | 'prefetch' | 'vectorize' | 'model_download'
+#[tauri::command]
+pub fn mail_job_progress(
+    account_id: i64,
+    db: State<'_, DbState>,
+) -> Result<Vec<crate::vectorize::JobProgress>, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    Ok(crate::vectorize::job_progress_list(&conn, account_id))
+}
+
+/// IF 契約: セマンティック検索の状態('off'|'downloading'|'ready'|'error')。
+#[tauri::command]
+pub fn mail_semantic_status(
+    db: State<'_, DbState>,
+) -> Result<crate::embed::SemanticStatus, String> {
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    Ok(crate::embed::semantic_status(&conn))
+}
+
+/// IF 契約: セマンティック検索を有効化(オプトイン)してモデル DL を開始する。
+/// 既に DL 済みなら即 ready を返す。
+#[tauri::command]
+pub async fn mail_semantic_enable(
+    app: AppHandle,
+    db: State<'_, DbState>,
+) -> Result<crate::embed::SemanticStatus, String> {
+    crate::embed::semantic_enable(&app, db.inner()).await
+}
+
+/// セマンティック検索: クエリエンコード → 総当たりコサイン上位K →
+/// FTS5 の search_messages の結果と RRF(k=60) で融合 → message を返す。
+/// 既存の search_messages は不変。モデル未DL時は FTS にフォールバックせず
+/// 明示エラーを返す(キーワード結果と誤解されるのを防ぐため)。
+pub async fn semantic_search_messages(
+    db: &DbState,
+    account_id: i64,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<Message>, String> {
+    {
+        let conn = db.conn.lock().map_err(|e| e.to_string())?;
+        if !crate::embed::semantic_ready(&conn) {
+            return Err(
+                "セマンティック検索モデルがまだダウンロードされていません。MioMail アプリの設定画面でセマンティック検索を有効化してください"
+                    .to_string(),
+            );
+        }
+    }
+
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // ONNX 推論はブロッキングするので専用スレッドで実行する
+    let q = trimmed.to_string();
+    let query_vec = tokio::task::spawn_blocking(move || crate::embed::encode_query(&q))
+        .await
+        .map_err(|e| format!("encode worker failed: {}", e))??;
+
+    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+    use crate::vectorize::VectorStore;
+
+    // ベクトル側: コサイン類似度の上位K(融合のため limit より多めに取る)
+    let vector_k = (limit * 4).max(40);
+    let vector_hits = crate::vectorize::SqliteVectorStore { conn: &conn }.search_cosine(
+        &query_vec,
+        Some(account_id),
+        crate::embed::MODEL_VERSION,
+        vector_k,
+    )?;
+    let vector_ranked: Vec<i64> = vector_hits.iter().map(|(id, _)| *id).collect();
+
+    // FTS 側: 既存の共通実装(FTS+BM25、LIKE フォールバック込み)をそのまま使う
+    let fts_msgs = search_messages(&conn, account_id, trimmed, limit)?;
+    let fts_ranked: Vec<i64> = fts_msgs.iter().map(|m| m.id).collect();
+
+    // RRF(k=60)で融合
+    let fused = crate::vectorize::rrf_fuse(
+        &vector_ranked,
+        &fts_ranked,
+        crate::vectorize::RRF_K,
+        limit,
+    );
+    if fused.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // 融合順のまま Message 行として読み直す
+    let placeholders = fused.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let fetch_sql = format!(
+        "SELECT {} FROM messages WHERE id IN ({})",
+        MESSAGE_COLUMNS, placeholders
+    );
+    let params: Vec<&dyn rusqlite::types::ToSql> = fused
+        .iter()
+        .map(|id| id as &dyn rusqlite::types::ToSql)
+        .collect();
+    let mut msgs = query_messages(&conn, &fetch_sql, &params)?;
+    let order: HashMap<i64, usize> = fused
+        .iter()
+        .enumerate()
+        .map(|(i, id)| (*id, i))
+        .collect();
+    msgs.sort_by_key(|m| order.get(&m.id).copied().unwrap_or(usize::MAX));
+    Ok(msgs)
 }
 
 #[cfg(test)]

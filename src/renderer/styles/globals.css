@@ -2065,3 +2065,23 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
     display: none;
   }
 }
+
+/* ジョブ進捗バー: total 不明時の不定プログレスアニメーション */
+@keyframes job-progress-indeterminate {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.job-progress-indeterminate {
+  animation: job-progress-indeterminate 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-progress-indeterminate {
+    animation: none;
+  }
+}

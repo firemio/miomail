@@ -5,11 +5,13 @@ import type {
   ComposeData,
   DemoMailEvent,
   Folder,
+  JobProgress,
   Message,
   MessageFull,
   OutlookFolder,
   OutlookMessage,
   PickedFile,
+  SemanticStatus,
 } from '../types'
 import { APP_BUILD_ID, APP_COMMIT, APP_VERSION } from '../version'
 
@@ -483,6 +485,31 @@ function searchIndex(message: MessageFull) {
   ]
     .join(' ')
     .toLowerCase()
+}
+
+const SEMANTIC_MODEL_SIZE_MB = 45
+
+// プレビュー用のセマンティック検索ステート。enable → 擬似ダウンロード → ready を
+// 時間経過で再現し、プログレスバーの見た目を確認できるようにする。
+const mockSemanticState: { status: SemanticStatus; downloadStartedAt: number | null } = {
+  status: { state: 'off', model_size_mb: SEMANTIC_MODEL_SIZE_MB, error: null },
+  downloadStartedAt: null,
+}
+
+function tickMockSemantic(): SemanticStatus {
+  if (mockSemanticState.status.state !== 'downloading' || mockSemanticState.downloadStartedAt === null) {
+    return mockSemanticState.status
+  }
+  const elapsedSec = (Date.now() - mockSemanticState.downloadStartedAt) / 1000
+  if (elapsedSec >= 10) {
+    mockSemanticState.status = {
+      state: 'ready',
+      model_size_mb: SEMANTIC_MODEL_SIZE_MB,
+      error: null,
+    }
+    mockSemanticState.downloadStartedAt = null
+  }
+  return mockSemanticState.status
 }
 
 export const mockApi = {
@@ -990,6 +1017,50 @@ export const mockApi = {
     }),
     updateInstall: async (): Promise<void> => {
       throw new Error('自動アップデートはデスクトップ版で利用できます')
+    },
+  },
+
+  jobs: {
+    progress: async (_accountId: number): Promise<JobProgress[]> => {
+      const nowSec = Math.floor(Date.now() / 1000)
+      const status = tickMockSemantic()
+
+      // セマンティック有効化中は model_download ジョブを擬似的に進める
+      if (status.state === 'downloading' && mockSemanticState.downloadStartedAt !== null) {
+        const total = 100
+        const done = Math.min(
+          total - 1,
+          Math.floor(((Date.now() - mockSemanticState.downloadStartedAt) / 10000) * total)
+        )
+        return [
+          {
+            kind: 'model_download',
+            done,
+            total,
+            message: '検索モデルをダウンロードしています',
+            updated_at: nowSec,
+            active: true,
+          },
+        ]
+      }
+
+      return []
+    },
+  },
+
+  semantic: {
+    status: async (): Promise<SemanticStatus> => tickMockSemantic(),
+    enable: async (): Promise<SemanticStatus> => {
+      if (mockSemanticState.status.state === 'ready') {
+        return mockSemanticState.status
+      }
+      mockSemanticState.status = {
+        state: 'downloading',
+        model_size_mb: SEMANTIC_MODEL_SIZE_MB,
+        error: null,
+      }
+      mockSemanticState.downloadStartedAt = Date.now()
+      return mockSemanticState.status
     },
   },
 }

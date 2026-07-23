@@ -260,6 +260,46 @@ fn migrate(conn: &Connection) -> Result<()> {
         END;",
     )?;
 
+    // v7: セマンティック検索(embed.rs / vectorize.rs)用テーブル群。
+    // vectors      = メール本文の埋め込みベクトル(f32 LE の BLOB)。
+    //                message_id が PK。model_version が異なる行は検索対象外とし、
+    //                モデル差し替え時はベクトル化ジョブが再生成する。
+    // job_progress = sync/backfill/prefetch/vectorize/model_download 各ジョブの
+    //                進捗を1行ずつ保持(PK: kind + account_id)。
+    // app_settings = 小さな KVS(セマンティックのオプトイン状態など)。
+    if !table_exists(conn, "vectors") {
+        conn.execute_batch(
+            "CREATE TABLE vectors (
+                message_id INTEGER PRIMARY KEY REFERENCES messages(id),
+                model_version TEXT NOT NULL,
+                dim INTEGER NOT NULL,
+                vector BLOB NOT NULL,
+                updated_at INTEGER NOT NULL DEFAULT 0
+            );",
+        )?;
+    }
+    if !table_exists(conn, "job_progress") {
+        conn.execute_batch(
+            "CREATE TABLE job_progress (
+                kind TEXT NOT NULL,
+                account_id INTEGER NOT NULL DEFAULT 0,
+                done INTEGER NOT NULL DEFAULT 0,
+                total INTEGER NOT NULL DEFAULT 0,
+                message TEXT NOT NULL DEFAULT '',
+                updated_at INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (kind, account_id)
+            );",
+        )?;
+    }
+    if !table_exists(conn, "app_settings") {
+        conn.execute_batch(
+            "CREATE TABLE app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL DEFAULT ''
+            );",
+        )?;
+    }
+
     // Backfill date_ts for legacy rows
     {
         let mut stmt = conn.prepare(
@@ -499,6 +539,38 @@ mod tests {
         conn.execute("DELETE FROM message_bodies WHERE message_id = 1", [])
             .unwrap();
         assert_eq!(fts_match_count(&conn, "bodies_fts", "差し替え後"), 0);
+    }
+
+    #[test]
+    fn v7_tables_created_idempotently() {
+        let conn = open_connection(Path::new(":memory:")).unwrap();
+        assert!(table_exists(&conn, "vectors"));
+        assert!(table_exists(&conn, "job_progress"));
+        assert!(table_exists(&conn, "app_settings"));
+        // 冪等: 2度目のマイグレーションでもエラーにならない
+        migrate(&conn).unwrap();
+        // job_progress の PK は kind + account_id
+        conn.execute(
+            "INSERT INTO job_progress (kind, account_id, done, total, message, updated_at)
+             VALUES ('vectorize', 1, 0, 10, '', 100)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO job_progress (kind, account_id, done, total, message, updated_at)
+             VALUES ('vectorize', 1, 5, 10, '', 200)
+             ON CONFLICT(kind, account_id) DO UPDATE SET done = excluded.done, updated_at = excluded.updated_at",
+            [],
+        )
+        .unwrap();
+        let (done, updated_at): (i64, i64) = conn
+            .query_row(
+                "SELECT done, updated_at FROM job_progress WHERE kind = 'vectorize' AND account_id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((done, updated_at), (5, 200));
     }
 
     #[test]

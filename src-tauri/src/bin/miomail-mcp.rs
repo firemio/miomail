@@ -184,6 +184,20 @@ fn tool_definitions() -> Value {
             }
         },
         {
+            "name": "semantic_search",
+            "description": "Semantic (meaning-based) search over cached messages using the local embedding model, fused with keyword search. Requires the embedding model to be downloaded first — enable semantic search in the MioMail app settings. Returns the same message objects as search_messages.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" },
+                    "account_id": { "type": "integer", "description": "restrict to one account; searches all accounts when omitted" },
+                    "limit": { "type": "integer", "description": "max results per account, default 50" }
+                },
+                "required": ["query"],
+                "additionalProperties": false
+            }
+        },
+        {
             "name": "send_mail",
             "description": "Send an email IMMEDIATELY via the account's SMTP server and save a copy to its Sent folder. There is no draft step or undo — confirm the recipients and content with the user before calling this.",
             "inputSchema": {
@@ -387,6 +401,50 @@ async fn call_tool(db: &DbState, name: &str, args: &Value) -> Result<Value, Stri
             let conn = db.conn.lock().map_err(|e| e.to_string())?;
             for account_id in account_ids {
                 let messages = mail_core::search_messages(&conn, account_id, &query, 50)?;
+                all.extend(messages);
+            }
+            all.sort_by_key(|m| -m.date_ts);
+            all.truncate(80);
+            Ok(json!({ "messages": summarize(&all) }))
+        }
+
+        "semantic_search" => {
+            let query = arg_str(args, "query").ok_or("missing required argument: query")?;
+            let limit = arg_i64(args, "limit").unwrap_or(50).clamp(1, 100) as usize;
+
+            // モデル未DLの場合は FTS にフォールバックせず、分かりやすいエラーを返す
+            // (キーワード検索の結果と誤解されるのを防ぐため)
+            let ready = {
+                let conn = db.conn.lock().map_err(|e| e.to_string())?;
+                miomail_lib::embed::semantic_ready(&conn)
+            };
+            if !ready {
+                return Err(
+                    "セマンティック検索はまだ利用できません。MioMail アプリの設定画面でセマンティック検索を有効化し、モデルのダウンロードが完了するまでお待ちください"
+                        .to_string(),
+                );
+            }
+
+            let account_ids: Vec<i64> = match arg_i64(args, "account_id") {
+                Some(id) => vec![id],
+                None => {
+                    let conn = db.conn.lock().map_err(|e| e.to_string())?;
+                    let mut stmt = conn
+                        .prepare("SELECT id FROM accounts ORDER BY id")
+                        .map_err(|e| e.to_string())?;
+                    let ids = stmt
+                        .query_map([], |row| row.get::<_, i64>(0))
+                        .map_err(|e| e.to_string())?
+                        .filter_map(|r| r.ok())
+                        .collect();
+                    ids
+                }
+            };
+
+            let mut all = Vec::new();
+            for account_id in account_ids {
+                let messages =
+                    mail_core::semantic_search_messages(db, account_id, &query, limit).await?;
                 all.extend(messages);
             }
             all.sort_by_key(|m| -m.date_ts);

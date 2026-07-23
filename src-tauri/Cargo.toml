@@ -37,6 +37,29 @@ thiserror = "2"
 anyhow = "1"
 log = "0.4"
 once_cell = "1"
+# --- セマンティック検索(embed.rs / vectorize.rs)用 ---
+# ort: ONNX Runtime バインディング。`load-dynamic` で onnxruntime.dll を
+# 実行時ロードするため、リンク時に DLL は不要(配布はアプリ同梱 or 開発時 DL)。
+# 開発環境では `ORT_STRATEGY=download`(既定)でビルド時に onnxruntime バイナリを
+# 取得し、`copy-dylibs` が target/ 配下の exe 横に DLL をコピーする。
+# protoc は不要(プリビルトバイナリ方式のため)。
+ort = { version = "=2.0.0-rc.11", default-features = false, features = [
+    "load-dynamic",
+    "download-binaries",
+    "copy-dylibs",
+    "tls-native",
+    "ndarray",
+] }
+# トークナイザ(tokenizer.json をローカル読み込み。http 機能は不要)
+tokenizers = { version = "=0.23.1", default-features = false, features = ["fancy-regex"] }
+# モデルの初回ダウンロード(進捗コールバック付き。HF からの受信のみ)
+hf-hub = "=1.0.0"
+
+[features]
+default = []
+# NPU 向け EP(OpenVINO / Vitis)は opt-in。有効時のみ embed.rs が
+# NPU 系 EP を優先チェーンの先頭に登録する(既定は DirectML > CPU)。
+npu = ["ort/openvino", "ort/vitis"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

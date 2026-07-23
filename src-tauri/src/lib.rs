@@ -2,11 +2,13 @@ pub mod backfill;
 pub mod commands;
 pub mod credentials;
 pub mod db;
+pub mod embed;
 pub mod imap_service;
 mod outlook_import;
 pub mod smtp_service;
 mod tray;
 pub mod utf7;
+pub mod vectorize;
 
 #[cfg(test)]
 mod test_imap;
@@ -38,6 +40,8 @@ pub fn run() {
             tray::update_tray_tooltip(app.handle(), 0);
             commands::mail::start_background_sync(app.handle().clone());
             commands::mail::start_mcp_event_bridge(app.handle().clone());
+            // セマンティック有効化済みでモデル未完備なら DL を再開する
+            embed::maybe_resume_model_download(app.handle());
 
             let window = app.get_webview_window("main").unwrap();
             window.show().unwrap();
@@ -58,6 +62,9 @@ pub fn run() {
             commands::mail::mail_mark_read,
             commands::mail::mail_delete,
             commands::mail::mail_search,
+            commands::mail::mail_job_progress,
+            commands::mail::mail_semantic_status,
+            commands::mail::mail_semantic_enable,
             commands::mail::mail_create_folder,
             commands::mail::mail_rename_folder,
             commands::mail::mail_delete_folder,

@@ -144,3 +144,25 @@ export interface AppBuildInfo {
   commit: string
   runtime: 'tauri' | 'preview'
 }
+
+export type JobKind = 'sync' | 'backfill' | 'prefetch' | 'vectorize' | 'model_download'
+
+/** mail_job_progress コマンドの1件分。バックエンドIF契約で固定。 */
+export interface JobProgress {
+  kind: JobKind
+  done: number
+  total: number
+  message: string
+  /** unix秒 */
+  updated_at: number
+  active: boolean
+}
+
+export type SemanticState = 'off' | 'downloading' | 'ready' | 'error'
+
+/** mail_semantic_status / mail_semantic_enable コマンドの戻り値。 */
+export interface SemanticStatus {
+  state: SemanticState
+  model_size_mb: number
+  error: string | null
+}
