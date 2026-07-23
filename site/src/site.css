@@ -187,6 +187,22 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .site-mcp-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .site-mcp-tools span { padding: 5px 13px; border: 2px solid var(--site-ink); border-radius: 999px; background: #fff; box-shadow: 3px 3px 0 rgba(81,62,59,.14); font-family: 'Consolas', 'Cascadia Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
 
+/* ===== LPのローカルAI検索バンド ===== */
+.site-ai-search { display: grid; gap: 14px; justify-items: center; padding: 95px 24px 100px; border-top: 2px solid var(--site-ink); background: #fdf4e6; text-align: center; }
+.site-ai-search__kicker { margin: 0; color: #bd8a3f; font-size: 12px; font-weight: 900; letter-spacing: .2em; }
+.site-ai-search h2 { margin: 0; font-family: 'Kaisei Decol', serif; font-size: clamp(30px, 4vw, 44px); letter-spacing: -.055em; }
+.site-ai-search__lead { max-width: 620px; margin: 0 0 10px; color: var(--site-ink-soft); font-size: 14px; font-weight: 500; line-height: 2.1; }
+.site-ai-search__lead strong { color: var(--site-ink); }
+.site-ai-search__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 14px; width: min(980px, 100%); margin-top: 14px; text-align: left; }
+.site-ai-search__item { padding: 24px 24px 22px; border: 2px solid var(--site-ink); border-radius: 22px 8px 22px 8px; background: #fff; box-shadow: 5px 6px 0 rgba(81,62,59,.12); }
+.site-ai-search__item svg { width: 25px; height: 25px; color: #bd8a3f; stroke-width: 1.8; }
+.site-ai-search__item strong { display: block; margin: 13px 0 7px; font-size: 14px; font-weight: 900; }
+.site-ai-search__item p { margin: 0; color: var(--site-ink-soft); font-size: 12px; font-weight: 500; line-height: 1.95; }
+.site-ai-search__note { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin: 16px 0 0; color: var(--site-ink-soft); font-size: 12.5px; font-weight: 500; }
+.site-ai-search__note .site-text-link { font-size: 12.5px; }
+.site-mcp-setup__note { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; max-width: 620px; margin: 12px 0 0; color: var(--site-ink-soft); font-size: 12.5px; font-weight: 500; line-height: 2; }
+.site-mcp-setup__note .site-text-link { font-size: 12.5px; }
+
 /* ===== LPのMOD紹介バンド ===== */
 .site-mods-band { display: grid; gap: 14px; justify-items: center; padding: 95px 24px 100px; border-top: 2px solid var(--site-ink); background: #f4edff; text-align: center; }
 .site-mcp-setup { display: grid; gap: 14px; justify-items: center; padding: 95px 24px 100px; border-top: 2px solid var(--site-ink); background: #e9f3ee; text-align: center; }

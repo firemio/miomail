@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import { CircleCheck, Cpu, Download, MonitorCog, RefreshCw, SearchCheck, TriangleAlert } from 'lucide-react'
-import { api } from '../../lib/ipc'
+import { api, isTauriRuntime } from '../../lib/ipc'
 import type { AcceleratorStatus, SemanticState, SystemInfo } from '../../types'
 
 type LoadState =
   | { phase: 'loading' }
   | { phase: 'ready'; info: SystemInfo }
+  | { phase: 'error'; message: string }
+
+type UpdateState =
+  | { phase: 'idle' }
+  | { phase: 'checking' }
+  | { phase: 'latest'; version: string }
+  | { phase: 'available'; version: string }
+  | { phase: 'installing' }
   | { phase: 'error'; message: string }
 
 const ACCELERATOR_BADGES: Record<AcceleratorStatus, { label: string; className: string }> = {
@@ -52,6 +60,7 @@ const SEMANTIC_STATES: Record<SemanticState, { label: string; note: string; clas
 
 export function SystemSection() {
   const [state, setState] = useState<LoadState>({ phase: 'loading' })
+  const [updateState, setUpdateState] = useState<UpdateState>({ phase: 'idle' })
 
   const load = useCallback(async () => {
     setState({ phase: 'loading' })
@@ -69,6 +78,35 @@ export function SystemSection() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const checkForUpdates = async () => {
+    setUpdateState({ phase: 'checking' })
+    try {
+      const status = await api.app.updateCheck()
+      if (status.available && status.latest_version) {
+        setUpdateState({ phase: 'available', version: status.latest_version })
+      } else {
+        setUpdateState({ phase: 'latest', version: status.current_version })
+      }
+    } catch (error) {
+      setUpdateState({
+        phase: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  const installUpdate = async () => {
+    setUpdateState({ phase: 'installing' })
+    try {
+      await api.app.updateInstall()
+    } catch (error) {
+      setUpdateState({
+        phase: 'error',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
 
   if (state.phase === 'loading') {
     return (
@@ -210,6 +248,31 @@ export function SystemSection() {
             <span>{info.semantic.error}</span>
           </div>
         )}
+      </section>
+
+      <section className="rounded-[28px] border border-white/80 bg-white/72 p-6">
+        <div className="flex items-start justify-between gap-5">
+          <div>
+            <div className="flex items-center gap-2">
+              <RefreshCw size={16} className="text-sumi-accent" />
+              <p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">APP UPDATE</p>
+            </div>
+            <h3 className="mt-2 text-lg font-semibold text-sumi-text">アップデート</h3>
+            <p className="mt-1 text-xs leading-5 text-sumi-text-muted">
+              {updateState.phase === 'checking' && '更新を確認しています…'}
+              {updateState.phase === 'latest' && `お使いのバージョン（v${updateState.version}）は最新です。`}
+              {updateState.phase === 'available' && `新しいバージョン v${updateState.version} が利用できます。更新するとダウンロード後に自動で再起動します。`}
+              {updateState.phase === 'installing' && 'ダウンロード中… 完了すると自動で再起動します。'}
+              {updateState.phase === 'error' && `更新の確認に失敗しました: ${updateState.message}`}
+              {updateState.phase === 'idle' && '新しいバージョンが公開されているか確認します。起動時にも自動で確認されます。'}
+            </p>
+          </div>
+          {updateState.phase === 'available' ? (
+            <button onClick={installUpdate} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-sumi-accent px-5 text-xs font-semibold text-white">今すぐ更新</button>
+          ) : (
+            <button onClick={checkForUpdates} disabled={updateState.phase === 'checking' || updateState.phase === 'installing' || !isTauriRuntime} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-sumi-accent px-5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">更新を確認</button>
+          )}
+        </div>
       </section>
     </div>
   )

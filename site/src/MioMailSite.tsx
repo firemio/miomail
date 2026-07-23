@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
 import {
+  Activity,
   ArrowDown,
   ArrowRight,
   Bot,
+  Brain,
   Check,
+  Cpu,
   Download,
   Heart,
   Menu,
   MessageCircleHeart,
   Palette,
+  Search,
   Send,
   ShieldCheck,
   Sparkles,
@@ -44,6 +48,36 @@ const features = [
     title: '気分に合わせて着替える',
     body: '色も相棒も、あなた好みに。やさしいテーマから個性的なキャラクターMODまで楽しめます。',
     color: 'yellow',
+  },
+]
+
+// ローカルAI検索バンドの紹介項目。MCP(外部AIエージェント連携)と区別し、
+// アプリ内の検索機能として伝える。
+const aiSearchPoints = [
+  {
+    icon: Search,
+    title: '本文まるごと全文検索',
+    body: '全メールをローカルに同期し、SQLite FTS5の全文索引で高速検索。過去メールのバックフィルと本文のバックグラウンド取得で、日本語のキーワードも一瞬です。',
+  },
+  {
+    icon: Brain,
+    title: '「意味」で探すAI検索',
+    body: 'ローカル埋め込みモデル(ruri-v3)が言葉の意味でメールを検索。ベクトル+FTSのハイブリッドで、うろ覚えの一件にもたどり着けます。初回のみ約70MBのダウンロード・利用はオプトイン。',
+  },
+  {
+    icon: Cpu,
+    title: 'NPUにも対応する構造',
+    body: 'Intel NPU(OpenVINO)/AMD NPU(Ryzen AI)に対応する構造で、通常はDirectML(GPU)/CPUで動作。動作環境とNPU対応状況は設定の「システム」で確認できます。',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'すべてローカルで完結',
+    body: 'モデルもベクトルもメールも、すべてあなたのPCの中だけ。メールを外部サーバーに送ることはありません。',
+  },
+  {
+    icon: Activity,
+    title: '進捗が見える',
+    body: '同期やベクトル化の進捗は、アプリ下部のプログレスバーに表示。いま何が進んでいるか、ひと目で分かります。',
   },
 ]
 
@@ -149,6 +183,7 @@ export function MioMailSite() {
 
         <nav className={`site-nav ${menuOpen ? 'is-open' : ''}`} aria-label="メインナビゲーション">
           <a href="#features" onClick={() => setMenuOpen(false)}>できること</a>
+          <a href="#ai-search" onClick={() => setMenuOpen(false)}>AI検索</a>
           <a href="#companion" onClick={() => setMenuOpen(false)}>相棒について</a>
           <a href="#mcp" onClick={() => setMenuOpen(false)}>AIエージェントとつながる</a>
           <a href="#security" onClick={() => setMenuOpen(false)}>安心設計</a>
@@ -263,6 +298,29 @@ export function MioMailSite() {
           </div>
         </section>
 
+        <section className="site-ai-search" id="ai-search" data-reveal>
+          <p className="site-ai-search__kicker">LOCAL AI SEARCH</p>
+          <h2>メールを、意味で探す。</h2>
+          <p className="site-ai-search__lead">
+            MioMailの検索は、アプリの中だけで完結します。
+            キーワードの全文検索に加えて、ローカルAIが「意味」で探すセマンティック検索も。
+            <strong>メールもベクトルも外部サーバーには送られません。</strong>
+          </p>
+          <div className="site-ai-search__grid">
+            {aiSearchPoints.map(({ icon: Icon, title, body }) => (
+              <article className="site-ai-search__item" key={title}>
+                <Icon />
+                <strong>{title}</strong>
+                <p>{body}</p>
+              </article>
+            ))}
+          </div>
+          <p className="site-ai-search__note">
+            外部のAIエージェントに受信箱を任せたい場合は
+            <a className="site-text-link" href="#mcp">MCPサーバー連携へ <ArrowRight size={14} /></a>
+          </p>
+        </section>
+
         <section className="site-mcp-setup" id="mcp" data-reveal>
           <p className="site-mcp-setup__kicker">MCP SERVER</p>
           <h2>AIエージェントと、<br />つながる。</h2>
@@ -278,6 +336,11 @@ export function MioMailSite() {
           <a className="site-text-link" href="./mcp.html">
             詳しい仕組み・手動設定・ツール一覧はMCPガイドへ <ArrowRight size={14} />
           </a>
+          <p className="site-mcp-setup__note">
+            ※ MCPはClaudeなど外部AIエージェントとの連携機能です。アプリ内でメールを探す
+            <a className="site-text-link" href="#ai-search">ローカルAI検索 <ArrowRight size={13} /></a>
+            もあわせてどうぞ。
+          </p>
         </section>
 
         <section className="site-companion" id="companion">
