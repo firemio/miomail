@@ -37,8 +37,10 @@ pub struct SystemInfo {
 }
 
 /// npu feature 無効ビルド時の NPU 向け補足。
+/// 配布ビルドは npu 既定 ON のためこの状態にはならず、
+/// `--no-default-features` で明示的に外した場合のみ現れる。
 const NPU_NOT_BUILT_NOTE: &str =
-    "npu feature ビルドで有効化可能(cargo build --features npu)";
+    "このビルドは NPU 対応を含みません(既定ビルドでは有効。--no-default-features 時のみ無効)";
 
 /// EP 検出結果から AcceleratorInfo 一覧を組み立てる(純粋ロジック)。
 /// active は embed::active_ep_id と同じ規則(セッションが実際に使う/使う予定の EP)。

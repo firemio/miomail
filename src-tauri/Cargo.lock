@@ -3175,7 +3175,7 @@ dependencies = [
 
 [[package]]
 name = "miomail"
-version = "2.1.7"
+version = "2.1.8"
 dependencies = [
  "anyhow",
  "async-imap",

@@ -21,10 +21,12 @@
 //! アプリ本体(FTS 検索など)には影響しない(protoc も不要)。
 //!
 //! # Execution Provider 優先順位
-//! cargo feature `npu` 有効時: OpenVINO > Vitis > DirectML > CPU
-//! 既定(無効時):              DirectML > CPU
+//! 既定(feature `npu` = ON): OpenVINO > Vitis > DirectML > CPU
+//! `--no-default-features` 時:  DirectML > CPU
+//! 「1 バイナリで全環境自動切替」を配布方針とするため npu を既定 ON にしており、
 //! is_available() / supported_by_platform() で検出できたものだけを登録し、
-//! 登録失敗時は ort が次の EP へフォールバックする。
+//! 登録失敗時は ort が次の EP へフォールバックする。実機に NPU 対応の
+//! onnxruntime ランタイムが無ければ NPU 系は検出されず DirectML/CPU に落ちる。
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};

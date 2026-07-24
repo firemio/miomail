@@ -1,6 +1,6 @@
 [package]
 name = "miomail"
-version = "2.1.7"
+version = "2.1.8"
 edition = "2021"
 homepage = "https://miomail.app/"
 repository = "https://github.com/firemio/miomail"
@@ -58,9 +58,16 @@ tokenizers = { version = "=0.23.1", default-features = false, features = ["fancy
 hf-hub = "=1.0.0"
 
 [features]
-default = []
-# NPU 向け EP(OpenVINO / Vitis)は opt-in。有効時のみ embed.rs が
-# NPU 系 EP を優先チェーンの先頭に登録する(既定は DirectML > CPU)。
+# 配布は「1 バイナリで全環境自動切替」を方針とするため npu を既定 ON にする。
+# これで単一の exe に OpenVINO(Intel NPU)/ Vitis(AMD NPU)の EP 登録コードが
+# 常に含まれ、起動時検出で使える EP を自動採用(OpenVINO > Vitis > DirectML > CPU)、
+# 無ければ自動フォールバックする。NPU を除いた最小ビルドは
+# `cargo build --no-default-features` で作れる。
+default = ["npu"]
+# NPU 向け EP(OpenVINO / Vitis)。load-dynamic 構成のため、これらを有効化しても
+# ビルド時に SDK は不要(EP 登録は実行時に onnxruntime 側へ委譲される)。
+# 実際に NPU シリコンが使われるかは、実行時に is_available() が true を返すか
+# =NPU 対応の onnxruntime ランタイムとドライバが実機に在るかで決まる。
 npu = ["ort/openvino", "ort/vitis"]
 
 [build-dependencies]
