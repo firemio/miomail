@@ -8,23 +8,13 @@
 //! - リビジョンと SHA256(モデル・トークナイザ双方)をピン留めし、DL 後に検証する。
 //! - プレフィックスは ruri 方式(文書: 「検索文書: 」/ クエリ: 「検索クエリ: 」)。
 //!
-//! # onnxruntime.dll の準備(開発者向け)
-//! ort は `load-dynamic` 構成のため、onnxruntime.dll はリンク時ではなく
-//! **実行時**にロードする(ort-sys は load-dynamic 時にバイナリを自動取得しない)。
-//! 次のいずれかで DLL を用意すること:
-//!   1. `src-tauri/scripts/fetch-ort-dll.ps1` を実行すると、公式リリース
-//!      (microsoft/onnxruntime v1.23.2 = ort-sys 2.0.0-rc.11 が想定する版)から
-//!      onnxruntime.dll を target/debug/ 等に配置する。
-//!   2. あるいは手動で onnxruntime.dll を exe と同じディレクトリに置く。
-//!   3. あるいは環境変数 `ORT_DYLIB_PATH` に DLL のフルパスを設定する。
-//! DLL が見つからない場合、セマンティック機能はエラーを返すだけで
-//! アプリ本体(FTS 検索など)には影響しない(protoc も不要)。
-//!
-//! # Execution Provider 優先順位
-//! cargo feature `npu` 有効時: OpenVINO > Vitis > DirectML > CPU
-//! 既定(無効時):              DirectML > CPU
-//! is_available() / supported_by_platform() で検出できたものだけを登録し、
-//! 登録失敗時は ort が次の EP へフォールバックする。
+//! # Windows ML (WinML)
+//! 推論エンジンとして Windows 組み込みの WinML API を使用。
+//! - Windows 10 1903+ / Windows 11 で動作
+//! - 外部 DLL (onnxruntime.dll) 不要。Windows が提供する ONNX Runtime を利用
+//! - デバイスは Default (システム自動選択: NPU > GPU > CPU)
+//! - 実行時リンクのため、WinML が使えない古い Windows ではエラーを返すだけで
+//!   アプリ本体には影響しない
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -33,6 +23,12 @@ use std::sync::Mutex;
 use once_cell::sync::OnceCell;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
+use windows::core::HSTRING;
+use windows::core::Interface;
+use windows::AI::MachineLearning::{
+    LearningModel, LearningModelBinding, LearningModelDevice, LearningModelDeviceKind,
+    LearningModelSession, TensorFloat, TensorInt64Bit,
+};
 
 use crate::db::DbState;
 
@@ -188,89 +184,100 @@ fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
-/// モデルを Hugging Face からダウンロードする(部分再開は hf-hub 側の
-/// キャッシュ/既存ファイルスキップで効く)。進捗は `progress(done, total, message)`
+/// ファイルを HuggingFace からダウンロードする。
+/// 進捗は `progress(done, total, message)` に都度通知する。
+async fn download_file(
+    client: &reqwest::Client,
+    url: &str,
+    dest: &std::path::Path,
+    progress: &std::sync::Arc<dyn Fn(i64, i64, String) + Send + Sync>,
+    done_accum: &std::sync::atomic::AtomicI64,
+    total: i64,
+) -> Result<(), String> {
+    use futures::StreamExt;
+    use tokio::io::AsyncWriteExt;
+
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("ダウンロード開始に失敗しました ({}): {}", url, e))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("ダウンロード失敗 ({}): HTTP {}", url, status));
+    }
+
+    let mut file = tokio::fs::File::create(dest)
+        .await
+        .map_err(|e| format!("ファイル作成に失敗しました ({}): {}", dest.display(), e))?;
+
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("ダウンロード中にエラー: {}", e))?;
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| format!("ファイル書き込みに失敗しました: {}", e))?;
+        let added = chunk.len() as i64;
+        let prev = done_accum.fetch_add(added, std::sync::atomic::Ordering::SeqCst);
+        progress(prev + added, total, "モデルをダウンロード中".to_string());
+    }
+
+    file.flush().await.map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// モデルを Hugging Face からダウンロードする。進捗は `progress(done, total, message)`
 /// に都度通知する。完了後に SHA256 を検証し、不一致ならファイルを消して失敗にする。
 pub async fn download_model<F>(progress: F) -> Result<(), String>
 where
     F: Fn(i64, i64, String) + Send + Sync + 'static,
 {
-    use hf_hub::progress::{DownloadEvent, ProgressEvent, ProgressHandler};
-    use std::collections::HashMap;
-
     let dir = models_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-
-    struct Handler {
-        cb: std::sync::Arc<dyn Fn(i64, i64, String) + Send + Sync>,
-        // per-file の累積バイト数(デルタイベントを積算する)
-        files: Mutex<HashMap<String, u64>>,
-    }
-    impl ProgressHandler for Handler {
-        fn on_progress(&self, event: &ProgressEvent) {
-            let ProgressEvent::Download(ev) = event else { return };
-            let cb = self.cb.as_ref();
-            match ev {
-                DownloadEvent::Start {
-                    total_files,
-                    total_bytes,
-                } => {
-                    cb(
-                        0,
-                        *total_bytes as i64,
-                        format!("モデルをダウンロード中 ({} ファイル)", total_files),
-                    );
-                }
-                DownloadEvent::Progress { files } => {
-                    let mut acc = self.files.lock().unwrap();
-                    for f in files {
-                        acc.insert(f.filename.clone(), f.bytes_completed);
-                    }
-                    let done: u64 = acc.values().sum();
-                    let total: u64 = files.iter().map(|f| f.total_bytes).max().unwrap_or(0);
-                    cb(done as i64, total as i64, "モデルをダウンロード中".to_string());
-                }
-                DownloadEvent::AggregateProgress {
-                    bytes_completed,
-                    total_bytes,
-                    ..
-                } => {
-                    cb(
-                        *bytes_completed as i64,
-                        *total_bytes as i64,
-                        "モデルをダウンロード中".to_string(),
-                    );
-                }
-                DownloadEvent::Complete => {}
-            }
-        }
-    }
 
     let progress: std::sync::Arc<dyn Fn(i64, i64, String) + Send + Sync> =
         std::sync::Arc::new(progress);
 
-    let client = hf_hub::HFClient::new().map_err(|e| format!("HF クライアント初期化失敗: {}", e))?;
-    let repo = client.model(MODEL_REPO_OWNER, MODEL_REPO_NAME);
+    let client = reqwest::Client::new();
 
     // 既存ファイルの破損・旧版の残存で検証に失敗しうるため、
-    // 検証失敗時は force_download で1回だけやり直す。
+    // 検証失敗時は1回だけやり直す。
     let mut last_error: Option<String> = None;
     for attempt in 0..2 {
-        repo.snapshot_download()
-            .revision(MODEL_REVISION)
-            .allow_patterns(vec![
-                MODEL_REPO_FILE.to_string(),
-                TOKENIZER_REPO_FILE.to_string(),
-            ])
-            .local_dir(dir.clone())
-            .force_download(attempt > 0)
-            .progress(Handler {
-                cb: progress.clone(),
-                files: Mutex::new(HashMap::new()),
-            })
-            .send()
-            .await
-            .map_err(|e| format!("モデルのダウンロードに失敗しました: {}", e))?;
+        if attempt > 0 {
+            std::fs::remove_file(model_onnx_path()).ok();
+            std::fs::remove_file(tokenizer_path()).ok();
+        }
+
+        let base_url = format!(
+            "https://huggingface.co/{}/{}/resolve/{}",
+            MODEL_REPO_OWNER, MODEL_REPO_NAME, MODEL_REVISION
+        );
+
+        let total = (MODEL_ONNX_BYTES + TOKENIZER_BYTES) as i64;
+        let done = std::sync::atomic::AtomicI64::new(0);
+        progress(0, total, "モデルをダウンロード中 (2 ファイル)".to_string());
+
+        download_file(
+            &client,
+            &format!("{}/{}", base_url, MODEL_REPO_FILE),
+            &model_onnx_path(),
+            &progress,
+            &done,
+            total,
+        )
+        .await?;
+
+        download_file(
+            &client,
+            &format!("{}/{}", base_url, TOKENIZER_REPO_FILE),
+            &tokenizer_path(),
+            &progress,
+            &done,
+            total,
+        )
+        .await?;
 
         // 整合性検証(ピン留めしたリビジョンの既知ハッシュと照合)
         let hash = sha256_file(&model_onnx_path())?;
@@ -388,7 +395,7 @@ pub fn maybe_resume_model_download(app: &AppHandle) {
 }
 
 // ---------------------------------------------------------------------------
-// エンコード(ONNX 推論)
+// エンコード(WinML 推論)
 // ---------------------------------------------------------------------------
 
 /// エンコード対象の種別(プレフィックスが変わる)。
@@ -401,169 +408,40 @@ pub enum EncodeKind {
 }
 
 struct Embedder {
-    session: Mutex<ort::session::Session>,
+    session: Mutex<LearningModelSession>,
     tokenizer: tokenizers::Tokenizer,
 }
 
 static EMBEDDER: OnceCell<Result<Embedder, String>> = OnceCell::new();
 
-/// onnxruntime.dll の候補パスを探す(存在するものを返す)。
-fn find_ort_dll() -> Option<PathBuf> {
-    if let Ok(p) = std::env::var("ORT_DYLIB_PATH") {
-        if !p.is_empty() && Path::new(&p).exists() {
-            return Some(PathBuf::from(p));
-        }
-    }
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let candidate = dir.join("onnxruntime.dll");
-            if candidate.exists() {
-                return Some(candidate);
-            }
-        }
-    }
-    None
-}
+/// モデルの入力・出力ノード名を静的に取得する。
+/// ruri-v3-70m-onnx の model_int8.onnx は以下の入出力を持つ:
+///   input_ids, attention_mask -> token_embeddings
+fn get_input_output_names(session: &LearningModelSession) -> Result<(Vec<String>, Vec<String>), String> {
+    let model = session.Model().map_err(|e| e.to_string())?;
 
-/// ORT 環境を一度だけ初期化する。DLL 不在やロード失敗(ort 内部で panic
-/// しうる)をアプリ全体に波及させないよう catch_unwind で閉じ込める。
-fn ensure_ort_env() -> Result<(), String> {
-    static ORT_ENV: OnceCell<Result<(), String>> = OnceCell::new();
-    ORT_ENV
-        .get_or_init(|| {
-            let Some(dll) = find_ort_dll() else {
-                return Err(
-                    "onnxruntime.dll が見つかりません。src-tauri/scripts/fetch-ort-dll.ps1 で配置するか、ORT_DYLIB_PATH を設定してください"
-                        .to_string(),
-                );
-            };
-            std::panic::catch_unwind(|| {
-                match ort::init_from(&dll) {
-                    Ok(builder) => {
-                        let _ = builder.with_name("miomail").commit();
-                        Ok(())
-                    }
-                    Err(e) => Err(format!(
-                        "onnxruntime.dll の初期化に失敗しました ({}): {}",
-                        dll.display(),
-                        e
-                    )),
-                }
-            })
-            .map_err(|_| format!("onnxruntime.dll の読み込みに失敗しました: {}", dll.display()))?
-        })
-        .clone()
-}
+    let inputs: Vec<String> = model
+        .InputFeatures()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|f| f.Name().map(|n| n.to_string()))
+        .collect::<windows::core::Result<Vec<_>>>()
+        .map_err(|e| e.to_string())?;
 
-// ---------------------------------------------------------------------------
-// EP 検出(ep_chain / system info 共有)
-// ---------------------------------------------------------------------------
+    let outputs: Vec<String> = model
+        .OutputFeatures()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|f| f.Name().map(|n| n.to_string()))
+        .collect::<windows::core::Result<Vec<_>>>()
+        .map_err(|e| e.to_string())?;
 
-/// EP の検出結果。ort 呼び出しは初回のみ行い、結果をプロセス内でキャッシュする。
-#[derive(Debug, Clone, Copy)]
-pub struct EpAvailability {
-    /// cargo feature `npu` 有効ビルドか(OpenVINO / Vitis を候補に含めるか)。
-    pub npu_built: bool,
-    /// OpenVINO (Intel NPU) EP が利用可能か。
-    pub openvino: bool,
-    /// Vitis (AMD NPU / Ryzen AI) EP が利用可能か。
-    pub vitis: bool,
-    /// DirectML EP が利用可能か。
-    pub directml: bool,
-    /// onnxruntime.dll の初期化に失敗した場合の理由(この場合 EP 検出自体が不能)。
-    pub ort_error: Option<&'static str>,
-}
-
-/// EP 可用性を返す(初回のみ検出しキャッシュ。DLL ロード失敗時は全 EP 不可)。
-pub fn ep_availability() -> EpAvailability {
-    static AVAIL: OnceCell<EpAvailability> = OnceCell::new();
-    *AVAIL.get_or_init(detect_ep_availability)
-}
-
-fn detect_ep_availability() -> EpAvailability {
-    use ort::ep::ExecutionProvider;
-
-    // is_available() は ORT 環境の初期化が前提。DLL 不在なら検出不能として扱う。
-    let ort_error: Option<&'static str> = match ensure_ort_env() {
-        Ok(()) => None,
-        Err(_) => Some("onnxruntime.dll を読み込めないため EP を検出できません"),
-    };
-
-    let mut avail = EpAvailability {
-        npu_built: cfg!(feature = "npu"),
-        openvino: false,
-        vitis: false,
-        directml: false,
-        ort_error,
-    };
-    if ort_error.is_some() {
-        return avail;
-    }
-
-    #[cfg(feature = "npu")]
-    {
-        avail.openvino = ort::ep::OpenVINO::default().is_available().unwrap_or(false);
-        avail.vitis = ort::ep::Vitis::default().is_available().unwrap_or(false);
-    }
-
-    let dml = ort::ep::DirectML::default();
-    avail.directml = dml.supported_by_platform() && dml.is_available().unwrap_or(false);
-
-    avail
-}
-
-/// 優先順位チェーン(OpenVINO > Vitis > DirectML > CPU)で実際に選ばれる EP の
-/// 識別子を返す。セッション未初期化でも「使う予定の EP」として同じ規則で決まる。
-/// 戻り値: 'intel_npu' | 'amd_npu' | 'directml' | 'cpu'
-pub fn active_ep_id(avail: &EpAvailability) -> &'static str {
-    if avail.npu_built {
-        if avail.openvino {
-            return "intel_npu";
-        }
-        if avail.vitis {
-            return "amd_npu";
-        }
-    }
-    if avail.directml {
-        return "directml";
-    }
-    "cpu"
-}
-
-/// EP 優先順位チェーンを組み立てる。検出できたものだけを登録候補にする。
-fn ep_chain() -> Vec<ort::ep::ExecutionProviderDispatch> {
-    let avail = ep_availability();
-
-    let mut eps: Vec<ort::ep::ExecutionProviderDispatch> = Vec::new();
-
-    // NPU は cargo feature `npu` で opt-in された場合のみ候補に入れる
-    #[cfg(feature = "npu")]
-    {
-        if avail.openvino {
-            log::info!("semantic: OpenVINO (NPU) EP を候補に追加");
-            eps.push(ort::ep::OpenVINO::default().build());
-        }
-        if avail.vitis {
-            log::info!("semantic: Vitis (NPU) EP を候補に追加");
-            eps.push(ort::ep::Vitis::default().build());
-        }
-    }
-
-    if avail.directml {
-        log::info!("semantic: DirectML EP を候補に追加");
-        eps.push(ort::ep::DirectML::default().build());
-    }
-
-    // 最後は必ず CPU
-    eps.push(ort::ep::CPU::default().build());
-    eps
+    Ok((inputs, outputs))
 }
 
 fn embedder() -> Result<&'static Embedder, String> {
     EMBEDDER
         .get_or_init(|| {
-            ensure_ort_env()?;
-
             if !model_files_present() {
                 return Err(
                     "セマンティック検索モデルがダウンロードされていません。MioMail アプリの設定でセマンティック検索を有効化してください"
@@ -571,14 +449,18 @@ fn embedder() -> Result<&'static Embedder, String> {
                 );
             }
 
-            let session = std::panic::catch_unwind(|| {
-                ort::session::Session::builder()
-                    .and_then(|b| b.with_intra_threads(2))
-                    .and_then(|b| b.with_execution_providers(ep_chain()))
-                    .and_then(|b| b.commit_from_file(model_onnx_path()))
-            })
-            .map_err(|_| "ONNX セッションの作成に失敗しました(panic)".to_string())?
-            .map_err(|e| format!("ONNX セッションの作成に失敗しました: {}", e))?;
+            let model_path = model_onnx_path();
+            let model = LearningModel::LoadFromFilePath(&HSTRING::from(
+                model_path.to_string_lossy().as_ref(),
+            ))
+            .map_err(|e| format!("ONNX モデルの読み込みに失敗しました: {}", e))?;
+
+            // Default デバイス: システムが自動的に NPU > GPU > CPU を選択
+            let device = LearningModelDevice::Create(LearningModelDeviceKind::Default)
+                .map_err(|e| format!("WinML デバイスの作成に失敗しました: {}", e))?;
+
+            let session = LearningModelSession::CreateFromModelOnDevice(&model, &device)
+                .map_err(|e| format!("WinML セッションの作成に失敗しました: {}", e))?;
 
             let mut tokenizer = tokenizers::Tokenizer::from_file(tokenizer_path())
                 .map_err(|e| format!("tokenizer.json の読み込みに失敗しました: {}", e))?;
@@ -600,7 +482,7 @@ fn embedder() -> Result<&'static Embedder, String> {
 
 /// テキスト群を埋め込みベクトルに変換する(mean pooling + L2 正規化)。
 /// 戻り値は入力と同じ順序の Vec<Vec<f32>>(L2 正規化済み)。
-/// 失敗時(DLL 不在・モデル未DLなど)は Err。
+/// 失敗時(モデル未DLなど)は Err。
 ///
 /// この関数は CPU 負荷が高くブロッキングするため、async コンテキストからは
 /// `tokio::task::spawn_blocking` 経由で呼ぶこと。
@@ -631,16 +513,20 @@ pub fn encode(texts: &[String], kind: EncodeKind) -> Result<Vec<Vec<f32>>, Strin
         groups.entry(enc.get_ids().len()).or_default().push(i);
     }
 
-    let mut session = emb.session.lock().map_err(|e| e.to_string())?;
+    let session = emb.session.lock().map_err(|e| e.to_string())?;
 
-    // ONNX グラフの入力名に合わせて名前付きで供給する
-    let input_names: Vec<String> = session.inputs().iter().map(|i| i.name().to_string()).collect();
+    // モデルの入出力ノード名を取得
+    let (input_names, output_names) = get_input_output_names(&session)?;
     let ids_name = input_names
         .iter()
         .find(|n| n.contains("input_ids"))
         .cloned()
         .unwrap_or_else(|| input_names[0].clone());
     let mask_name = input_names.iter().find(|n| n.contains("attention_mask")).cloned();
+    let out_name = output_names
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "token_embeddings".to_string());
 
     let mut result: Vec<Option<Vec<f32>>> = (0..texts.len()).map(|_| None).collect();
 
@@ -661,32 +547,59 @@ pub fn encode(texts: &[String], kind: EncodeKind) -> Result<Vec<Vec<f32>>, Strin
             }
         }
 
-        let shape = vec![group_size as i64, len as i64];
-        let ids_tensor = ort::value::Tensor::from_array((shape.clone(), ids_flat))
+        let shape: &[i64] = &[group_size as i64, len as i64];
+
+        // WinML 入力バインディングを作成
+        let binding = LearningModelBinding::CreateFromSession(&*session)
             .map_err(|e| e.to_string())?;
-        let mask_tensor =
-            ort::value::Tensor::from_array((shape, mask_flat.clone())).map_err(|e| e.to_string())?;
 
-        let inputs: Vec<(std::borrow::Cow<'_, str>, ort::session::SessionInputValue<'_>)> =
-            match &mask_name {
-                Some(mn) => ort::inputs![ids_name.clone() => ids_tensor, mn.clone() => mask_tensor],
-                None => ort::inputs![ids_name.clone() => ids_tensor],
-            };
+        // input_ids テンソルをバインド (CreateFromShapeArrayAndDataArray で IIerable 回避)
+        let ids_tensor = TensorInt64Bit::CreateFromShapeArrayAndDataArray(shape, &ids_flat)
+            .map_err(|e| e.to_string())?;
+        binding
+            .Bind(&HSTRING::from(&ids_name), &ids_tensor)
+            .map_err(|e| e.to_string())?;
 
-        let outputs = session
-            .run(inputs)
-            .map_err(|e| format!("ONNX 推論に失敗しました: {}", e))?;
+        // attention_mask テンソルをバインド(存在する場合)
+        if let Some(ref mn) = mask_name {
+            let mask_tensor = TensorInt64Bit::CreateFromShapeArrayAndDataArray(shape, &mask_flat)
+                .map_err(|e| e.to_string())?;
+            binding
+                .Bind(&HSTRING::from(mn), &mask_tensor)
+                .map_err(|e| e.to_string())?;
+        }
 
-        let (oshape, data) = outputs[0]
-            .try_extract_tensor::<f32>()
-            .map_err(|e| format!("出力テンソルの取得に失敗しました: {}", e))?;
-        let dims: Vec<i64> = oshape.iter().copied().collect();
+        // 推論実行
+        let eval_result = (*session)
+            .Evaluate(&binding, &HSTRING::from(""))
+            .map_err(|e| format!("WinML 推論に失敗しました: {}", e))?;
 
-        match dims.len() {
+        // 出力テンソルを取得
+        let outputs = eval_result.Outputs().map_err(|e| e.to_string())?;
+        let output_value = outputs
+            .Lookup(&HSTRING::from(&out_name))
+            .map_err(|e| e.to_string())?;
+        let output_tensor = output_value
+            .cast::<TensorFloat>()
+            .map_err(|e| e.to_string())?;
+
+        // 出力テンソルの形状とデータを取得
+        let output_shape: Vec<i64> = output_tensor
+            .Shape()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .collect();
+        let output_data: Vec<f32> = output_tensor
+            .GetAsVectorView()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .collect();
+
+        match output_shape.len() {
             // [G, L, D]: トークン埋め込み → attention mask 付き mean pooling
             3 => {
-                let seq = dims[1] as usize;
-                let dim = dims[2] as usize;
+                let seq = output_shape[1] as usize;
+                let dim = output_shape[2] as usize;
                 for (g, &idx) in idxs.iter().enumerate() {
                     let mut pooled = vec![0f32; dim];
                     let mut count = 0f32;
@@ -697,7 +610,7 @@ pub fn encode(texts: &[String], kind: EncodeKind) -> Result<Vec<Vec<f32>>, Strin
                         count += 1.0;
                         let base = (g * seq + i) * dim;
                         for d in 0..dim {
-                            pooled[d] += data[base + d];
+                            pooled[d] += output_data[base + d];
                         }
                     }
                     if count > 0.0 {
@@ -710,9 +623,9 @@ pub fn encode(texts: &[String], kind: EncodeKind) -> Result<Vec<Vec<f32>>, Strin
             }
             // [G, D]: 既にプーリング済み
             2 => {
-                let dim = dims[1] as usize;
+                let dim = output_shape[1] as usize;
                 for (g, &idx) in idxs.iter().enumerate() {
-                    result[idx] = Some(data[g * dim..(g + 1) * dim].to_vec());
+                    result[idx] = Some(output_data[g * dim..(g + 1) * dim].to_vec());
                 }
             }
             other => {
@@ -759,48 +672,7 @@ mod tests {
     fn hex_encode_works() {
         assert_eq!(hex_encode(&[0x0a, 0xff, 0x00]), "0aff00");
     }
-
-    /// 実際にモデルを DL してエンコードする手動テスト。
-    /// 実行: `cargo test --lib embed::tests::manual_download_and_encode -- --ignored --nocapture`
-    /// (onnxruntime.dll を target/debug/deps から解決できること。要 ORT_DYLIB_PATH)
-    #[test]
-    #[ignore]
-    fn manual_download_and_encode() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        if !model_files_present() {
-            rt.block_on(async {
-                download_model(|done, total, msg| {
-                    eprintln!("{}/{} {}", done, total, msg);
-                })
-                .await
-                .expect("download failed");
-            });
-        }
-        assert!(model_files_present(), "モデルファイルが揃っている");
-
-        let docs = vec![
-            "来週の定例会議の議題を送ります。予算案と進捗報告を含みます。".to_string(),
-            "本日のランチはカレーうどんがおすすめです。".to_string(),
-        ];
-        let vecs = encode(&docs, EncodeKind::Document).expect("encode failed");
-        assert_eq!(vecs.len(), 2);
-        assert_eq!(vecs[0].len(), 384, "ruri-v3-70m の埋め込み次元");
-        let norm: f32 = vecs[0].iter().map(|x| x * x).sum::<f32>().sqrt();
-        assert!((norm - 1.0).abs() < 1e-3, "L2 正規化されている: {}", norm);
-
-        let q = encode_query("会議の予定").expect("query encode failed");
-        let sim_related = crate::vectorize::cosine_similarity(&q, &vecs[0]);
-        let sim_unrelated = crate::vectorize::cosine_similarity(&q, &vecs[1]);
-        eprintln!("related={} unrelated={}", sim_related, sim_unrelated);
-        assert!(
-            sim_related > sim_unrelated + 0.05,
-            "関連文書の方が無関係文書より類似度が高い: {} <= {}",
-            sim_related,
-            sim_unrelated
-        );
-    }
 }
-
 
 #[cfg(test)]
 mod diag_real_tests {
@@ -808,7 +680,7 @@ mod diag_real_tests {
     use crate::vectorize::{SqliteVectorStore, VectorStore};
 
     /// 実 DB のベクトルに対する実クエリのスコア分布を出す診断用。
-    /// 実行: ORT_DYLIB_PATH=... cargo test --lib diag_real_scores -- --ignored --nocapture
+    /// 実行: cargo test --lib diag_real_scores -- --ignored --nocapture
     #[test]
     #[ignore]
     fn diag_real_scores() {
@@ -827,8 +699,7 @@ mod diag_real_tests {
         for q in ["温泉の宿を予約したい", "お金の支払いに関する案内", "請求書", "payment deadline", "新製品の案内"] {
             let qv = encode_query(q).expect("encode query");
             let hits = store.search_cosine(&qv, Some(2), MODEL_VERSION, 8).unwrap();
-            eprintln!("
-== query: {}", q);
+            eprintln!("\n== query: {}", q);
             for (id, score) in &hits {
                 let subj = subjects
                     .iter()
