@@ -8,13 +8,36 @@
 //! - リビジョンと SHA256(モデル・トークナイザ双方)をピン留めし、DL 後に検証する。
 //! - プレフィックスは ruri 方式(文書: 「検索文書: 」/ クエリ: 「検索クエリ: 」)。
 //!
-//! # Windows ML (WinML)
-//! 推論エンジンとして Windows 組み込みの WinML API を使用。
-//! - Windows 10 1903+ / Windows 11 で動作
-//! - 外部 DLL (onnxruntime.dll) 不要。Windows が提供する ONNX Runtime を利用
-//! - デバイスは Default (システム自動選択: NPU > GPU > CPU)
-//! - 実行時リンクのため、WinML が使えない古い Windows ではエラーを返すだけで
-//!   アプリ本体には影響しない
+//! # 推論エンジン: ort(ONNX Runtime)+ 新 Windows ML
+//! 推論には `ort` クレート(`load-dynamic` 構成)を使い、onnxruntime.dll を
+//! **実行時**にロードする。指す DLL は新しい Windows ML(Windows App SDK 同梱の
+//! ONNX Runtime 1.24 系)で、これが EP カタログ経由で各ベンダーの
+//! Execution Provider(Intel=OpenVINO / AMD=VitisAI / Qualcomm=QNN / NVIDIA=TensorRT
+//! / DirectML)を実行時に供給・登録する。
+//!
+//! ## EP 選択
+//! セッションは `AutoDevicePolicy::PreferNPU`(= [`EP_POLICY`])で構築し、
+//! ONNX Runtime が NPU > GPU > CPU の優先度で自動選択する(利用不可なら順に
+//! フォールバックし、最終的に CPU で必ず動く)。実際にどのデバイス/EP が
+//! 列挙されているかは [`ep_probe`] が `GetEpDevices`(env.devices())で取得し、
+//! 設定画面「システム」に表示する。
+//!
+//! ## onnxruntime.dll の解決(開発者向け)
+//! `find_ort_dll` が次の順で DLL を探す:
+//!   1. 環境変数 `ORT_DYLIB_PATH`(新 Windows ML の onnxruntime.dll フルパスを指定)
+//!   2. exe と同じディレクトリの `onnxruntime.dll`(配布同梱物)
+//! DLL が見つからない/ロードできない場合、セマンティック機能はエラーを返すだけで
+//! アプリ本体(FTS 検索など)には影響しない。
+//!
+//! ### 注意: 汎用 onnxruntime を使ってはいけない
+//! GitHub の汎用リリース(`onnxruntime-win-x64-*.zip`)の DLL を掴むと、EP は
+//! **CPU 1 個しか列挙されない**。GPU も NPU も出ないため「ハードウェアが無い」と
+//! 誤診しやすい(実際に一度この事故を起こした)。必ず WinML の DLL を使うこと:
+//!   `C:\Program Files\WindowsApps\Microsoft.WindowsAppRuntime.2_*_x64__*\onnxruntime.dll`
+//! パス特定は `scripts/fetch-ort-dll.ps1`(`Get-AppxPackage` を使用。WindowsApps 直下は
+//! 権限で列挙できないため `Get-ChildItem` による探索は不可)。
+//! この DLL はパッケージ内の依存 DLL と同居した状態でロードする必要があるので、
+//! コピーせず `ORT_DYLIB_PATH` で直接指す。
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -23,12 +46,6 @@ use std::sync::Mutex;
 use once_cell::sync::OnceCell;
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
-use windows::core::HSTRING;
-use windows::core::Interface;
-use windows::AI::MachineLearning::{
-    LearningModel, LearningModelBinding, LearningModelDevice, LearningModelDeviceKind,
-    LearningModelSession, TensorFloat, TensorInt64Bit,
-};
 
 use crate::db::DbState;
 
@@ -72,6 +89,11 @@ pub const DOC_PREFIX: &str = "検索文書: ";
 pub const QUERY_PREFIX: &str = "検索クエリ: ";
 /// トークナイズの最大系列長(それ以降は切り捨て)。
 pub const MAX_SEQ_LEN: usize = 512;
+
+/// セッション構築時の EP 自動選択ポリシー。
+/// NPU を最優先し、無ければ GPU、最後に CPU へフォールバックする。
+const EP_POLICY: ort::session::builder::AutoDevicePolicy =
+    ort::session::builder::AutoDevicePolicy::PreferNPU;
 
 // ---------------------------------------------------------------------------
 // パス解決
@@ -395,7 +417,354 @@ pub fn maybe_resume_model_download(app: &AppHandle) {
 }
 
 // ---------------------------------------------------------------------------
-// エンコード(WinML 推論)
+// ORT 環境の初期化 / onnxruntime.dll の解決
+// ---------------------------------------------------------------------------
+
+/// 新しい Windows ML(ONNX Runtime 1.24 系)を提供する MSIX パッケージのファミリ名。
+const WINML_PACKAGE_FAMILY: &str = "Microsoft.WindowsAppRuntime.2_8wekyb3d8bbwe";
+
+/// onnxruntime.dll の候補パスを探す(存在するものを返す)。
+/// 1. `ORT_DYLIB_PATH`(明示指定。開発/検証用の最優先オーバーライド)
+/// 2. 導入済み Windows ML パッケージ内の onnxruntime.dll ← 通常のユーザーはここ
+/// 3. exe と同じディレクトリの onnxruntime.dll(最後の砦)
+///
+/// 2 を 3 より先に見るのは意図的。exe 同階層に汎用ビルドの onnxruntime.dll が
+/// 紛れ込むと CPU EP しか列挙されず GPU/NPU が消えるため、WinML を優先する。
+fn find_ort_dll() -> Option<PathBuf> {
+    if let Ok(p) = std::env::var("ORT_DYLIB_PATH") {
+        if !p.is_empty() && Path::new(&p).exists() {
+            return Some(PathBuf::from(p));
+        }
+    }
+    if let Some(p) = find_winml_ort_dll() {
+        return Some(p);
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let candidate = dir.join("onnxruntime.dll");
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+/// 導入済み Windows ML パッケージ内の onnxruntime.dll を探す。
+///
+/// パッケージは `C:\Program Files\WindowsApps\...` にあるが、この配下は
+/// **ディレクトリ列挙が権限で拒否される**ため `read_dir` では見つけられない。
+/// アンパッケージプロセスからも使える kernel32 のパッケージ問い合わせ API
+/// (`FindPackagesByPackageFamily` / `GetPackagePathByFullName`)で解決する。
+#[cfg(windows)]
+fn find_winml_ort_dll() -> Option<PathBuf> {
+    let full_names = winml_package::find_packages_by_family(WINML_PACKAGE_FAMILY)?;
+    let picked = pick_latest_package(&full_names, current_package_arch())?;
+    let dll = winml_package::package_path(picked)?.join("onnxruntime.dll");
+    dll.exists().then_some(dll)
+}
+
+#[cfg(not(windows))]
+fn find_winml_ort_dll() -> Option<PathBuf> {
+    None
+}
+
+/// 現在のプロセスと同じアーキテクチャを表す、パッケージフルネーム中の識別子。
+///
+/// onnxruntime.dll はプロセスと同一アーキテクチャでなければロードできない。
+/// ARM64 機で x64 ビルドをエミュレーション実行する場合も「プロセスは x64」なので
+/// x64 パッケージが要る。したがって実行時 OS ではなくビルドターゲットで決まる。
+fn current_package_arch() -> &'static str {
+    match std::env::consts::ARCH {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        "x86" => "x86",
+        other => other,
+    }
+}
+
+/// パッケージフルネーム(`Name_Version_Arch__PublisherId`)から
+/// (アーキテクチャ, バージョン4要素)を取り出す。形式が違えば `None`。
+fn parse_package_full_name(full: &str) -> Option<(&str, [u32; 4])> {
+    let mut parts = full.split('_');
+    let _name = parts.next()?;
+    let version = parts.next()?;
+    let arch = parts.next()?;
+
+    let mut v = [0u32; 4];
+    let mut nums = version.split('.');
+    for slot in v.iter_mut() {
+        *slot = nums.next()?.parse().ok()?;
+    }
+    if nums.next().is_some() {
+        return None;
+    }
+    Some((arch, v))
+}
+
+/// 同一ファミリで複数バージョンが同居しうる(実機で 2.1.3.0〜2.3.1.0 を確認)。
+/// アーキテクチャが一致するもののうち最新バージョンを選ぶ。
+fn pick_latest_package<'a>(full_names: &'a [String], arch: &str) -> Option<&'a str> {
+    full_names
+        .iter()
+        .filter_map(|f| parse_package_full_name(f).map(|(a, v)| (a, v, f)))
+        .filter(|(a, _, _)| *a == arch)
+        .max_by_key(|(_, v, _)| *v)
+        .map(|(_, _, f)| f.as_str())
+}
+
+/// kernel32 のパッケージ問い合わせ API の薄いラッパ。
+#[cfg(windows)]
+mod winml_package {
+    use std::ffi::{OsStr, OsString};
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use std::path::PathBuf;
+
+    const ERROR_SUCCESS: i32 = 0;
+    const ERROR_INSUFFICIENT_BUFFER: i32 = 122;
+    /// 実体を持つ通常のパッケージ(ヘッド + 直接参照)を対象にする。
+    const PACKAGE_FILTER_HEAD: u32 = 0x0000_0010;
+    const PACKAGE_FILTER_DIRECT: u32 = 0x0000_0020;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn FindPackagesByPackageFamily(
+            package_family_name: *const u16,
+            package_filters: u32,
+            count: *mut u32,
+            package_full_names: *mut *mut u16,
+            buffer_length: *mut u32,
+            buffer: *mut u16,
+            package_properties: *mut u32,
+        ) -> i32;
+
+        fn GetPackagePathByFullName(
+            package_full_name: *const u16,
+            path_length: *mut u32,
+            path: *mut u16,
+        ) -> i32;
+    }
+
+    fn to_wide(s: &str) -> Vec<u16> {
+        OsStr::new(s)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect()
+    }
+
+    /// NUL 終端のワイド文字列を `String` にする。
+    ///
+    /// # Safety
+    /// `p` は NUL 終端された有効なワイド文字列を指していること。
+    unsafe fn wide_to_string(p: *const u16) -> String {
+        let mut len = 0usize;
+        while *p.add(len) != 0 {
+            len += 1;
+        }
+        OsString::from_wide(std::slice::from_raw_parts(p, len))
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    /// ファミリ名に属する、このユーザーに登録済みのパッケージフルネーム一覧。
+    /// 未導入なら `None`(1 回目の呼び出しが count=0 で成功する)。
+    pub fn find_packages_by_family(family: &str) -> Option<Vec<String>> {
+        let family_w = to_wide(family);
+        let filters = PACKAGE_FILTER_HEAD | PACKAGE_FILTER_DIRECT;
+        let mut count: u32 = 0;
+        let mut buf_len: u32 = 0;
+
+        // 1 回目: 必要な件数とバッファ長を問い合わせる。
+        let rc = unsafe {
+            FindPackagesByPackageFamily(
+                family_w.as_ptr(),
+                filters,
+                &mut count,
+                std::ptr::null_mut(),
+                &mut buf_len,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+        if rc != ERROR_INSUFFICIENT_BUFFER || count == 0 {
+            return None;
+        }
+
+        // 2 回目: 実際に取得する。names は buf 内を指すポインタ配列。
+        let mut names: Vec<*mut u16> = vec![std::ptr::null_mut(); count as usize];
+        let mut buf: Vec<u16> = vec![0; buf_len as usize];
+        let rc = unsafe {
+            FindPackagesByPackageFamily(
+                family_w.as_ptr(),
+                filters,
+                &mut count,
+                names.as_mut_ptr(),
+                &mut buf_len,
+                buf.as_mut_ptr(),
+                std::ptr::null_mut(),
+            )
+        };
+        if rc != ERROR_SUCCESS {
+            return None;
+        }
+
+        // buf が生きているうちに String へコピーする。
+        Some(
+            names
+                .iter()
+                .filter(|p| !p.is_null())
+                .map(|p| unsafe { wide_to_string(*p) })
+                .collect(),
+        )
+    }
+
+    /// パッケージフルネームからインストール先ディレクトリを得る。
+    pub fn package_path(full_name: &str) -> Option<PathBuf> {
+        let w = to_wide(full_name);
+        let mut len: u32 = 0;
+        let rc = unsafe { GetPackagePathByFullName(w.as_ptr(), &mut len, std::ptr::null_mut()) };
+        if rc != ERROR_INSUFFICIENT_BUFFER || len == 0 {
+            return None;
+        }
+        let mut buf: Vec<u16> = vec![0; len as usize];
+        let rc = unsafe { GetPackagePathByFullName(w.as_ptr(), &mut len, buf.as_mut_ptr()) };
+        if rc != ERROR_SUCCESS {
+            return None;
+        }
+        let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+        Some(PathBuf::from(OsString::from_wide(&buf[..end])))
+    }
+}
+
+/// ORT 環境を一度だけ初期化する。DLL 不在やロード失敗(ort 内部で panic
+/// しうる)をアプリ全体に波及させないよう catch_unwind で閉じ込める。
+fn ensure_ort_env() -> Result<(), String> {
+    static ORT_ENV: OnceCell<Result<(), String>> = OnceCell::new();
+    ORT_ENV
+        .get_or_init(|| {
+            let Some(dll) = find_ort_dll() else {
+                // エンドユーザーに出る文言。原因(Windows ML 未導入)と対処が分かるようにする。
+                // 開発者向けの ORT_DYLIB_PATH は補足として最後に置く。
+                return Err(
+                    "Windows ML が見つからないため、セマンティック検索を利用できません。\
+                     Microsoft Store から「アプリ インストーラー」経由で Windows App SDK ランタイムを導入するか、\
+                     Windows Update を適用してください。\
+                     (開発者向け: ORT_DYLIB_PATH に WinML の onnxruntime.dll のフルパスを指定しても解決できます)"
+                        .to_string(),
+                );
+            };
+            let dll_str = dll.to_string_lossy().to_string();
+            std::panic::catch_unwind(|| match ort::init_from(&dll_str) {
+                Ok(builder) => {
+                    // commit() -> bool(グローバル環境として採用できたか)。
+                    // 既に別の環境が採用済みでも推論自体は可能なため戻り値は捨てる。
+                    builder.with_name("miomail").commit();
+                    Ok(())
+                }
+                Err(e) => Err(format!(
+                    "onnxruntime.dll の初期化に失敗しました ({}): {}",
+                    dll_str, e
+                )),
+            })
+            .map_err(|_| format!("onnxruntime.dll の読み込みに失敗しました: {}", dll_str))?
+        })
+        .clone()
+}
+
+// ---------------------------------------------------------------------------
+// EP デバイスの列挙(system.rs / 設定画面「システム」と共有)
+// ---------------------------------------------------------------------------
+
+/// EP デバイスのハードウェア種別。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EpHardware {
+    Cpu,
+    Gpu,
+    Npu,
+}
+
+/// `GetEpDevices`(env.devices())で列挙された 1 デバイス分の情報。
+#[derive(Debug, Clone)]
+pub struct EpDeviceInfo {
+    /// Execution Provider 名(例: "OpenVINOExecutionProvider" / "VitisAIExecutionProvider"
+    /// / "DmlExecutionProvider" / "CPUExecutionProvider")。取得不能なら空。
+    pub ep: String,
+    /// ハードウェアベンダー名(例: "Intel" / "AMD" / "NVIDIA")。取得不能なら空。
+    pub vendor: String,
+    /// ハードウェア種別(CPU / GPU / NPU)。
+    pub hardware: EpHardware,
+    /// デバイス ID。
+    pub id: u32,
+}
+
+/// EP 列挙の結果(初回のみ検出しキャッシュ)。
+#[derive(Debug, Clone)]
+pub struct EpProbe {
+    /// 列挙できた EP デバイス一覧。ORT が使えない場合は空。
+    pub devices: Vec<EpDeviceInfo>,
+    /// ORT 初期化に失敗した場合の理由(この場合 devices は空)。
+    pub ort_error: Option<String>,
+}
+
+/// EP デバイス一覧を返す(初回のみ検出しキャッシュ。DLL ロード失敗時は空 + error)。
+pub fn ep_probe() -> &'static EpProbe {
+    static PROBE: OnceCell<EpProbe> = OnceCell::new();
+    PROBE.get_or_init(detect_ep_probe)
+}
+
+fn detect_ep_probe() -> EpProbe {
+    if let Err(e) = ensure_ort_env() {
+        return EpProbe {
+            devices: Vec::new(),
+            ort_error: Some(e),
+        };
+    }
+
+    let env = match ort::environment::Environment::current() {
+        Ok(env) => env,
+        Err(e) => {
+            return EpProbe {
+                devices: Vec::new(),
+                ort_error: Some(format!("ORT 環境の取得に失敗しました: {}", e)),
+            }
+        }
+    };
+
+    let mut devices = Vec::new();
+    for d in env.devices() {
+        let hardware = match d.ty() {
+            ort::memory::DeviceType::NPU => EpHardware::Npu,
+            ort::memory::DeviceType::GPU => EpHardware::Gpu,
+            _ => EpHardware::Cpu,
+        };
+        devices.push(EpDeviceInfo {
+            ep: d.ep().map(|s| s.to_string()).unwrap_or_default(),
+            vendor: d.vendor().map(|s| s.to_string()).unwrap_or_default(),
+            hardware,
+            id: d.id(),
+        });
+    }
+    log::info!("semantic: ORT EP devices = {:?}", devices);
+
+    EpProbe {
+        devices,
+        ort_error: None,
+    }
+}
+
+/// `EP_POLICY`(PreferNPU)で実際に選ばれるであろうデバイスの索引を返す。
+/// 規則: 最初の NPU > 最初の GPU > 最初の CPU。1 つも無ければ None。
+pub fn active_device_index(devices: &[EpDeviceInfo]) -> Option<usize> {
+    devices
+        .iter()
+        .position(|d| d.hardware == EpHardware::Npu)
+        .or_else(|| devices.iter().position(|d| d.hardware == EpHardware::Gpu))
+        .or_else(|| devices.iter().position(|d| d.hardware == EpHardware::Cpu))
+        .or(if devices.is_empty() { None } else { Some(0) })
+}
+
+// ---------------------------------------------------------------------------
+// エンコード(ORT 推論)
 // ---------------------------------------------------------------------------
 
 /// エンコード対象の種別(プレフィックスが変わる)。
@@ -408,40 +777,17 @@ pub enum EncodeKind {
 }
 
 struct Embedder {
-    session: Mutex<LearningModelSession>,
+    session: Mutex<ort::session::Session>,
     tokenizer: tokenizers::Tokenizer,
 }
 
 static EMBEDDER: OnceCell<Result<Embedder, String>> = OnceCell::new();
 
-/// モデルの入力・出力ノード名を静的に取得する。
-/// ruri-v3-70m-onnx の model_int8.onnx は以下の入出力を持つ:
-///   input_ids, attention_mask -> token_embeddings
-fn get_input_output_names(session: &LearningModelSession) -> Result<(Vec<String>, Vec<String>), String> {
-    let model = session.Model().map_err(|e| e.to_string())?;
-
-    let inputs: Vec<String> = model
-        .InputFeatures()
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .map(|f| f.Name().map(|n| n.to_string()))
-        .collect::<windows::core::Result<Vec<_>>>()
-        .map_err(|e| e.to_string())?;
-
-    let outputs: Vec<String> = model
-        .OutputFeatures()
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .map(|f| f.Name().map(|n| n.to_string()))
-        .collect::<windows::core::Result<Vec<_>>>()
-        .map_err(|e| e.to_string())?;
-
-    Ok((inputs, outputs))
-}
-
 fn embedder() -> Result<&'static Embedder, String> {
     EMBEDDER
         .get_or_init(|| {
+            ensure_ort_env()?;
+
             if !model_files_present() {
                 return Err(
                     "セマンティック検索モデルがダウンロードされていません。MioMail アプリの設定でセマンティック検索を有効化してください"
@@ -449,18 +795,21 @@ fn embedder() -> Result<&'static Embedder, String> {
                 );
             }
 
-            let model_path = model_onnx_path();
-            let model = LearningModel::LoadFromFilePath(&HSTRING::from(
-                model_path.to_string_lossy().as_ref(),
-            ))
-            .map_err(|e| format!("ONNX モデルの読み込みに失敗しました: {}", e))?;
-
-            // Default デバイス: システムが自動的に NPU > GPU > CPU を選択
-            let device = LearningModelDevice::Create(LearningModelDeviceKind::Default)
-                .map_err(|e| format!("WinML デバイスの作成に失敗しました: {}", e))?;
-
-            let session = LearningModelSession::CreateFromModelOnDevice(&model, &device)
-                .map_err(|e| format!("WinML セッションの作成に失敗しました: {}", e))?;
+            // セッション構築(AutoDevicePolicy で NPU>GPU>CPU を自動選択)。
+            // ort 内部の panic をアプリ全体に波及させないよう閉じ込める。
+            // RC 版のビルダーは各メソッドがビルダー内包型のエラー(Error<SessionBuilder>)を
+            // 返し `?` で統一できないため、都度 map_err で String に正規化する。
+            let session = std::panic::catch_unwind(|| -> Result<ort::session::Session, String> {
+                let builder = ort::session::Session::builder().map_err(|e| e.to_string())?;
+                let builder = builder.with_auto_device(EP_POLICY).map_err(|e| e.to_string())?;
+                // commit_from_file は &mut self のため mut で束縛する。
+                let mut builder = builder.with_intra_threads(2).map_err(|e| e.to_string())?;
+                builder
+                    .commit_from_file(model_onnx_path())
+                    .map_err(|e| e.to_string())
+            })
+            .map_err(|_| "ONNX セッションの作成に失敗しました(panic)".to_string())?
+            .map_err(|e| format!("ONNX セッションの作成に失敗しました: {}", e))?;
 
             let mut tokenizer = tokenizers::Tokenizer::from_file(tokenizer_path())
                 .map_err(|e| format!("tokenizer.json の読み込みに失敗しました: {}", e))?;
@@ -482,7 +831,7 @@ fn embedder() -> Result<&'static Embedder, String> {
 
 /// テキスト群を埋め込みベクトルに変換する(mean pooling + L2 正規化)。
 /// 戻り値は入力と同じ順序の Vec<Vec<f32>>(L2 正規化済み)。
-/// 失敗時(モデル未DLなど)は Err。
+/// 失敗時(DLL 不在・モデル未DLなど)は Err。
 ///
 /// この関数は CPU 負荷が高くブロッキングするため、async コンテキストからは
 /// `tokio::task::spawn_blocking` 経由で呼ぶこと。
@@ -513,20 +862,16 @@ pub fn encode(texts: &[String], kind: EncodeKind) -> Result<Vec<Vec<f32>>, Strin
         groups.entry(enc.get_ids().len()).or_default().push(i);
     }
 
-    let session = emb.session.lock().map_err(|e| e.to_string())?;
+    let mut session = emb.session.lock().map_err(|e| e.to_string())?;
 
-    // モデルの入出力ノード名を取得
-    let (input_names, output_names) = get_input_output_names(&session)?;
+    // ONNX グラフの入力名に合わせて名前付きで供給する
+    let input_names: Vec<String> = session.inputs().iter().map(|i| i.name().to_string()).collect();
     let ids_name = input_names
         .iter()
         .find(|n| n.contains("input_ids"))
         .cloned()
         .unwrap_or_else(|| input_names[0].clone());
     let mask_name = input_names.iter().find(|n| n.contains("attention_mask")).cloned();
-    let out_name = output_names
-        .first()
-        .cloned()
-        .unwrap_or_else(|| "token_embeddings".to_string());
 
     let mut result: Vec<Option<Vec<f32>>> = (0..texts.len()).map(|_| None).collect();
 
@@ -547,59 +892,32 @@ pub fn encode(texts: &[String], kind: EncodeKind) -> Result<Vec<Vec<f32>>, Strin
             }
         }
 
-        let shape: &[i64] = &[group_size as i64, len as i64];
+        let shape = vec![group_size as i64, len as i64];
+        let ids_tensor =
+            ort::value::Tensor::from_array((shape.clone(), ids_flat)).map_err(|e| e.to_string())?;
+        let mask_tensor =
+            ort::value::Tensor::from_array((shape, mask_flat.clone())).map_err(|e| e.to_string())?;
 
-        // WinML 入力バインディングを作成
-        let binding = LearningModelBinding::CreateFromSession(&*session)
-            .map_err(|e| e.to_string())?;
+        let inputs: Vec<(std::borrow::Cow<'_, str>, ort::session::SessionInputValue<'_>)> =
+            match &mask_name {
+                Some(mn) => ort::inputs![ids_name.clone() => ids_tensor, mn.clone() => mask_tensor],
+                None => ort::inputs![ids_name.clone() => ids_tensor],
+            };
 
-        // input_ids テンソルをバインド (CreateFromShapeArrayAndDataArray で IIerable 回避)
-        let ids_tensor = TensorInt64Bit::CreateFromShapeArrayAndDataArray(shape, &ids_flat)
-            .map_err(|e| e.to_string())?;
-        binding
-            .Bind(&HSTRING::from(&ids_name), &ids_tensor)
-            .map_err(|e| e.to_string())?;
+        let outputs = session
+            .run(inputs)
+            .map_err(|e| format!("ONNX 推論に失敗しました: {}", e))?;
 
-        // attention_mask テンソルをバインド(存在する場合)
-        if let Some(ref mn) = mask_name {
-            let mask_tensor = TensorInt64Bit::CreateFromShapeArrayAndDataArray(shape, &mask_flat)
-                .map_err(|e| e.to_string())?;
-            binding
-                .Bind(&HSTRING::from(mn), &mask_tensor)
-                .map_err(|e| e.to_string())?;
-        }
+        let (oshape, data) = outputs[0]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| format!("出力テンソルの取得に失敗しました: {}", e))?;
+        let dims: Vec<i64> = oshape.iter().copied().collect();
 
-        // 推論実行
-        let eval_result = (*session)
-            .Evaluate(&binding, &HSTRING::from(""))
-            .map_err(|e| format!("WinML 推論に失敗しました: {}", e))?;
-
-        // 出力テンソルを取得
-        let outputs = eval_result.Outputs().map_err(|e| e.to_string())?;
-        let output_value = outputs
-            .Lookup(&HSTRING::from(&out_name))
-            .map_err(|e| e.to_string())?;
-        let output_tensor = output_value
-            .cast::<TensorFloat>()
-            .map_err(|e| e.to_string())?;
-
-        // 出力テンソルの形状とデータを取得
-        let output_shape: Vec<i64> = output_tensor
-            .Shape()
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .collect();
-        let output_data: Vec<f32> = output_tensor
-            .GetAsVectorView()
-            .map_err(|e| e.to_string())?
-            .into_iter()
-            .collect();
-
-        match output_shape.len() {
+        match dims.len() {
             // [G, L, D]: トークン埋め込み → attention mask 付き mean pooling
             3 => {
-                let seq = output_shape[1] as usize;
-                let dim = output_shape[2] as usize;
+                let seq = dims[1] as usize;
+                let dim = dims[2] as usize;
                 for (g, &idx) in idxs.iter().enumerate() {
                     let mut pooled = vec![0f32; dim];
                     let mut count = 0f32;
@@ -610,7 +928,7 @@ pub fn encode(texts: &[String], kind: EncodeKind) -> Result<Vec<Vec<f32>>, Strin
                         count += 1.0;
                         let base = (g * seq + i) * dim;
                         for d in 0..dim {
-                            pooled[d] += output_data[base + d];
+                            pooled[d] += data[base + d];
                         }
                     }
                     if count > 0.0 {
@@ -623,9 +941,9 @@ pub fn encode(texts: &[String], kind: EncodeKind) -> Result<Vec<Vec<f32>>, Strin
             }
             // [G, D]: 既にプーリング済み
             2 => {
-                let dim = output_shape[1] as usize;
+                let dim = dims[1] as usize;
                 for (g, &idx) in idxs.iter().enumerate() {
-                    result[idx] = Some(output_data[g * dim..(g + 1) * dim].to_vec());
+                    result[idx] = Some(data[g * dim..(g + 1) * dim].to_vec());
                 }
             }
             other => {
@@ -672,12 +990,114 @@ mod tests {
     fn hex_encode_works() {
         assert_eq!(hex_encode(&[0x0a, 0xff, 0x00]), "0aff00");
     }
+
+    #[test]
+    fn active_device_index_prefers_npu() {
+        let mk = |hw: EpHardware| EpDeviceInfo {
+            ep: String::new(),
+            vendor: String::new(),
+            hardware: hw,
+            id: 0,
+        };
+        // NPU があれば NPU
+        let devs = vec![mk(EpHardware::Cpu), mk(EpHardware::Gpu), mk(EpHardware::Npu)];
+        assert_eq!(active_device_index(&devs), Some(2));
+        // NPU 無し → GPU
+        let devs = vec![mk(EpHardware::Cpu), mk(EpHardware::Gpu)];
+        assert_eq!(active_device_index(&devs), Some(1));
+        // CPU のみ
+        let devs = vec![mk(EpHardware::Cpu)];
+        assert_eq!(active_device_index(&devs), Some(0));
+        // 空
+        assert_eq!(active_device_index(&[]), None);
+    }
+
+    #[test]
+    fn parse_package_full_name_extracts_arch_and_version() {
+        assert_eq!(
+            parse_package_full_name("Microsoft.WindowsAppRuntime.2_2.3.1.0_x64__8wekyb3d8bbwe"),
+            Some(("x64", [2, 3, 1, 0]))
+        );
+        assert_eq!(
+            parse_package_full_name("Microsoft.WindowsAppRuntime.2_2.3.1.0_arm64__8wekyb3d8bbwe"),
+            Some(("arm64", [2, 3, 1, 0]))
+        );
+        // 形式が違うものは弾く
+        assert_eq!(parse_package_full_name("NoUnderscores"), None);
+        assert_eq!(
+            parse_package_full_name("Name_notaversion_x64__pub"),
+            None
+        );
+        assert_eq!(parse_package_full_name("Name_1.2.3_x64__pub"), None);
+    }
+
+    #[test]
+    fn pick_latest_package_picks_newest_matching_arch() {
+        // 実機で同居していた並び(順不同・arm64 混在)を模す
+        let names: Vec<String> = [
+            "Microsoft.WindowsAppRuntime.2_2.3.0.0_x64__8wekyb3d8bbwe",
+            "Microsoft.WindowsAppRuntime.2_2.10.0.0_arm64__8wekyb3d8bbwe",
+            "Microsoft.WindowsAppRuntime.2_2.3.1.0_x64__8wekyb3d8bbwe",
+            "Microsoft.WindowsAppRuntime.2_2.1.3.0_x64__8wekyb3d8bbwe",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+        assert_eq!(
+            pick_latest_package(&names, "x64"),
+            Some("Microsoft.WindowsAppRuntime.2_2.3.1.0_x64__8wekyb3d8bbwe")
+        );
+        assert_eq!(
+            pick_latest_package(&names, "arm64"),
+            Some("Microsoft.WindowsAppRuntime.2_2.10.0.0_arm64__8wekyb3d8bbwe")
+        );
+        // 一致するアーキテクチャが無ければ None(勝手に別 arch を掴まない)
+        assert_eq!(pick_latest_package(&names, "x86"), None);
+        assert_eq!(pick_latest_package(&[], "x64"), None);
+    }
+
+    #[test]
+    fn version_compare_is_numeric_not_lexicographic() {
+        // "2.10.0.0" > "2.9.0.0"(文字列比較だと逆転する)
+        let names: Vec<String> = [
+            "P_2.9.0.0_x64__pub",
+            "P_2.10.0.0_x64__pub",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        assert_eq!(pick_latest_package(&names, "x64"), Some("P_2.10.0.0_x64__pub"));
+    }
 }
 
 #[cfg(test)]
 mod diag_real_tests {
     use crate::embed::*;
     use crate::vectorize::{SqliteVectorStore, VectorStore};
+
+    /// 実機で ORT が列挙する EP デバイス(CPU/GPU/NPU)を出す診断用。
+    /// 実行: cargo test --lib diag_ep_devices -- --ignored --nocapture
+    /// (onnxruntime.dll が必要。ORT_DYLIB_PATH か target 配下に配置しておくこと。
+    ///  NPU 機ではここに OpenVINO/VitisAI が NPU として出れば成功)。
+    #[test]
+    #[ignore]
+    fn diag_ep_devices() {
+        let probe = ep_probe();
+        if let Some(err) = &probe.ort_error {
+            eprintln!("ORT 初期化エラー: {}", err);
+            return;
+        }
+        eprintln!("列挙された EP デバイス数: {}", probe.devices.len());
+        let active = active_device_index(&probe.devices);
+        for (i, d) in probe.devices.iter().enumerate() {
+            let mark = if Some(i) == active { " <= 選択(PreferNPU)" } else { "" };
+            eprintln!(
+                "  [{}] hw={:?} ep={:?} vendor={:?} id={}{}",
+                i, d.hardware, d.ep, d.vendor, d.id, mark
+            );
+        }
+    }
 
     /// 実 DB のベクトルに対する実クエリのスコア分布を出す診断用。
     /// 実行: cargo test --lib diag_real_scores -- --ignored --nocapture

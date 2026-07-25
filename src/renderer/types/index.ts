@@ -167,7 +167,18 @@ export interface SemanticStatus {
   error: string | null
 }
 
-export type AcceleratorId = 'intel_npu' | 'amd_npu' | 'directml' | 'cpu'
+// バックエンド(ort GetEpDevices)が実デバイスから動的に id を決めるため、
+// 既知の候補を挙げつつ任意の文字列も許容する(表示キーとしてのみ使用)。
+// 例: 'intel_npu' | 'amd_npu' | 'qnn_npu' | 'directml' | 'tensorrt' | 'migraphx'
+//     | 'cuda' | 'gpu' | 'cpu' | 'engine'、GPU 複数枚時は 'directml-1' など。
+export type AcceleratorId =
+  | 'intel_npu'
+  | 'amd_npu'
+  | 'qnn_npu'
+  | 'directml'
+  | 'tensorrt'
+  | 'cpu'
+  | (string & {})
 
 export type AcceleratorStatus = 'active' | 'available' | 'unavailable' | 'not_built'
 

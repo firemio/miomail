@@ -1079,21 +1079,21 @@ export const mockApi = {
       accelerators: [
         {
           id: 'intel_npu',
-          label: 'Intel NPU (AI Boost)',
-          status: 'not_built',
-          note: 'NPU対応ビルドが未導入のため利用できません。',
+          label: 'Intel NPU (OpenVINO)',
+          status: 'unavailable',
+          note: 'EP: - / ベンダー: - (このプレビュー環境ではNPU未検出)',
         },
         {
           id: 'amd_npu',
-          label: 'AMD NPU (Ryzen AI)',
-          status: 'not_built',
-          note: 'NPU対応ビルドが未導入のため利用できません。',
+          label: 'AMD NPU (Ryzen AI / VitisAI)',
+          status: 'unavailable',
+          note: 'EP: - / ベンダー: - (このプレビュー環境ではNPU未検出)',
         },
         {
           id: 'directml',
           label: 'DirectML (GPU)',
           status: 'active',
-          note: 'GPU経由でAI検索を高速化しています。',
+          note: 'EP: DmlExecutionProvider / ベンダー: Intel',
         },
         {
           id: 'cpu',

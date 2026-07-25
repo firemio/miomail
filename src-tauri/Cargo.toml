@@ -1,6 +1,6 @@
 [package]
 name = "miomail"
-version = "2.1.9"
+version = "2.1.10"
 edition = "2021"
 homepage = "https://miomail.app/"
 repository = "https://github.com/firemio/miomail"
@@ -40,9 +40,20 @@ once_cell = "1"
 # CPU 名の取得(mail_system_info 用。x86/x86_64 のみ有効、他アーチは "不明")
 raw-cpuid = "11"
 # --- セマンティック検索(embed.rs / vectorize.rs)用 ---
-# Windows ML (WinML) API。ONNX Runtime (ort) の代わりに Windows 組み込みの
-# AI/ML 推論エンジンを使用。Windows 10 1903+ / Windows 11 で動作。
-windows = { version = "0.61", features = ["AI_MachineLearning"] }
+# ort: ONNX Runtime バインディング。`load-dynamic` で onnxruntime.dll を実行時ロード
+# するため、リンク時に DLL は不要(protoc も不要)。指す DLL は新 Windows ML
+# (Windows App SDK 同梱の ONNX Runtime 1.24 系)で、`GetEpDevices` /
+# `AutoDevicePolicy` による EP 自動選択(NPU > GPU > CPU)を利用する。
+# NPU 向け EP(Intel=OpenVINO / AMD=VitisAI)は WinML の EP カタログが実行時に
+# 供給・登録するため、コンパイル時同梱(旧 npu feature)は行わない。
+# `api-24` は新しい Windows ML(Windows App SDK 2.x 同梱の ONNX Runtime 1.24 系)に
+# 合わせた EP-device API を有効化する。ターゲットは WinML 同梱 ORT 1.24 のみ。
+ort = { version = "=2.0.0-rc.12", default-features = false, features = [
+    "std",
+    "ndarray",
+    "load-dynamic",
+    "api-24",
+] }
 # トークナイザ(tokenizer.json をローカル読み込み。http 機能は不要)
 tokenizers = { version = "=0.23.1", default-features = false, features = ["fancy-regex"] }
 # モデルの手動ダウンロード(hf-hub の代わり。バイナリサイズと依存削減)
@@ -50,9 +61,6 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 
 [features]
 default = []
-# NPU 向け EP は WinML 内部で自動選択されるため、ort の feature 置き換え。
-# この feature は後方互換のため残すが、WinML では無効。
-npu = []
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
