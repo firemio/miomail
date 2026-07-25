@@ -1076,6 +1076,10 @@ export const mockApi = {
       os: 'Windows 11 (プレビュー)',
       arch: 'x86_64',
       cpu_name: 'Intel Core Ultra 7 155H (プレビュー)',
+      runtime: {
+        version: '1.24.6',
+        path: 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsAppRuntime.2_2.3.1.0_x64__8wekyb3d8bbwe\\onnxruntime.dll',
+      },
       accelerators: [
         {
           id: 'intel_npu',

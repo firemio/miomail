@@ -636,13 +636,20 @@ mod winml_package {
     }
 }
 
+/// 解決済みの onnxruntime.dll パス(初回のみ探索してキャッシュ)。
+/// 探索はパッケージ問い合わせを伴うので、環境初期化と設定画面の表示で共有する。
+fn resolved_ort_dll() -> Option<&'static PathBuf> {
+    static DLL: OnceCell<Option<PathBuf>> = OnceCell::new();
+    DLL.get_or_init(find_ort_dll).as_ref()
+}
+
 /// ORT 環境を一度だけ初期化する。DLL 不在やロード失敗(ort 内部で panic
 /// しうる)をアプリ全体に波及させないよう catch_unwind で閉じ込める。
 fn ensure_ort_env() -> Result<(), String> {
     static ORT_ENV: OnceCell<Result<(), String>> = OnceCell::new();
     ORT_ENV
         .get_or_init(|| {
-            let Some(dll) = find_ort_dll() else {
+            let Some(dll) = resolved_ort_dll() else {
                 // エンドユーザーに出る文言。原因(Windows ML 未導入)と対処が分かるようにする。
                 // 開発者向けの ORT_DYLIB_PATH は補足として最後に置く。
                 return Err(
@@ -697,6 +704,20 @@ pub struct EpDeviceInfo {
     pub id: u32,
 }
 
+/// 実際にロードした Windows ML(ONNX Runtime)ランタイムの素性。
+///
+/// 設定画面「システム」に常時表示する。NPU/GPU が出ないときに
+/// 「ハードウェアが無い」のか「掴んだ DLL が違う(汎用ビルド等)」のかを
+/// 切り分けられるようにするのが目的。
+#[derive(Debug, Clone)]
+pub struct OrtRuntimeInfo {
+    /// 解決した onnxruntime.dll のフルパス。
+    pub path: String,
+    /// ONNX Runtime のバージョン文字列(例: "1.24.20260504.1.7444c45")。
+    /// 取得できなければ空。
+    pub version: String,
+}
+
 /// EP 列挙の結果(初回のみ検出しキャッシュ)。
 #[derive(Debug, Clone)]
 pub struct EpProbe {
@@ -704,6 +725,9 @@ pub struct EpProbe {
     pub devices: Vec<EpDeviceInfo>,
     /// ORT 初期化に失敗した場合の理由(この場合 devices は空)。
     pub ort_error: Option<String>,
+    /// ロードした DLL の素性。DLL 自体が見つからなければ `None`。
+    /// 初期化に失敗した場合でも、見つかった DLL の情報は返す(原因切り分け用)。
+    pub runtime: Option<OrtRuntimeInfo>,
 }
 
 /// EP デバイス一覧を返す(初回のみ検出しキャッシュ。DLL ロード失敗時は空 + error)。
@@ -713,10 +737,17 @@ pub fn ep_probe() -> &'static EpProbe {
 }
 
 fn detect_ep_probe() -> EpProbe {
+    // DLL が見つかっていれば、初期化の成否によらず素性を返す(原因切り分け用)。
+    let runtime = resolved_ort_dll().map(|p| OrtRuntimeInfo {
+        path: p.to_string_lossy().to_string(),
+        version: ort_version(p).unwrap_or_default(),
+    });
+
     if let Err(e) = ensure_ort_env() {
         return EpProbe {
             devices: Vec::new(),
             ort_error: Some(e),
+            runtime,
         };
     }
 
@@ -726,6 +757,7 @@ fn detect_ep_probe() -> EpProbe {
             return EpProbe {
                 devices: Vec::new(),
                 ort_error: Some(format!("ORT 環境の取得に失敗しました: {}", e)),
+                runtime,
             }
         }
     };
@@ -749,7 +781,74 @@ fn detect_ep_probe() -> EpProbe {
     EpProbe {
         devices,
         ort_error: None,
+        runtime,
     }
+}
+
+/// onnxruntime.dll から ONNX Runtime のバージョン文字列を取得する。
+///
+/// ort クレートは取得済みのバージョンを公開していないため、
+/// `OrtGetApiBase()->GetVersionString()` を直接呼ぶ。
+#[cfg(windows)]
+fn ort_version(dll: &Path) -> Option<String> {
+    use std::ffi::{c_void, CStr, OsStr};
+    use std::os::raw::c_char;
+    use std::os::windows::ffi::OsStrExt;
+
+    /// ONNX Runtime の `OrtApiBase`。関数ポインタ 2 つで、順序は ABI 安定。
+    #[repr(C)]
+    struct OrtApiBase {
+        get_api: *const c_void,
+        get_version_string: Option<unsafe extern "C" fn() -> *const c_char>,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn LoadLibraryW(name: *const u16) -> *mut c_void;
+        fn GetProcAddress(module: *mut c_void, name: *const u8) -> *const c_void;
+        fn FreeLibrary(module: *mut c_void) -> i32;
+    }
+
+    let wide: Vec<u16> = OsStr::new(dll)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    // ort が同じ DLL を保持しているので、ここでの Load/Free は参照カウントのみ動く。
+    let module = unsafe { LoadLibraryW(wide.as_ptr()) };
+    if module.is_null() {
+        return None;
+    }
+
+    let sym = unsafe { GetProcAddress(module, b"OrtGetApiBase\0".as_ptr()) };
+    let version = if sym.is_null() {
+        None
+    } else {
+        let get_base: unsafe extern "C" fn() -> *const OrtApiBase =
+            unsafe { std::mem::transmute(sym) };
+        let base = unsafe { get_base() };
+        if base.is_null() {
+            None
+        } else {
+            // 文字列は DLL 内の静的領域を指すため、FreeLibrary 前に複製する。
+            unsafe { (*base).get_version_string }.and_then(|f| {
+                let p = unsafe { f() };
+                if p.is_null() {
+                    None
+                } else {
+                    Some(unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned())
+                }
+            })
+        }
+    };
+
+    unsafe { FreeLibrary(module) };
+    version.filter(|s| !s.is_empty())
+}
+
+#[cfg(not(windows))]
+fn ort_version(_dll: &Path) -> Option<String> {
+    None
 }
 
 /// `EP_POLICY`(PreferNPU)で実際に選ばれるであろうデバイスの索引を返す。
@@ -1084,6 +1183,13 @@ mod diag_real_tests {
     #[ignore]
     fn diag_ep_devices() {
         let probe = ep_probe();
+        match &probe.runtime {
+            Some(rt) => {
+                eprintln!("Windows ML: v{}", rt.version);
+                eprintln!("  DLL: {}", rt.path);
+            }
+            None => eprintln!("Windows ML: onnxruntime.dll を解決できませんでした"),
+        }
         if let Some(err) = &probe.ort_error {
             eprintln!("ORT 初期化エラー: {}", err);
             return;

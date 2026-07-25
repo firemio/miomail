@@ -28,6 +28,18 @@ pub struct AcceleratorInfo {
     pub note: String,
 }
 
+/// IF 契約: RuntimeInfo — 実際にロードした Windows ML の素性。
+///
+/// NPU/GPU が出ないときに「ハードウェアが無い」のか「掴んだ DLL が違う」のかを
+/// 設定画面だけで切り分けられるようにするため、常時表示する。
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeInfo {
+    /// ONNX Runtime のバージョン文字列。取得できなければ空。
+    pub version: String,
+    /// 解決した onnxruntime.dll のフルパス。
+    pub path: String,
+}
+
 /// IF 契約: SystemInfo
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemInfo {
@@ -35,6 +47,8 @@ pub struct SystemInfo {
     pub os: String,
     pub arch: String,
     pub cpu_name: String,
+    /// Windows ML が見つからなければ `None`。
+    pub runtime: Option<RuntimeInfo>,
     pub accelerators: Vec<AcceleratorInfo>,
     pub semantic: SemanticStatus,
 }
@@ -170,8 +184,17 @@ pub fn mail_system_info(db: State<'_, DbState>) -> Result<SystemInfo, String> {
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
         cpu_name: cpu_name(),
+        runtime: runtime_info(),
         accelerators: accelerator_infos(),
         semantic,
+    })
+}
+
+/// ロード済み Windows ML の素性を返す(embed::ep_probe のキャッシュ結果を使用)。
+fn runtime_info() -> Option<RuntimeInfo> {
+    embed::ep_probe().runtime.as_ref().map(|r| RuntimeInfo {
+        version: r.version.clone(),
+        path: r.path.clone(),
     })
 }
 

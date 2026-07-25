@@ -188,7 +188,25 @@ export function SystemSection() {
             </p>
           </div>
         </div>
-        <ul className="mt-5 space-y-2.5">
+        {info.runtime ? (
+          <div className="mt-5 rounded-[20px] border border-white/85 bg-white/60 px-4 py-3.5">
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-sm font-semibold text-sumi-text">Windows ML</p>
+              <span className="shrink-0 text-[11px] font-semibold text-sumi-text-muted">
+                {info.runtime.version ? `v${info.runtime.version}` : 'バージョン不明'}
+              </span>
+            </div>
+            <p className="mt-1 break-all text-[11px] leading-5 text-sumi-text-muted">{info.runtime.path}</p>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-[20px] border border-white/85 bg-white/60 px-4 py-3.5">
+            <p className="text-sm font-semibold text-sumi-text">Windows ML</p>
+            <p className="mt-1 text-[11px] leading-5 text-sumi-text-muted">
+              onnxruntime.dll を解決できませんでした。
+            </p>
+          </div>
+        )}
+        <ul className="mt-2.5 space-y-2.5">
           {info.accelerators.map((accelerator) => {
             const badge = ACCELERATOR_BADGES[accelerator.status]
             return (

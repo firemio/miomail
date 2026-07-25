@@ -190,12 +190,25 @@ export interface AcceleratorInfo {
   note: string
 }
 
+/**
+ * 実際にロードした Windows ML の素性。バックエンドIF契約で固定。
+ * NPU/GPU が出ないときの原因切り分け(ハードが無いのか、掴んだDLLが違うのか)に使う。
+ */
+export interface RuntimeInfo {
+  /** ONNX Runtime のバージョン(例: '1.24.6')。取得できなければ空文字。 */
+  version: string
+  /** 解決した onnxruntime.dll のフルパス。 */
+  path: string
+}
+
 /** mail_system_info コマンドの戻り値。バックエンドIF契約で固定。 */
 export interface SystemInfo {
   app_version: string
   os: string
   arch: string
   cpu_name: string
+  /** Windows ML が見つからなければ null。 */
+  runtime: RuntimeInfo | null
   accelerators: AcceleratorInfo[]
   semantic: SemanticStatus
 }
