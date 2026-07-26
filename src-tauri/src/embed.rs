@@ -683,7 +683,7 @@ fn ensure_ort_env() -> Result<(), String> {
 // ---------------------------------------------------------------------------
 
 /// EP デバイスのハードウェア種別。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EpHardware {
     Cpu,
     Gpu,
@@ -776,6 +776,12 @@ fn detect_ep_probe() -> EpProbe {
             id: d.id(),
         });
     }
+    // 同じデバイスが複数回列挙されることがある(ドライバー/ORT の挙動)ため重複を排除
+    let mut seen = std::collections::HashSet::new();
+    devices.retain(|d| {
+        let key = (d.ep.clone(), d.vendor.clone(), d.hardware, d.id);
+        seen.insert(key)
+    });
     log::info!("semantic: ORT EP devices = {:?}", devices);
 
     EpProbe {
@@ -1167,6 +1173,23 @@ mod tests {
         .map(|s| s.to_string())
         .collect();
         assert_eq!(pick_latest_package(&names, "x64"), Some("P_2.10.0.0_x64__pub"));
+    }
+
+    #[test]
+    fn dedup_identical_ep_devices() {
+        let raw = vec![
+            EpDeviceInfo { ep: "DmlExecutionProvider".into(), vendor: "NVIDIA".into(), hardware: EpHardware::Gpu, id: 0 },
+            EpDeviceInfo { ep: "DmlExecutionProvider".into(), vendor: "NVIDIA".into(), hardware: EpHardware::Gpu, id: 0 },
+            EpDeviceInfo { ep: "CPUExecutionProvider".into(), vendor: "".into(), hardware: EpHardware::Cpu, id: 0 },
+        ];
+        let mut seen = std::collections::HashSet::new();
+        let deduped: Vec<EpDeviceInfo> = raw.into_iter().filter(|d| {
+            let key = (d.ep.clone(), d.vendor.clone(), d.hardware, d.id);
+            seen.insert(key)
+        }).collect();
+        assert_eq!(deduped.len(), 2, "同一デバイスの完全重複は排除される");
+        assert!(deduped.iter().any(|d| d.hardware == EpHardware::Gpu));
+        assert!(deduped.iter().any(|d| d.hardware == EpHardware::Cpu));
     }
 }
 
