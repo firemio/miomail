@@ -12,6 +12,20 @@ MioMail は GitHub Releases で配布し、Tauri updater が
 
 ## 新バージョンを出す手順
 
+### 自動（推奨）: `scripts/release.ps1`
+
+```powershell
+npm run release              # パッチ版を上げて全自動（bump→push→署名ビルド→latest.json→GitHub Release）
+npm run release -- -Bump minor        # マイナー版
+npm run release -- -Version 2.2.0     # 明示指定
+npm run release -- -Notes "修正内容"  # ノート指定（省略時は前回タグからのコミット一覧）
+```
+
+前提: 作業ツリーがクリーンで main にいること。`miomail-mcp.exe` のロック解除・
+署名鍵の読み込み・node/cargo/gh の PATH 解決はスクリプトが自動で行います。
+
+### 手動
+
 1. バージョンを上げる（**3ファイル同期**）:
    - `src-tauri/tauri.conf.json` の `version`
    - `src-tauri/Cargo.toml` の `version`
