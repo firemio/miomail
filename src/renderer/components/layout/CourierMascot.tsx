@@ -428,12 +428,14 @@ export function CourierMascot({
   // 頬〜あご〜反対側の大回りと、耳の間の額のふさ毛ラインだけをストロークする
   const mioHeadEdgePath =
     'M 61 131 L 52 127 L 55 149 L 44 142 L 55 171 L 33 166 L 37 200 L 49 219 L 32 219 L 50 230 L 33 245 L 50 250 L 40 271 L 50 269 L 43 292 L 24 310 L 33 311 L 34 317 L 16 326 L 31 336 L 0 367 L 6 386 L 26 405 L 19 411 L 17 425 L 41 443 L 40 449 L 30 453 L 49 475 L 68 483 L 64 497 L 101 507 L 96 518 L 128 526 L 129 535 L 167 541 L 168 547 L 203 551 C 275 571 414 574 485 558 L 550 547 L 558 538 L 588 535 L 591 526 L 622 518 L 616 508 L 629 503 L 649 507 L 656 499 L 652 483 L 672 475 L 691 451 L 682 451 L 678 444 L 708 418 L 709 412 L 697 411 L 695 404 L 708 394 L 720 369 L 688 336 L 689 331 L 704 326 L 691 318 L 696 311 L 681 299 L 667 274 L 672 269 L 681 275 L 671 251 L 689 245 L 669 234 L 686 220 L 674 219 L 673 214 L 681 204 L 687 164 L 665 171 L 675 147 L 662 153 L 668 127 L 659 130 M 502 90 L 465 62 L 442 55 L 416 58 L 395 42 L 367 35 L 327 40 L 303 56 L 275 53 L 259 57 L 212 89'
+  // 塗りは付け根より下へ大きく延長する(頭の裏に隠れる)。ふさ毛ジグザグの谷との間に
+  // 透明な隙間ができないようにするための下敷き
   const mioEarLeftFillPath =
-    'M 61 131 L 78 82 L 103 45 L 146 10 L 188 0 L 209 7 L 224 28 L 224 47 L 217 57 L 208 59 L 199 47 L 194 57 L 198 78 L 212 89 Z'
+    'M 61 131 L 78 82 L 103 45 L 146 10 L 188 0 L 209 7 L 224 28 L 224 47 L 217 57 L 208 59 L 199 47 L 194 57 L 198 78 L 212 89 L 222 125 L 205 162 L 160 180 L 105 176 L 66 156 Z'
   const mioEarLeftEdgePath =
     'M 212 89 L 198 78 L 194 57 L 199 47 L 208 59 L 217 57 L 224 47 L 224 28 L 209 7 L 188 0 L 146 10 L 103 45 L 78 82 L 61 131'
   const mioEarRightFillPath =
-    'M 659 130 L 636 69 L 596 22 L 570 7 L 546 1 L 510 11 L 497 31 L 497 48 L 507 59 L 522 48 L 526 68 L 517 82 L 502 90 Z'
+    'M 659 130 L 636 69 L 596 22 L 570 7 L 546 1 L 510 11 L 497 31 L 497 48 L 507 59 L 522 48 L 526 68 L 517 82 L 502 90 L 499 125 L 516 162 L 561 180 L 616 176 L 655 156 Z'
   const mioEarRightEdgePath =
     'M 502 90 L 517 82 L 526 68 L 522 48 L 507 59 L 497 48 L 497 31 L 510 11 L 546 1 L 570 7 L 596 22 L 636 69 L 659 130'
   // 内耳ピンク: カールの先端(折り返し)まで沿わせ、下側はやや幅広の丸み。
@@ -459,7 +461,7 @@ export function CourierMascot({
     // このラッパーはpreserve-3dで子のZ軸を活かす。z-indexではなくZ値が前後を決める
     <div
       className="absolute inset-0"
-      style={{ transform: 'translateY(-6%) scale(0.88)', transformOrigin: '50% 100%', transformStyle: 'preserve-3d' }}
+      style={{ transform: 'translateY(-6%) scale3d(0.88, 0.88, 0.88)', transformOrigin: '50% 100%', transformStyle: 'preserve-3d' }}
     >
       {/* 胴体(柄と白い胸を内包) */}
       <div
@@ -1353,11 +1355,10 @@ export function CourierMascot({
       className={`relative mascot-stage mascot-model-${mascot.model} ${
         isStar ? 'mascot-phase-star-stage' : ''
       } ${spinOnClick ? 'mascot-stage-interactive' : ''} ${className}`}
-      // perspectiveをsize比例にするとZオフセット(固定px)との比率が変わり、
-      // 小さい表示ほど奥行きが強く・大きい表示ほど平面的に見えてしまう。
-      // どのサイズでも同じ立体感になるよう固定値(96px表示時の見え方)に合わせる。
+      // 立体感の比率をどのサイズでも同じにする: perspectiveはsize比例、
+      // Z層はシーンのscaleZ(size/96)でサイズ比例に伸縮させる(96px時の見え方が基準)。
       // preserve-3dで外側のポーズ回転(見回し等)にもZ層を引き継ぐ
-      style={{ width: size, height: size, perspective: 384, opacity: bodyOpacity, transformStyle: 'preserve-3d' }}
+      style={{ width: size, height: size, perspective: size * 4, opacity: bodyOpacity, transformStyle: 'preserve-3d' }}
       onClick={spinOnClick ? () => setSpinCycle((cycle) => cycle + 1) : undefined}
       title={spinOnClick ? 'クリックでくるっと回る' : undefined}
     >
@@ -1377,7 +1378,7 @@ export function CourierMascot({
         >
           <div
             className="absolute inset-0"
-            style={{ transformStyle: 'preserve-3d', transform: `scale(${scale})` }}
+            style={{ transformStyle: 'preserve-3d', transform: `scale3d(${scale}, ${scale}, ${(size / 96) * scale})` }}
           >
             <div
               className="absolute left-1/2 top-[84%] h-6 w-[46%] -translate-x-1/2 rounded-full opacity-30 blur-sm"
