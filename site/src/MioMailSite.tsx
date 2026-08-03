@@ -130,7 +130,7 @@ function SiteMio({ bond, size }: { bond: number; size: number }) {
         className={`companion-pose companion-pose-mio companion-pose-${pose}`}
         style={{ position: 'relative' }}
       >
-        <CourierMascot mascotId="mio" bond={bond} size={size} spinOnClick />
+        <CourierMascot mascotId="mio" bond={bond} size={size} spinOnClick pose={pose} />
       </div>
     </div>
   )
