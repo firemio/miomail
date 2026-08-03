@@ -57,7 +57,7 @@ export function TitleBar() {
           {semanticSearchActive && (
             <span
               className="flex shrink-0 items-center gap-1 rounded-full bg-sumi-accent/15 px-2 py-0.5 text-[10px] font-semibold text-sumi-accent"
-              title="AI検索(セマンティック)で探しています"
+              title="意味検索で探しています"
             >
               <Sparkles size={11} /> AI
             </span>

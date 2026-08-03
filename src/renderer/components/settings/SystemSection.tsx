@@ -38,7 +38,7 @@ const ACCELERATOR_BADGES: Record<AcceleratorStatus, { label: string; className: 
 const SEMANTIC_STATES: Record<SemanticState, { label: string; note: string; className: string }> = {
   ready: {
     label: '有効',
-    note: '意味の近さでメールを探せるAI検索が使える状態です。',
+    note: '意味検索が使える状態です。キーワードが一致しなくても、意味の近いメールを探せます。',
     className: 'bg-sumi-accent text-white shadow-[0_8px_18px_rgba(255,111,145,0.22)]',
   },
   off: {
@@ -138,7 +138,6 @@ export function SystemSection() {
   const { info } = state
   const semantic = SEMANTIC_STATES[info.semantic.state]
   const environmentRows = [
-    { label: 'アプリバージョン', value: `v${info.app_version}` },
     { label: 'OS', value: info.os },
     { label: 'アーキテクチャ', value: info.arch },
     { label: 'CPU', value: info.cpu_name },
@@ -166,6 +165,63 @@ export function SystemSection() {
           </button>
         </div>
         <dl className="mt-5 divide-y divide-sumi-border/50 rounded-[20px] border border-white/85 bg-white/60">
+          {/* アプリバージョン行にアップデートの確認・実行を統合 */}
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-[11px] font-semibold text-sumi-text-muted">アプリバージョン</dt>
+              <dd className="flex min-w-0 items-center gap-2">
+                <span className="text-xs font-semibold text-sumi-text">v{info.app_version}</span>
+                {updateState.phase === 'latest' && (
+                  <span className="rounded-full border border-[#5f9d7a]/30 bg-[#5f9d7a]/15 px-2 py-0.5 text-[10px] font-semibold text-[#3f7a5c]">最新です</span>
+                )}
+                {updateState.phase === 'available' && (
+                  <span className="rounded-full border border-sumi-accent/40 bg-sumi-accent/10 px-2 py-0.5 text-[10px] font-semibold text-sumi-accent">v{updateState.version}が利用可能</span>
+                )}
+                {updateState.phase === 'available' ? (
+                  <button
+                    type="button"
+                    onClick={installUpdate}
+                    title="ダウンロード後に自動で再起動します"
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-3.5 text-[11px] font-semibold text-white"
+                  >
+                    今すぐ更新
+                  </button>
+                ) : updateState.phase === 'installing' ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-3.5 text-[11px] font-semibold text-white opacity-60"
+                  >
+                    <RefreshCw size={12} className="animate-spin" />
+                    更新中…
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void checkForUpdates()}
+                    disabled={updateState.phase === 'checking' || !isTauriRuntime}
+                    title="起動時にも自動で確認されます"
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/90 bg-white/82 px-3.5 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {updateState.phase === 'checking' ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" />
+                        確認中…
+                      </>
+                    ) : (
+                      '更新を確認'
+                    )}
+                  </button>
+                )}
+              </dd>
+            </div>
+            {updateState.phase === 'installing' && (
+              <p className="mt-2 text-[11px] leading-5 text-sumi-text-muted">ダウンロード中… 完了すると自動で再起動します。</p>
+            )}
+            {updateState.phase === 'error' && (
+              <p className="mt-2 text-[11px] leading-5 text-[#a9554a]">更新の確認に失敗しました: {updateState.message}</p>
+            )}
+          </div>
           {environmentRows.map((row) => (
             <div key={row.label} className="flex items-center justify-between gap-4 px-4 py-3">
               <dt className="text-[11px] font-semibold text-sumi-text-muted">{row.label}</dt>
@@ -243,9 +299,9 @@ export function SystemSection() {
               <SearchCheck size={16} className="text-sumi-accent" />
               <p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">SEMANTIC SEARCH</p>
             </div>
-            <h3 className="mt-2 text-lg font-semibold text-sumi-text">AI検索（セマンティック）</h3>
+            <h3 className="mt-2 text-lg font-semibold text-sumi-text">意味検索</h3>
             <p className="mt-1 text-xs leading-5 text-sumi-text-muted">
-              キーワードが一致しなくても、意味の近いメールを探せる機能です。
+              キーワードが一致しなくても、意味の近いメールを探せる機能です。仕組みはこのPCの中だけで動くベクトル検索です。
             </p>
           </div>
           <span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold ${semantic.className}`}>
@@ -268,30 +324,6 @@ export function SystemSection() {
         )}
       </section>
 
-      <section className="rounded-[28px] border border-white/80 bg-white/72 p-6">
-        <div className="flex items-start justify-between gap-5">
-          <div>
-            <div className="flex items-center gap-2">
-              <RefreshCw size={16} className="text-sumi-accent" />
-              <p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">APP UPDATE</p>
-            </div>
-            <h3 className="mt-2 text-lg font-semibold text-sumi-text">アップデート</h3>
-            <p className="mt-1 text-xs leading-5 text-sumi-text-muted">
-              {updateState.phase === 'checking' && '更新を確認しています…'}
-              {updateState.phase === 'latest' && `お使いのバージョン（v${updateState.version}）は最新です。`}
-              {updateState.phase === 'available' && `新しいバージョン v${updateState.version} が利用できます。更新するとダウンロード後に自動で再起動します。`}
-              {updateState.phase === 'installing' && 'ダウンロード中… 完了すると自動で再起動します。'}
-              {updateState.phase === 'error' && `更新の確認に失敗しました: ${updateState.message}`}
-              {updateState.phase === 'idle' && '新しいバージョンが公開されているか確認します。起動時にも自動で確認されます。'}
-            </p>
-          </div>
-          {updateState.phase === 'available' ? (
-            <button onClick={installUpdate} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-sumi-accent px-5 text-xs font-semibold text-white">今すぐ更新</button>
-          ) : (
-            <button onClick={checkForUpdates} disabled={updateState.phase === 'checking' || updateState.phase === 'installing' || !isTauriRuntime} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-sumi-accent px-5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">更新を確認</button>
-          )}
-        </div>
-      </section>
     </div>
   )
 }

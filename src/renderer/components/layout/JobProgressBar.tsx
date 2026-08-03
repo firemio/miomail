@@ -233,7 +233,7 @@ function SemanticBadge({
     return (
       <span className="flex shrink-0 items-center gap-1 rounded-full border border-sumi-accent/40 bg-sumi-accent/10 px-2.5 py-0.5 text-[10px] font-medium text-sumi-accent-strong">
         <Sparkles size={11} />
-        AI検索 ON
+        意味検索 ON
       </span>
     )
   }
@@ -246,7 +246,7 @@ function SemanticBadge({
     return (
       <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-sumi-border/60 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] text-sumi-text-muted">
         <Download size={11} className="animate-pulse text-sumi-accent" />
-        AIモデル取得中{percent !== null ? ` ${percent}%` : '…'}
+        検索モデル取得中{percent !== null ? ` ${percent}%` : '…'}
       </span>
     )
   }
@@ -258,7 +258,7 @@ function SemanticBadge({
           className="max-w-56 truncate text-[10px] text-red-700/80"
           title={status.error ?? enableError ?? undefined}
         >
-          AI検索の準備に失敗しました{status.error ? `: ${status.error}` : ''}
+          意味検索の準備に失敗しました{status.error ? `: ${status.error}` : ''}
         </span>
         <button
           onClick={onRetry}
@@ -278,8 +278,8 @@ function SemanticBadge({
       {showConsent && (
         <span className="absolute bottom-full right-0 z-10 mb-2 block w-72 rounded-2xl border border-sumi-border/70 bg-sumi-surface p-3 shadow-lg">
           <span className="block text-[11px] leading-relaxed text-sumi-text">
-            意味ベースでメールを探せる「AI検索」を使えるようにします。検索用の小さなモデル
-            (約{status.model_size_mb} MB)を一度だけダウンロードします。
+            キーワードが一致しなくても意味の近さでメールを探せる「意味検索」を有効にします。
+            検索用の小さなモデル(約{status.model_size_mb} MB)を一度だけダウンロードします。
           </span>
           <span className="mt-1 block text-[10px] leading-relaxed text-sumi-text-muted">
             メール本文が外部サーバーに送信されることはありません。処理はすべてこのPC上で行われます。
@@ -315,7 +315,7 @@ function SemanticBadge({
         className="flex items-center gap-1 rounded-full border border-sumi-border/70 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-sumi-text transition hover:bg-sumi-border/40 disabled:opacity-50"
       >
         <Sparkles size={11} className="text-sumi-accent" />
-        AI検索を有効にする(約{status.model_size_mb} MB)
+        意味検索を有効にする(約{status.model_size_mb} MB)
       </button>
     </span>
   )
