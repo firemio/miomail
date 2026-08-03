@@ -13,7 +13,7 @@
     "build": "npm run typecheck && vite build",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
-    "release": "powershell -ExecutionPolicy Bypass -File scripts/release.ps1",
+    "release": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/release.ps1",
     "site:dev": "vite --config site/vite.config.ts",
     "site:build": "vite build --config site/vite.config.ts"
   },

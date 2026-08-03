@@ -23,9 +23,10 @@ $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $PSScriptRoot)  # リポジトリルート
 
 function Invoke-Native {
-  param([string]$File, [string[]]$Args, [string]$What)
-  & $File @Args
-  if ($LASTEXITCODE -ne 0) { throw "$What に失敗しました (exit $LASTEXITCODE): $File $Args" }
+  # $Args はPowerShellの自動変数と衝突して空になるため、パラメータ名に使わないこと
+  param([string]$File, [string[]]$Arguments, [string]$What)
+  & $File @Arguments
+  if ($LASTEXITCODE -ne 0) { throw "$What に失敗しました (exit $LASTEXITCODE): $File $Arguments" }
 }
 
 # --- ツールの PATH 解決（このマシンの既知の場所をフォールバックに使う） ---
