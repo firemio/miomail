@@ -27,8 +27,7 @@ const isTauriRuntime =
 
 export default function App() {
   const { loadAccounts, currentMessage, handleIncomingMail, allFolders } = useMailStore()
-  const { pulseUnreadAttention, notifyIncomingMail, notifySentMail, gainBond, selectedMascotId, selectMascot } =
-    useMascotStore()
+  const { pulseUnreadAttention, notifyIncomingMail, notifySentMail, gainBond } = useMascotStore()
   const {
     showAccountSetup,
     showImport,
@@ -38,7 +37,7 @@ export default function App() {
     themeId,
   } = useUIStore()
   const hasComposeDraft = composeDrafts.length > 0
-  const { packages: characterPackages, selectedModId, refreshMods } = useCharacterStore()
+  const { refreshMods } = useCharacterStore()
   const [sentDelivery, setSentDelivery] = useState<SentDeliveryHandoff | null>(null)
   const activeThemeId = themeId
 
@@ -49,13 +48,6 @@ export default function App() {
   useEffect(() => {
     void refreshMods()
   }, [refreshMods])
-
-  useEffect(() => {
-    const selectedPackage = characterPackages.find((item) => item.manifest.id === selectedModId)
-    if (selectedPackage && selectedPackage.manifest.behaviorProfile !== selectedMascotId) {
-      selectMascot(selectedPackage.manifest.behaviorProfile)
-    }
-  }, [characterPackages, selectMascot, selectedMascotId, selectedModId])
 
   useEffect(() => {
     document.documentElement.dataset.theme = activeThemeId
