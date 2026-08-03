@@ -20,6 +20,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# git / node の出力(UTF-8)を正しく受け取る。既定のOEMコードページ(cp932)のままだと
+# リリースノートに使うコミット一覧が文字化けし、GitHub Release と latest.json に混入する
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 Set-Location (Split-Path -Parent $PSScriptRoot)  # リポジトリルート
 
 function Invoke-Native {
