@@ -7,14 +7,60 @@ function mimeForFile(file: string) {
   return file.toLowerCase().endsWith('.png') ? 'image/png' : 'image/webp'
 }
 
+interface SheetPreview {
+  column: number
+  row: number
+  columns: number
+  rows: number
+  pixelated: boolean
+}
+
+interface PreviewSource {
+  assetKey: string | null
+  mime: string
+  sheet?: SheetPreview
+}
+
+// thumbnail未指定のMODでも絵が出るように、2Dはスプライト本体から
+// 代表フレーム(idleの1コマ目)を切り出してプレビューにする
+function resolvePreview(characterPackage: CharacterModPackage): PreviewSource {
+  const { manifest } = characterPackage
+  if (manifest.thumbnail) {
+    return { assetKey: 'thumbnail', mime: mimeForFile(manifest.thumbnail) }
+  }
+  if (manifest.renderer === 'sprite-2d') {
+    if (manifest.source.type === 'sheet') {
+      const { columns, rows, motions, imageRendering, file } = manifest.source
+      const frame = motions.idle?.frames[0] ?? 0
+      const resolvedRows = rows ?? 1
+      return {
+        assetKey: 'sheet',
+        mime: mimeForFile(file),
+        sheet: {
+          column: frame % columns,
+          row: Math.min(Math.floor(frame / columns), resolvedRows - 1),
+          columns,
+          rows: resolvedRows,
+          pixelated: imageRendering === 'pixelated',
+        },
+      }
+    }
+    const files = manifest.source.motions.idle?.files
+    if (files && files.length > 0) {
+      return { assetKey: 'sequence:idle:0', mime: mimeForFile(files[0]) }
+    }
+  }
+  return { assetKey: null, mime: 'image/webp' }
+}
+
 export function ModThumbnail({ characterPackage }: { characterPackage: CharacterModPackage }) {
   const hostRef = useRef<HTMLSpanElement>(null)
   const [visible, setVisible] = useState(false)
-  const thumbnail = characterPackage.manifest.thumbnail ?? null
+  const preview = resolvePreview(characterPackage)
   const { url } = useCharacterModAssetUrl(
     characterPackage,
-    thumbnail && visible ? 'thumbnail' : null,
-    thumbnail ? mimeForFile(thumbnail) : 'image/webp'
+    preview.assetKey && visible ? preview.assetKey : null,
+    preview.mime
   )
 
   useEffect(() => {
@@ -33,6 +79,23 @@ export function ModThumbnail({ characterPackage }: { characterPackage: Character
     observer.observe(host)
     return () => observer.disconnect()
   }, [visible])
+
+  if (url && preview.sheet) {
+    const { column, row, columns, rows, pixelated } = preview.sheet
+    return (
+      <span
+        ref={hostRef}
+        className="block h-full w-full bg-no-repeat"
+        style={{
+          backgroundImage: `url(${url})`,
+          backgroundSize: `${columns * 100}% ${rows * 100}%`,
+          backgroundPosition: `${columns > 1 ? (column / (columns - 1)) * 100 : 0}% ${rows > 1 ? (row / (rows - 1)) * 100 : 0}%`,
+          imageRendering: pixelated ? 'pixelated' : undefined,
+        }}
+        aria-hidden="true"
+      />
+    )
+  }
 
   if (url) {
     return (

@@ -836,6 +836,7 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
 .mio-ear-left,
 .mio-ear-right {
   transform-box: fill-box;
+  /* グループbboxはピンクの垂れ下がりを含んで縦長。44%がだいたい耳の付け根 */
   transform-origin: 50% 44%;
   will-change: transform;
 }
