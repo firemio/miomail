@@ -1,6 +1,6 @@
 [package]
 name = "miomail"
-version = "2.1.12"
+version = "2.1.13"
 edition = "2021"
 homepage = "https://miomail.app/"
 repository = "https://github.com/firemio/miomail"
