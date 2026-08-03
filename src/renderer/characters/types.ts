@@ -109,6 +109,13 @@ export interface CharacterModScanResult {
   issues: CharacterModIssue[]
 }
 
+export interface CharacterModInstallResult {
+  installedId: string
+  installedName: string
+  replaced: boolean
+  scan: CharacterModScanResult
+}
+
 export function motionForPose(pose = 0): CharacterMotion {
   const index = Math.max(0, Math.min(POSE_MOTIONS.length - 1, Math.trunc(pose)))
   return POSE_MOTIONS[index]

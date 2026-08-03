@@ -39,6 +39,10 @@ log = "0.4"
 once_cell = "1"
 # CPU 名の取得(mail_system_info 用。x86/x86_64 のみ有効、他アーチは "不明")
 raw-cpuid = "11"
+# キャラクターMODアーカイブ(zip / tar.xz)の展開。いずれも純Rust実装
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tar = "0.4"
+lzma-rs = "0.3"
 # --- セマンティック検索(embed.rs / vectorize.rs)用 ---
 # ort: ONNX Runtime バインディング。`load-dynamic` で onnxruntime.dll を実行時ロード
 # するため、リンク時に DLL は不要(protoc も不要)。指す DLL は新 Windows ML

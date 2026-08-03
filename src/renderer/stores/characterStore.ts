@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type {
   BuiltinCharacterRenderer,
+  CharacterModInstallResult,
   CharacterModIssue,
   CharacterModPackage,
 } from '../characters/types'
@@ -18,10 +19,12 @@ interface CharacterStore extends PersistedCharacterSource {
   packages: CharacterModPackage[]
   issues: CharacterModIssue[]
   loading: boolean
+  installing: boolean
   error: string | null
   selectBuiltinRenderer: (renderer: BuiltinCharacterRenderer) => void
   selectMod: (modId: string) => void
   refreshMods: () => Promise<void>
+  installArchive: () => Promise<CharacterModInstallResult | null>
   openModsFolder: () => Promise<void>
 }
 
@@ -61,6 +64,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   packages: [],
   issues: [],
   loading: false,
+  installing: false,
   error: null,
 
   selectBuiltinRenderer: (builtinRenderer) => {
@@ -92,6 +96,27 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
         loading: false,
         error: error instanceof Error ? error.message : String(error),
       })
+    }
+  },
+
+  installArchive: async () => {
+    if (get().installing) return null
+    set({ installing: true, error: null })
+    try {
+      const result = await api.characterMods.installArchive()
+      if (!result) {
+        set({ installing: false })
+        return null
+      }
+      set({ packages: result.scan.packages, issues: result.scan.issues, installing: false })
+      get().selectMod(result.installedId)
+      return result
+    } catch (error) {
+      set({
+        installing: false,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      return null
     }
   },
 

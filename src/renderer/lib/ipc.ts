@@ -16,7 +16,7 @@ import type {
   SystemInfo,
   UpdateStatus,
 } from '../types'
-import type { CharacterModScanResult } from '../characters/types'
+import type { CharacterModInstallResult, CharacterModScanResult } from '../characters/types'
 import { mockApi } from './mockApi'
 
 export const isTauriRuntime =
@@ -117,6 +117,8 @@ const characterModsApi = isTauriRuntime
       ): Promise<ArrayBuffer | Uint8Array | number[]> =>
         invoke('character_mod_read_asset', { modId, revision, assetKey }),
       openFolder: (): Promise<void> => invoke('character_mod_open_folder'),
+      installArchive: (): Promise<CharacterModInstallResult | null> =>
+        invoke('character_mod_install_archive'),
     }
   : {
       list: async (): Promise<CharacterModScanResult> => ({ packages: [], issues: [] }),
@@ -125,6 +127,9 @@ const characterModsApi = isTauriRuntime
       },
       openFolder: async (): Promise<void> => {
         throw new Error('MODフォルダーはデスクトップ版から開けます。')
+      },
+      installArchive: async (): Promise<CharacterModInstallResult | null> => {
+        throw new Error('MODの追加はデスクトップ版で利用できます。')
       },
     }
 

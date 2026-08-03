@@ -91,6 +91,7 @@ pub fn run() {
             commands::character_mod::character_mod_list,
             commands::character_mod::character_mod_read_asset,
             commands::character_mod::character_mod_open_folder,
+            commands::character_mod::character_mod_install_archive,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

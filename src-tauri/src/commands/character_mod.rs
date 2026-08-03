@@ -9,6 +9,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 use tauri::{ipc::Response, AppHandle, Manager, State};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 const MOD_FOLDER_NAME: &str = "character-mods";
@@ -33,6 +34,11 @@ const MAX_ANIMATION_CHANNELS: usize = 512;
 const MAX_ANIMATION_FLOAT_VALUES: u64 = 4_000_000;
 const MAX_NODE_EDGES: usize = 512;
 const MAX_EXPANDED_PRIMITIVES: usize = 512;
+const MAX_ARCHIVE_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_ARCHIVE_UNPACKED_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_ARCHIVE_ENTRIES: usize = 600;
+const ARCHIVE_TMP_PREFIX: &str = ".install-";
+const SKIPPED_ARCHIVE_FILES: [&str; 3] = [".DS_Store", "Thumbs.db", "desktop.ini"];
 const ALLOWED_MOTIONS: [&str; 10] = [
     "idle",
     "look-around",
@@ -166,6 +172,15 @@ pub struct CharacterModIssue {
 pub struct CharacterModScanResult {
     pub packages: Vec<CharacterModPackage>,
     pub issues: Vec<CharacterModIssue>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CharacterModInstallResult {
+    pub installed_id: String,
+    pub installed_name: String,
+    pub replaced: bool,
+    pub scan: CharacterModScanResult,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1698,6 +1713,10 @@ fn mod_directories(root: &Path) -> Result<Vec<PathBuf>, String> {
         let file_type = entry
             .file_type()
             .map_err(|error| format!("MOD項目を確認できません: {error}"))?;
+        // ドット始まり(インストール一時フォルダーなど)はMODとして扱わない
+        if entry.file_name().to_string_lossy().starts_with('.') {
+            continue;
+        }
         if file_type.is_dir() || file_type.is_symlink() {
             directories.push(entry.path());
         }
@@ -1707,6 +1726,212 @@ fn mod_directories(root: &Path) -> Result<Vec<PathBuf>, String> {
         directories.truncate(MAX_MODS);
     }
     Ok(directories)
+}
+
+struct ArchiveBudget {
+    entries: usize,
+    bytes: u64,
+}
+
+impl ArchiveBudget {
+    fn new() -> Self {
+        Self {
+            entries: MAX_ARCHIVE_ENTRIES,
+            bytes: MAX_ARCHIVE_UNPACKED_BYTES,
+        }
+    }
+}
+
+fn should_skip_archive_entry(relative: &str) -> bool {
+    if relative.split('/').next() == Some("__MACOSX") {
+        return true;
+    }
+    relative
+        .rsplit('/')
+        .next()
+        .is_some_and(|name| SKIPPED_ARCHIVE_FILES.contains(&name))
+}
+
+fn write_archive_entry(
+    dest_root: &Path,
+    relative: &str,
+    reader: &mut dyn Read,
+    budget: &mut ArchiveBudget,
+) -> Result<(), String> {
+    validate_relative_path(relative)?;
+    budget.entries = budget
+        .entries
+        .checked_sub(1)
+        .ok_or("アーカイブのファイル数が上限（600）を超えています")?;
+    let target = dest_root.join(relative);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("展開先フォルダーを作成できません: {error}"))?;
+    }
+    let mut file = File::create(&target)
+        .map_err(|error| format!("展開先ファイルを作成できません（{relative}）: {error}"))?;
+    let written = std::io::copy(&mut reader.take(budget.bytes.saturating_add(1)), &mut file)
+        .map_err(|error| format!("アーカイブを展開できません（{relative}）: {error}"))?;
+    if written > budget.bytes {
+        return Err("アーカイブの展開後サイズが上限（64 MiB）を超えています".into());
+    }
+    budget.bytes -= written;
+    Ok(())
+}
+
+fn extract_zip_archive(archive_path: &Path, dest_root: &Path) -> Result<(), String> {
+    let file =
+        File::open(archive_path).map_err(|error| format!("アーカイブを開けません: {error}"))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|error| format!("ZIPを読めません: {error}"))?;
+    let mut budget = ArchiveBudget::new();
+    for index in 0..archive.len() {
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|error| format!("ZIP内のファイルを読めません: {error}"))?;
+        if entry.is_dir() {
+            continue;
+        }
+        let name = entry.name().replace('\\', "/");
+        let name = name.strip_prefix("./").unwrap_or(&name).to_string();
+        if should_skip_archive_entry(&name) {
+            continue;
+        }
+        write_archive_entry(dest_root, &name, &mut entry, &mut budget)?;
+    }
+    Ok(())
+}
+
+struct CappedWriter {
+    bytes: Vec<u8>,
+    cap: u64,
+}
+
+impl Write for CappedWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if self.bytes.len() as u64 + buf.len() as u64 > self.cap {
+            return Err(std::io::Error::other(
+                "XZの展開後サイズが上限を超えています",
+            ));
+        }
+        self.bytes.extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn extract_tar_xz_archive(archive_path: &Path, dest_root: &Path) -> Result<(), String> {
+    let compressed = read_limited(archive_path, MAX_ARCHIVE_BYTES, "アーカイブ")?;
+    // tarのヘッダー/パディング分（512Bx600エントリー超の余裕）を上限に上乗せする
+    let mut writer = CappedWriter {
+        bytes: Vec::new(),
+        cap: MAX_ARCHIVE_UNPACKED_BYTES + 4 * 1024 * 1024,
+    };
+    lzma_rs::xz_decompress(&mut std::io::Cursor::new(&compressed), &mut writer)
+        .map_err(|error| format!("XZを展開できません: {error:?}"))?;
+    let mut archive = tar::Archive::new(std::io::Cursor::new(writer.bytes));
+    let mut budget = ArchiveBudget::new();
+    for entry in archive
+        .entries()
+        .map_err(|error| format!("tarを読めません: {error}"))?
+    {
+        let mut entry = entry.map_err(|error| format!("tar内のファイルを読めません: {error}"))?;
+        match entry.header().entry_type() {
+            tar::EntryType::Regular => {}
+            tar::EntryType::Symlink | tar::EntryType::Link => {
+                return Err("tar内のリンクは使用できません".into())
+            }
+            _ => continue,
+        }
+        let name = entry
+            .path()
+            .map_err(|error| format!("tar内のパスを読めません: {error}"))?
+            .to_str()
+            .ok_or("tar内のパスがUTF-8ではありません")?
+            .replace('\\', "/");
+        if should_skip_archive_entry(&name) {
+            continue;
+        }
+        write_archive_entry(dest_root, &name, &mut entry, &mut budget)?;
+    }
+    Ok(())
+}
+
+fn locate_extracted_mod_dir(extract_root: &Path) -> Result<PathBuf, String> {
+    if extract_root.join(MANIFEST_NAME).is_file() {
+        return Ok(extract_root.to_path_buf());
+    }
+    let mut directories = Vec::new();
+    let entries = fs::read_dir(extract_root)
+        .map_err(|error| format!("展開結果を読めません: {error}"))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("展開結果の項目を読めません: {error}"))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|error| format!("展開結果の項目を確認できません: {error}"))?;
+        if file_type.is_dir() {
+            directories.push(entry.path());
+        }
+    }
+    if directories.len() == 1 && directories[0].join(MANIFEST_NAME).is_file() {
+        return Ok(directories.remove(0));
+    }
+    Err(format!(
+        "アーカイブの直下（または単一フォルダー内）に{MANIFEST_NAME}が必要です"
+    ))
+}
+
+fn install_archive(root: &Path, archive_path: &Path) -> Result<(String, String, bool), String> {
+    let metadata = fs::metadata(archive_path)
+        .map_err(|error| format!("アーカイブを確認できません: {error}"))?;
+    if !metadata.is_file() {
+        return Err("アーカイブがファイルではありません".into());
+    }
+    if metadata.len() > MAX_ARCHIVE_BYTES {
+        return Err("アーカイブは64 MiB以下にしてください".into());
+    }
+    let file_name = archive_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let extract_root = root.join(format!("{ARCHIVE_TMP_PREFIX}{nanos}"));
+    fs::create_dir_all(&extract_root)
+        .map_err(|error| format!("一時フォルダーを作成できません: {error}"))?;
+    let result = (|| -> Result<(String, String, bool), String> {
+        if file_name.ends_with(".zip") {
+            extract_zip_archive(archive_path, &extract_root)?;
+        } else if file_name.ends_with(".xz") || file_name.ends_with(".txz") {
+            extract_tar_xz_archive(archive_path, &extract_root)?;
+        } else {
+            return Err("対応形式は .zip / .tar.xz（XZ / LZMA2）です".into());
+        }
+        let mod_dir = locate_extracted_mod_dir(&extract_root)?;
+        let package = load_package(&mod_dir)?;
+        let manifest = &package.descriptor.manifest;
+        let folder_name = manifest.id.trim_end_matches(['.', ' ']).to_string();
+        if folder_name.is_empty() {
+            return Err("MOD idからフォルダー名を作れません".into());
+        }
+        let target = root.join(&folder_name);
+        let replaced = target.exists();
+        if replaced {
+            fs::remove_dir_all(&target)
+                .map_err(|error| format!("既存の同名MODを置き換えられません: {error}"))?;
+        }
+        fs::rename(&mod_dir, &target)
+            .map_err(|error| format!("MODを配置できません: {error}"))?;
+        Ok((manifest.id.clone(), manifest.name.clone(), replaced))
+    })();
+    let _ = fs::remove_dir_all(&extract_root);
+    result
 }
 
 fn folder_label(path: &Path) -> String {
@@ -1822,6 +2047,48 @@ pub async fn character_mod_open_folder(app: AppHandle) -> Result<(), String> {
         .map_err(|error| format!("MODフォルダーを開けません: {error}"))
 }
 
+#[tauri::command]
+pub async fn character_mod_install_archive(
+    app: AppHandle,
+    registry: State<'_, CharacterModRegistry>,
+) -> Result<Option<CharacterModInstallResult>, String> {
+    let root = mods_root(&app)?;
+    ensure_mod_root(&root)?;
+    let Some(picked) = app
+        .dialog()
+        .file()
+        .add_filter("キャラクターMODアーカイブ", &["zip", "xz", "txz"])
+        .set_title("キャラクターMODのアーカイブを選択")
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+    let archive_path = picked
+        .into_path()
+        .map_err(|error| format!("選択したファイルのパスを取得できません: {error}"))?;
+    let install_root = root.clone();
+    let (installed_id, installed_name, replaced) =
+        tauri::async_runtime::spawn_blocking(move || install_archive(&install_root, &archive_path))
+            .await
+            .map_err(|error| format!("MODの追加処理に失敗しました: {error}"))??;
+    let (loaded, issues) = tauri::async_runtime::spawn_blocking(move || scan_packages(&root))
+        .await
+        .map_err(|error| format!("MOD検出処理に失敗しました: {error}"))??;
+    registry.replace(&loaded)?;
+    Ok(Some(CharacterModInstallResult {
+        installed_id,
+        installed_name,
+        replaced,
+        scan: CharacterModScanResult {
+            packages: loaded
+                .into_iter()
+                .map(|package| package.descriptor)
+                .collect(),
+            issues,
+        },
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1863,6 +2130,79 @@ mod tests {
         glb.extend_from_slice(&0x004E4942u32.to_le_bytes());
         glb.extend_from_slice(&bin);
         glb
+    }
+
+    #[test]
+    fn skips_archive_junk_entries() {
+        assert!(should_skip_archive_entry("__MACOSX/pack/._character.json"));
+        assert!(should_skip_archive_entry("pack/.DS_Store"));
+        assert!(should_skip_archive_entry("Thumbs.db"));
+        assert!(!should_skip_archive_entry("pack/character.json"));
+    }
+
+    #[test]
+    fn zip_extraction_writes_files_and_rejects_traversal() {
+        use zip::write::SimpleFileOptions;
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        let mut buffer = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut buffer);
+            writer.start_file("pack/character.json", options).unwrap();
+            writer.write_all(b"{}").unwrap();
+            writer
+                .start_file("__MACOSX/pack/._character.json", options)
+                .unwrap();
+            writer.write_all(b"junk").unwrap();
+            writer.finish().unwrap();
+        }
+        let dest = std::env::temp_dir().join(format!("miomail-zip-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dest);
+        fs::create_dir_all(&dest).unwrap();
+        let archive_path = dest.join("pack.zip");
+        fs::write(&archive_path, buffer.into_inner()).unwrap();
+        extract_zip_archive(&archive_path, &dest.join("out")).unwrap();
+        assert!(dest.join("out/pack/character.json").is_file());
+        assert!(!dest.join("out/__MACOSX").exists());
+
+        let mut evil = std::io::Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut evil);
+            writer.start_file("../evil.txt", options).unwrap();
+            writer.write_all(b"x").unwrap();
+            writer.finish().unwrap();
+        }
+        let evil_path = dest.join("evil.zip");
+        fs::write(&evil_path, evil.into_inner()).unwrap();
+        assert!(extract_zip_archive(&evil_path, &dest.join("out2")).is_err());
+        let _ = fs::remove_dir_all(&dest);
+    }
+
+    #[test]
+    fn extracts_tar_xz_archives() {
+        let mut tar_bytes = Vec::new();
+        {
+            let mut builder = tar::Builder::new(&mut tar_bytes);
+            let data = b"{}";
+            let mut header = tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            builder
+                .append_data(&mut header, "pack/character.json", &data[..])
+                .unwrap();
+            builder.finish().unwrap();
+        }
+        let mut xz_bytes = Vec::new();
+        lzma_rs::xz_compress(&mut std::io::Cursor::new(&tar_bytes), &mut xz_bytes).unwrap();
+        let dest = std::env::temp_dir().join(format!("miomail-txz-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dest);
+        fs::create_dir_all(&dest).unwrap();
+        let archive_path = dest.join("pack.tar.xz");
+        fs::write(&archive_path, xz_bytes).unwrap();
+        extract_tar_xz_archive(&archive_path, &dest.join("out")).unwrap();
+        assert!(dest.join("out/pack/character.json").is_file());
+        let _ = fs::remove_dir_all(&dest);
     }
 
     #[test]
