@@ -758,12 +758,10 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
 }
 
 /*
- * 注意: .mascot-tilt(preserve-3d)にfilterを掛けると3Dが平面化され、
- * クリック回転時に背面が消える。色調整が必要なら .mascot-stage 側に掛けること。
+ * 注意: preserve-3dの要素(mascot-tilt / mascot-stage)にfilterを掛けると
+ * 3Dが強制的に平面化される(きらきら期のsaturateフィルターがLPのミオを
+ * 板にしていた実績あり)。色調整が必要ならfilter以外の手段を使うこと。
  */
-.mascot-stage.mascot-phase-star-stage {
-  filter: saturate(1.05) brightness(1.02);
-}
 
 .companion-pose {
   transform-origin: 50% 90%;

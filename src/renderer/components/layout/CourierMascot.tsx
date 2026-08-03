@@ -1378,18 +1378,6 @@ export function CourierMascot({
             {phaseScene}
             {phaseGear}
             {phaseFace}
-            {moodFace === 'dirty' && (
-              <>
-                <div
-                  className="absolute left-[18%] top-[62%] h-3 w-3 rounded-full opacity-80"
-                  style={{ transform: 'translateZ(58px)', backgroundColor: '#d9c1a4' }}
-                />
-                <div
-                  className="absolute right-[18%] top-[66%] h-2.5 w-2.5 rounded-full opacity-75"
-                  style={{ transform: 'translateZ(58px)', backgroundColor: '#d9c1a4' }}
-                />
-              </>
-            )}
           </div>
         </div>
       </div>
