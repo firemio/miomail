@@ -795,6 +795,65 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
   50% { transform: translateY(-3px) rotate(.8deg); }
 }
 
+/* ミオ完成形ベクトル版(CourierMascot catModel)のパーツアニメーション */
+.mio-arm-left { animation: mio-arm-left 4.2s ease-in-out infinite; }
+.mio-arm-right { animation: mio-arm-right 4.2s ease-in-out infinite; }
+
+@keyframes mio-arm-left {
+  0%, 100% { transform: rotate(15deg); }
+  50% { transform: rotate(11deg) translateY(-1px); }
+}
+
+@keyframes mio-arm-right {
+  0%, 100% { transform: rotate(-15deg); }
+  50% { transform: rotate(-11deg) translateY(-1px); }
+}
+
+.mio-whisker-left {
+  transform: rotate(var(--mio-whisker-angle));
+  transform-origin: 100% 50%;
+  animation: mio-whisker-left 3.1s ease-in-out infinite;
+  will-change: transform;
+}
+
+.mio-whisker-right {
+  transform: rotate(var(--mio-whisker-angle));
+  transform-origin: 0 50%;
+  animation: mio-whisker-right 3.1s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes mio-whisker-left {
+  0%, 100% { transform: rotate(var(--mio-whisker-angle)) scaleX(1); }
+  50% { transform: rotate(calc(var(--mio-whisker-angle) + 1.8deg)) scaleX(1.07); }
+}
+
+@keyframes mio-whisker-right {
+  0%, 100% { transform: rotate(var(--mio-whisker-angle)) scaleX(1); }
+  50% { transform: rotate(calc(var(--mio-whisker-angle) - 1.8deg)) scaleX(1.07); }
+}
+
+.mio-eye {
+  transform-origin: 50% 60%;
+  animation: mio-blink 5.6s ease-in-out infinite;
+}
+
+@keyframes mio-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(.12); }
+  98% { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mio-arm-left,
+  .mio-arm-right,
+  .mio-whisker-left,
+  .mio-whisker-right,
+  .mio-eye {
+    animation: none;
+  }
+}
+
 .companion-pose-0 { transform: rotate(-2deg) translateY(0); }
 .companion-pose-1 { animation: companion-look-around-3d 7.2s ease-in-out infinite; }
 .companion-pose-2 { transform: rotate(-6deg) translateY(2px) scale(.97, 1.04); }
@@ -1029,24 +1088,44 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
 
 .mascot-cat-ear-left {
   animation: cat-ear-left 3.6s ease-in-out infinite;
-  transform-origin: center bottom;
+  transform-origin: 72% 88%;
 }
 
 .mascot-cat-ear-right {
   animation: cat-ear-right 3.6s ease-in-out 0.4s infinite;
-  transform-origin: center bottom;
+  transform-origin: 28% 88%;
 }
 
 @keyframes cat-ear-left {
-  0%, 84%, 100% { transform: rotate(0deg); }
-  88% { transform: rotate(-12deg); }
-  94% { transform: rotate(-2deg); }
+  0%, 84%, 100% { transform: rotate(-8deg); }
+  88% { transform: rotate(-18deg) translateY(-1px); }
+  94% { transform: rotate(-10deg); }
 }
 
 @keyframes cat-ear-right {
-  0%, 84%, 100% { transform: rotate(0deg); }
-  88% { transform: rotate(12deg); }
-  94% { transform: rotate(2deg); }
+  0%, 84%, 100% { transform: rotate(8deg); }
+  88% { transform: rotate(18deg) translateY(-1px); }
+  94% { transform: rotate(10deg); }
+}
+
+.mascot-cat-arm-left {
+  animation: cat-arm-left 4.6s ease-in-out infinite;
+  transform-origin: 82% 10%;
+}
+
+.mascot-cat-arm-right {
+  animation: cat-arm-right 4.6s ease-in-out 0.18s infinite;
+  transform-origin: 18% 10%;
+}
+
+@keyframes cat-arm-left {
+  0%, 100% { transform: translateZ(27px) rotate(13deg); }
+  48% { transform: translateZ(27px) rotate(9deg) translateY(-1px); }
+}
+
+@keyframes cat-arm-right {
+  0%, 100% { transform: translateZ(27px) rotate(-13deg); }
+  48% { transform: translateZ(27px) rotate(-9deg) translateY(-1px); }
 }
 
 .mascot-cat-tail {

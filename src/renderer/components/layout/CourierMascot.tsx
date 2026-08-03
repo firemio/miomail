@@ -35,14 +35,12 @@ export function CourierMascot({
   const phaseScale =
     phase === 'egg' ? 0.76 : phase === 'hatchling' ? 0.9 : phase === 'courier' ? 1 : phase === 'partner' ? 1.06 : 1.14
   const scale = (1 + Math.min(bond, 80) / 400) * phaseScale
-  const envelopeLift = phase === 'star' ? -4 : phase === 'partner' ? -2 : 0
   const moodFace = care ? getMascotMoodFace(care) : 'calm'
   const bodyOpacity = care && care.energy <= 24 ? 0.84 : 1
   const isEgg = phase === 'egg'
   const isCourier = phase === 'courier'
   const isPartner = phase === 'partner'
   const isStar = phase === 'star'
-  const showEnvelope = isCourier || isPartner || isStar
   const isMini = stage === 'mini'
 
   const eyeHeight = (base: number) => {
@@ -276,33 +274,6 @@ export function CourierMascot({
     </>
   )
 
-  const carriedEnvelope = (
-    <div
-      className={`absolute left-1/2 top-[60%] h-[18%] w-[34%] rounded-[16px] border-2 bg-white ${isStar ? 'mascot-star-envelope' : ''}`}
-      style={{
-        transform: `translateX(-50%) translateZ(58px) translateY(${envelopeLift}px)`,
-        borderColor: mascot.accentSoft,
-      }}
-    >
-      <div
-        className="absolute inset-x-[8%] top-[14%] h-[2px] rounded-full"
-        style={{ backgroundColor: mascot.accent }}
-      />
-      <div
-        className="absolute left-[12%] top-[14%] h-[56%] w-[38%] origin-top-right rotate-[26deg] rounded-[16px] border-t-2"
-        style={{ borderColor: mascot.accent }}
-      />
-      <div
-        className="absolute right-[12%] top-[14%] h-[56%] w-[38%] origin-top-left rotate-[-26deg] rounded-[16px] border-t-2"
-        style={{ borderColor: mascot.accent }}
-      />
-      <div
-        className="absolute left-1/2 top-[44%] h-2.5 w-2.5 -translate-x-1/2 rounded-full"
-        style={{ backgroundColor: mascot.accent }}
-      />
-    </div>
-  )
-
   // マクコ: ピンクのクマのぬいぐるみ
   const bearModel = (
     <>
@@ -434,228 +405,378 @@ export function CourierMascot({
     </>
   )
 
-  // ミオ: 白いふわふわの子猫
+  // ミオ: 完成形ベクトル版(mio-vector-preview.html の340px基準レイアウトを%へ換算して移植)
+  // 頭は元絵トレースのSVG輪郭+カール耳、他パーツはDOM。z-indexで前後を決める
+  // 平面レイヤー1枚として描くため、親のpreserve-3dから切り離す(translateZは層全体へ)
+  const mioFurBody = 'linear-gradient(180deg, #fffdfa 0%, #f8f0e9 76%, #e7ded9 100%)'
+  const mioFurLimb = 'linear-gradient(180deg, #fffdfa 0%, #f8f0e9 72%, #e7ded9 100%)'
+  const mioOutline =
+    'drop-shadow(1px 0 0 rgba(98,91,94,.34)) drop-shadow(-1px 0 0 rgba(98,91,94,.34)) drop-shadow(0 1px 0 rgba(98,91,94,.34)) drop-shadow(0 -1px 0 rgba(98,91,94,.34))'
+  const mioMarkGradient = 'linear-gradient(160deg, #87878a 0 10%, #aeabad 45%, transparent 85%)'
+  const mioStripeGradient = 'linear-gradient(180deg, #87878a 0, #aeabad 58%, transparent 100%)'
+  const mioHeadPath =
+    'M 103 45 L 78 82 L 61 131 L 52 127 L 55 149 L 44 142 L 55 171 L 33 166 L 37 200 L 49 219 L 32 219 L 50 230 L 33 245 L 50 250 L 40 271 L 50 269 L 43 292 L 24 310 L 33 311 L 34 317 L 16 326 L 31 336 L 0 367 L 6 386 L 26 405 L 19 411 L 17 425 L 41 443 L 40 449 L 30 453 L 49 475 L 68 483 L 64 497 L 101 507 L 96 518 L 128 526 L 129 535 L 167 541 L 168 547 L 203 551 C 275 571 414 574 485 558 L 550 547 L 558 538 L 588 535 L 591 526 L 622 518 L 616 508 L 629 503 L 649 507 L 656 499 L 652 483 L 672 475 L 691 451 L 682 451 L 678 444 L 708 418 L 709 412 L 697 411 L 695 404 L 708 394 L 720 369 L 688 336 L 689 331 L 704 326 L 691 318 L 696 311 L 681 299 L 667 274 L 672 269 L 681 275 L 671 251 L 689 245 L 669 234 L 686 220 L 674 219 L 673 214 L 681 204 L 687 164 L 665 171 L 675 147 L 662 153 L 668 127 L 659 130 L 636 69 L 596 22 L 570 7 L 546 1 L 510 11 L 497 31 L 497 48 L 507 59 L 522 48 L 526 68 L 517 82 L 502 90 L 465 62 L 442 55 L 416 58 L 395 42 L 367 35 L 327 40 L 303 56 L 275 53 L 259 57 L 212 89 L 198 78 L 194 57 L 199 47 L 208 59 L 217 57 L 224 47 L 224 28 L 209 7 L 188 0 L 146 10 Z'
+  const mioEarLeftPath =
+    'M 72 250 C 62 205 66 150 84 100 C 98 68 119 50 139 55 C 154 59 165 74 166 92 C 151 84 139 91 132 107 C 121 132 122 171 132 203 C 140 228 153 244 169 250 C 151 240 135 225 120 204 C 104 183 88 188 72 250 Z'
+  const mioEarRightPath =
+    'M 649 250 C 659 205 655 150 637 100 C 623 68 602 50 582 55 C 567 59 556 74 555 92 C 570 84 582 91 589 107 C 600 132 599 171 589 203 C 581 228 568 244 552 250 C 570 240 586 225 601 204 C 617 183 633 188 649 250 Z'
+  const mioWhisker = (angle: string, delay: string, position: CSSProperties): CSSProperties =>
+    ({
+      ...position,
+      height: 1,
+      zIndex: 10,
+      borderRadius: 999,
+      background: 'rgba(142,132,132,.5)',
+      animationDelay: delay,
+      '--mio-whisker-angle': angle,
+    }) as CSSProperties
+
   const catModel = (
-    <>
-      {/* しっぽ (ふさふさ) */}
+    <div className="absolute inset-0" style={{ transform: 'translateZ(30px)' }}>
+      {/* 胴体(柄と白い胸を内包) */}
       <div
-        className="absolute right-[10%] top-[48%] h-[28%] w-[15%] mascot-cat-tail"
+        data-mascot-part="torso"
+        className="absolute overflow-hidden"
         style={{
-          transform: 'translateZ(12px) rotate(38deg)',
-          background: `linear-gradient(180deg, ${mascot.bodyTop} 0%, ${mascot.bodyBottom} 100%)`,
-          borderRadius: '55% 45% 60% 40%',
-          boxShadow: '0 4px 10px rgba(196, 178, 170, 0.35)',
+          left: '36.5%',
+          top: '64%',
+          width: '27%',
+          height: '23.5%',
+          zIndex: 2,
+          borderRadius: '47% 47% 42% 42% / 36% 36% 62% 62%',
+          background: mioFurBody,
+          filter: `${mioOutline} drop-shadow(0 9px 9px rgba(89,70,75,.1))`,
         }}
-      />
-      {/* 頭まわりのふわ毛 (後ろのふくらみ) */}
-      <div
-        className="absolute left-[18%] top-[22%] h-[16%] w-[16%] rounded-full"
-        style={{ transform: 'translateZ(26px)', backgroundColor: mascot.bodyTop }}
-      />
-      <div
-        className="absolute right-[18%] top-[22%] h-[16%] w-[16%] rounded-full"
-        style={{ transform: 'translateZ(26px)', backgroundColor: mascot.bodyTop }}
-      />
-      <div
-        className="absolute left-[15%] top-[34%] h-[14%] w-[14%] rounded-full"
-        style={{ transform: 'translateZ(26px)', backgroundColor: mascot.bodyTop }}
-      />
-      <div
-        className="absolute right-[15%] top-[34%] h-[14%] w-[14%] rounded-full"
-        style={{ transform: 'translateZ(26px)', backgroundColor: mascot.bodyTop }}
-      />
-      {/* 耳 */}
-      <div
-        className="absolute left-[23%] top-[4%] h-[19%] w-[18%] mascot-cat-ear-left"
-        style={{ transformStyle: 'preserve-3d' }}
       >
         <div
-          className="absolute inset-0"
+          className="absolute"
           style={{
-            transform: 'translateZ(24px)',
-            background: `linear-gradient(180deg, ${mascot.bodyTop} 0%, ${mascot.bodyBottom} 100%)`,
-            clipPath: 'polygon(50% 0%, 4% 100%, 96% 100%)',
+            left: '-2%',
+            top: '-2%',
+            width: '39%',
+            height: '48%',
+            opacity: 0.74,
+            background: mioMarkGradient,
+            clipPath: 'polygon(0 0, 100% 0, 79% 45%, 55% 100%, 30% 64%, 0 54%)',
           }}
         />
         <div
-          className="absolute left-[19%] top-[30%] h-[62%] w-[62%]"
+          className="absolute"
           style={{
-            transform: 'translateZ(28px)',
-            backgroundColor: mascot.accentSoft,
-            clipPath: 'polygon(50% 0%, 8% 100%, 92% 100%)',
+            right: '-2%',
+            top: '-2%',
+            width: '39%',
+            height: '48%',
+            opacity: 0.74,
+            background: mioMarkGradient,
+            clipPath: 'polygon(100% 0, 0 0, 21% 45%, 45% 100%, 70% 64%, 100% 54%)',
           }}
+        />
+        <div
+          className="absolute"
+          style={{
+            left: '22%',
+            top: '5%',
+            width: '56%',
+            height: '78%',
+            borderRadius: '48% 48% 50% 50%',
+            background:
+              'radial-gradient(ellipse at 50% 36%, #fff 0 38%, rgba(255,253,250,.92) 62%, transparent 78%)',
+          }}
+        >
+          <div
+            className="absolute"
+            style={{
+              left: '25%',
+              bottom: '-7%',
+              width: '50%',
+              height: '28%',
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,.66)',
+            }}
+          />
+        </div>
+      </div>
+
+      {/* 腕(ゆっくり揺れる) */}
+      <div
+        data-mascot-part="left-arm"
+        className="absolute mio-arm-left"
+        style={{ left: '25.4%', top: '69.5%', width: '10.8%', height: '12.5%', zIndex: 4, transformOrigin: '88% 9%' }}
+      >
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{
+            borderRadius: '50% 50% 48% 48% / 39% 39% 61% 61%',
+            background: `radial-gradient(ellipse at 50% -5%, #aeabad 0 5%, #d6d1cf 23%, transparent 48%), ${mioFurLimb}`,
+            filter: `${mioOutline} drop-shadow(0 6px 6px rgba(89,70,75,.09))`,
+          }}
+        >
+          <div
+            className="absolute"
+            style={{ left: '14%', bottom: '5%', width: '72%', height: '30%', borderRadius: '50%', borderBottom: '1px solid rgba(175,137,139,.26)' }}
+          />
+        </div>
+      </div>
+      <div
+        data-mascot-part="right-arm"
+        className="absolute mio-arm-right"
+        style={{ right: '25.4%', top: '69.5%', width: '10.8%', height: '12.5%', zIndex: 4, transformOrigin: '12% 9%' }}
+      >
+        <div
+          className="absolute inset-0 overflow-hidden"
+          style={{
+            borderRadius: '50% 50% 48% 48% / 39% 39% 61% 61%',
+            background: `radial-gradient(ellipse at 50% -5%, #aeabad 0 5%, #d6d1cf 23%, transparent 48%), ${mioFurLimb}`,
+            filter: `${mioOutline} drop-shadow(0 6px 6px rgba(89,70,75,.09))`,
+          }}
+        >
+          <div
+            className="absolute"
+            style={{ left: '14%', bottom: '5%', width: '72%', height: '30%', borderRadius: '50%', borderBottom: '1px solid rgba(175,137,139,.26)' }}
+          />
+        </div>
+      </div>
+
+      {/* 脚 */}
+      <div
+        data-mascot-part="left-leg"
+        className="absolute overflow-hidden"
+        style={{
+          left: '35.2%',
+          top: '83.3%',
+          width: '12.8%',
+          height: '11%',
+          zIndex: 5,
+          transform: 'rotate(2deg)',
+          borderRadius: '46% 46% 58% 58% / 34% 34% 66% 66%',
+          background: `radial-gradient(ellipse at 50% -15%, #d6d1cf 0 4%, transparent 38%), ${mioFurLimb}`,
+          filter: `${mioOutline} drop-shadow(0 6px 6px rgba(89,70,75,.09))`,
+        }}
+      >
+        <div
+          className="absolute"
+          style={{ left: '13%', bottom: '8%', width: '74%', height: '28%', borderRadius: '50%', borderBottom: '1px solid rgba(175,137,139,.28)' }}
         />
       </div>
       <div
-        className="absolute right-[23%] top-[4%] h-[19%] w-[18%] mascot-cat-ear-right"
-        style={{ transformStyle: 'preserve-3d' }}
+        data-mascot-part="right-leg"
+        className="absolute overflow-hidden"
+        style={{
+          right: '35.2%',
+          top: '83.3%',
+          width: '12.8%',
+          height: '11%',
+          zIndex: 5,
+          transform: 'rotate(-2deg)',
+          borderRadius: '46% 46% 58% 58% / 34% 34% 66% 66%',
+          background: `radial-gradient(ellipse at 50% -15%, #d6d1cf 0 4%, transparent 38%), ${mioFurLimb}`,
+          filter: `${mioOutline} drop-shadow(0 6px 6px rgba(89,70,75,.09))`,
+        }}
       >
         <div
-          className="absolute inset-0"
-          style={{
-            transform: 'translateZ(24px)',
-            background: `linear-gradient(180deg, ${mascot.bodyTop} 0%, ${mascot.bodyBottom} 100%)`,
-            clipPath: 'polygon(50% 0%, 4% 100%, 96% 100%)',
-          }}
-        />
-        <div
-          className="absolute right-[19%] top-[30%] h-[62%] w-[62%]"
-          style={{
-            transform: 'translateZ(28px)',
-            backgroundColor: mascot.accentSoft,
-            clipPath: 'polygon(50% 0%, 8% 100%, 92% 100%)',
-          }}
+          className="absolute"
+          style={{ left: '13%', bottom: '8%', width: '74%', height: '28%', borderRadius: '50%', borderBottom: '1px solid rgba(175,137,139,.28)' }}
         />
       </div>
-      {/* 頭 (ふわっと大きめ) */}
+
+      {/* 頭(元絵トレースの輪郭+カール耳。SVG 1枚) */}
+      <svg
+        data-mascot-part="head"
+        className="absolute"
+        style={{ left: '5%', top: 0, width: '90%', height: '71.5%', zIndex: 6, overflow: 'visible' }}
+        viewBox="0 0 721 575"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d={mioHeadPath}
+          fill="#fffdfa"
+          stroke="rgba(98,91,94,.5)"
+          strokeWidth={1.1}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          data-mascot-part="left-ear"
+          d={mioEarLeftPath}
+          fill="#efacb9"
+          stroke="rgba(173,117,132,.52)"
+          strokeWidth={0.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        <path
+          data-mascot-part="right-ear"
+          d={mioEarRightPath}
+          fill="#efacb9"
+          stroke="rgba(173,117,132,.52)"
+          strokeWidth={0.8}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+
+      {/* 額の縞 */}
       <div
-        className="absolute left-1/2 top-[12%] h-[43%] w-[62%]"
+        className="absolute"
         style={{
-          transform: centerZ(32),
-          background: `linear-gradient(180deg, ${mascot.bodyTop} 0%, ${mascot.bodyBottom} 100%)`,
-          borderRadius: '48% 48% 46% 46%',
-          boxShadow: '0 20px 38px rgba(196, 178, 170, 0.45)',
-        }}
-      />
-      {/* ほっぺのふわ毛 (左右3枚ずつ) */}
-      <div
-        className="absolute left-[13%] top-[36%] h-[7%] w-[9%]"
-        style={{
-          transform: 'translateZ(36px) rotate(18deg)',
-          backgroundColor: mascot.bodyTop,
-          borderRadius: '20% 80% 60% 40%',
-        }}
-      />
-      <div
-        className="absolute left-[12%] top-[42%] h-[6%] w-[8%]"
-        style={{
-          transform: 'translateZ(36px) rotate(-4deg)',
-          backgroundColor: mascot.bodyTop,
-          borderRadius: '20% 80% 70% 30%',
-        }}
-      />
-      <div
-        className="absolute right-[13%] top-[36%] h-[7%] w-[9%]"
-        style={{
-          transform: 'translateZ(36px) rotate(-18deg)',
-          backgroundColor: mascot.bodyTop,
-          borderRadius: '80% 20% 40% 60%',
-        }}
-      />
-      <div
-        className="absolute right-[12%] top-[42%] h-[6%] w-[8%]"
-        style={{
-          transform: 'translateZ(36px) rotate(4deg)',
-          backgroundColor: mascot.bodyTop,
-          borderRadius: '80% 20% 30% 70%',
-        }}
-      />
-      {/* 前髪のふわ毛 (3束) */}
-      <div
-        className="absolute left-[38%] top-[9.5%] h-[8%] w-[7%]"
-        style={{
-          transform: 'translateZ(34px) rotate(-22deg)',
-          backgroundColor: mascot.bodyTop,
-          borderRadius: '60% 40% 30% 70%',
-        }}
-      />
-      <div
-        className="absolute left-[46%] top-[7.5%] h-[10%] w-[8%]"
-        style={{
-          transform: 'translateZ(36px) rotate(-6deg)',
-          backgroundColor: mascot.bodyTop,
-          borderRadius: '55% 45% 40% 60%',
+          left: '47%',
+          top: '17%',
+          width: '6%',
+          height: '18.5%',
+          zIndex: 9,
+          opacity: 0.78,
+          background: mioStripeGradient,
+          clipPath: 'polygon(22% 0, 78% 0, 88% 38%, 58% 100%, 42% 100%, 12% 38%)',
         }}
       />
       <div
-        className="absolute left-[55%] top-[9.5%] h-[8%] w-[7%]"
+        className="absolute"
         style={{
-          transform: 'translateZ(34px) rotate(18deg)',
-          backgroundColor: mascot.bodyTop,
-          borderRadius: '40% 60% 70% 30%',
+          left: '40%',
+          top: '17%',
+          width: '4.5%',
+          height: '15%',
+          zIndex: 9,
+          opacity: 0.68,
+          transform: 'rotate(-12deg)',
+          background: mioStripeGradient,
+          clipPath: 'polygon(22% 0, 78% 0, 88% 38%, 58% 100%, 42% 100%, 12% 38%)',
         }}
       />
-      {/* 胴体 (小さめ) */}
       <div
-        className="absolute left-1/2 top-[50%] h-[28%] w-[46%] rounded-[48%]"
+        className="absolute"
         style={{
-          transform: centerZ(24),
-          background: `linear-gradient(180deg, ${mascot.bodyTop} 0%, ${mascot.bodyBottom} 100%)`,
+          right: '40%',
+          top: '17%',
+          width: '4.5%',
+          height: '15%',
+          zIndex: 9,
+          opacity: 0.68,
+          transform: 'rotate(12deg)',
+          background: mioStripeGradient,
+          clipPath: 'polygon(22% 0, 78% 0, 88% 38%, 58% 100%, 42% 100%, 12% 38%)',
         }}
       />
-      {/* 胸のふわふわ */}
+
+      {/* 口元のふくらみ */}
       <div
-        className="absolute left-[41%] top-[53%] h-[9%] w-[9%] rounded-full"
-        style={{ transform: 'translateZ(30px)', backgroundColor: '#ffffff' }}
-      />
-      <div
-        className="absolute left-[48%] top-[52%] h-[10%] w-[10%] rounded-full"
-        style={{ transform: 'translateZ(30px)', backgroundColor: '#ffffff' }}
-      />
-      <div
-        className="absolute right-[40%] top-[54%] h-[8%] w-[8%] rounded-full"
-        style={{ transform: 'translateZ(30px)', backgroundColor: '#ffffff' }}
-      />
-      {/* 前足 */}
-      <div
-        className="absolute left-[34%] top-[70%] h-[9%] w-[11%] rounded-full"
-        style={{ transform: 'translateZ(30px)', backgroundColor: mascot.bodyTop, boxShadow: '0 2px 6px rgba(196, 178, 170, 0.4)' }}
-      />
-      <div
-        className="absolute right-[34%] top-[70%] h-[9%] w-[11%] rounded-full"
-        style={{ transform: 'translateZ(30px)', backgroundColor: mascot.bodyTop, boxShadow: '0 2px 6px rgba(196, 178, 170, 0.4)' }}
-      />
-      {/* 肉球ライン */}
-      <div
-        className="absolute left-[38%] top-[74.5%] h-[3%] w-[1%] rounded-full opacity-40"
-        style={{ transform: 'translateZ(34px)', backgroundColor: '#c9b8b0' }}
-      />
-      <div
-        className="absolute right-[38%] top-[74.5%] h-[3%] w-[1%] rounded-full opacity-40"
-        style={{ transform: 'translateZ(34px)', backgroundColor: '#c9b8b0' }}
-      />
-      {/* 目 (大きな赤ちゃんの瞳) */}
-      {renderEye({ left: '29.5%', top: '28%', width: 11, color: mascot.eyeColor, z: 46, bigHighlight: true })}
-      {renderEye({ right: '29.5%', top: '28%', width: 11, color: mascot.eyeColor, z: 46, bigHighlight: true })}
-      {/* 鼻 */}
-      <div
-        className="absolute left-1/2 top-[40.5%] h-[3.4%] w-[5%]"
+        className="absolute"
         style={{
-          transform: centerZ(50),
-          backgroundColor: mascot.accent,
-          clipPath: 'polygon(50% 100%, 0 0, 100% 0)',
-          borderRadius: '2px',
+          left: '31%',
+          top: '43%',
+          width: '38%',
+          height: '19%',
+          zIndex: 9,
+          borderRadius: '47% 47% 52% 52%',
+          background:
+            'radial-gradient(ellipse at 50% 45%, #fff 0 47%, rgba(255,253,250,.86) 68%, transparent 82%)',
         }}
       />
-      {/* 口 (ω) */}
-      {renderMouth({ top: '43%', color: '#a08d86', z: 50, variant: 'omega', width: 9 })}
-      {/* ひげ */}
+
+      {/* 目(まばたき+機嫌で細くなる) */}
       <div
-        className="absolute left-[8%] top-[38%] h-[1.2%] w-[14%] rounded-full opacity-60"
-        style={{ transform: 'translateZ(44px) rotate(5deg)', backgroundColor: '#d8cfc9' }}
+        className="absolute mio-eye overflow-hidden"
+        style={{
+          left: '27%',
+          top: '36.5%',
+          width: '15.5%',
+          height: eyeHeight(15.5),
+          zIndex: 11,
+          border: '2px solid rgba(91,83,85,.88)',
+          borderRadius: '50%',
+          background:
+            'radial-gradient(circle at 50% 66%, rgba(151,121,95,.7) 0 4%, transparent 5%), radial-gradient(circle at 50% 52%, #17191e 0 56%, #34363a 57% 72%, #d8d5d0 74% 83%, #fff 84% 100%)',
+          boxShadow: '0 3px 0 rgba(99,82,82,.15), inset 0 -5px 8px rgba(172,132,97,.2)',
+        }}
+      >
+        <span
+          className="absolute"
+          style={{ left: '22%', top: '14%', width: '24%', height: '25%', borderRadius: '50%', background: 'rgba(255,255,255,.95)', transform: 'rotate(18deg)' }}
+        />
+        <span
+          className="absolute"
+          style={{ right: '18%', top: '42%', width: '9%', height: '10%', borderRadius: '50%', background: 'rgba(255,255,255,.78)' }}
+        />
+        <span
+          className="absolute"
+          style={{ left: '34%', bottom: '8%', width: '32%', height: '7%', borderRadius: '50%', background: 'rgba(214,168,127,.64)', filter: 'blur(.5px)' }}
+        />
+      </div>
+      <div
+        className="absolute mio-eye overflow-hidden"
+        style={{
+          right: '27%',
+          top: '36.5%',
+          width: '15.5%',
+          height: eyeHeight(15.5),
+          zIndex: 11,
+          border: '2px solid rgba(91,83,85,.88)',
+          borderRadius: '50%',
+          background:
+            'radial-gradient(circle at 50% 66%, rgba(151,121,95,.7) 0 4%, transparent 5%), radial-gradient(circle at 50% 52%, #17191e 0 56%, #34363a 57% 72%, #d8d5d0 74% 83%, #fff 84% 100%)',
+          boxShadow: '0 3px 0 rgba(99,82,82,.15), inset 0 -5px 8px rgba(172,132,97,.2)',
+        }}
+      >
+        <span
+          className="absolute"
+          style={{ left: '22%', top: '14%', width: '24%', height: '25%', borderRadius: '50%', background: 'rgba(255,255,255,.95)', transform: 'rotate(18deg)' }}
+        />
+        <span
+          className="absolute"
+          style={{ right: '18%', top: '42%', width: '9%', height: '10%', borderRadius: '50%', background: 'rgba(255,255,255,.78)' }}
+        />
+        <span
+          className="absolute"
+          style={{ left: '34%', bottom: '8%', width: '32%', height: '7%', borderRadius: '50%', background: 'rgba(214,168,127,.64)', filter: 'blur(.5px)' }}
+        />
+      </div>
+
+      {/* 鼻と口 */}
+      <div
+        className="absolute"
+        style={{
+          left: '47%',
+          top: '50.5%',
+          width: '6%',
+          height: '4.2%',
+          zIndex: 13,
+          borderRadius: '48% 48% 55% 55%',
+          background: 'linear-gradient(145deg, #ffc3cf, #ef99aa)',
+          clipPath: 'polygon(8% 10%, 92% 10%, 80% 62%, 50% 100%, 20% 62%)',
+          filter: 'drop-shadow(0 1px 1px rgba(139,77,91,.28))',
+        }}
+      >
+        <span
+          className="absolute"
+          style={{ left: '23%', top: '17%', width: '25%', height: '20%', borderRadius: '50%', background: 'rgba(255,255,255,.72)' }}
+        />
+      </div>
+      <div
+        className="absolute"
+        style={{ left: '49.75%', top: '54.1%', width: '.5%', height: '3.2%', zIndex: 12, borderRadius: 999, background: '#a87378' }}
       />
       <div
-        className="absolute left-[8%] top-[42.5%] h-[1.2%] w-[13%] rounded-full opacity-60"
-        style={{ transform: 'translateZ(44px) rotate(-4deg)', backgroundColor: '#d8cfc9' }}
+        className="absolute"
+        style={{ left: '43.25%', top: '54.7%', width: '7%', height: '4.5%', zIndex: 12, transform: 'rotate(6deg)', borderBottom: '2px solid #a87378', borderRadius: '0 0 55% 55%' }}
       />
       <div
-        className="absolute right-[8%] top-[38%] h-[1.2%] w-[14%] rounded-full opacity-60"
-        style={{ transform: 'translateZ(44px) rotate(-5deg)', backgroundColor: '#d8cfc9' }}
+        className="absolute"
+        style={{ right: '43.25%', top: '54.7%', width: '7%', height: '4.5%', zIndex: 12, transform: 'rotate(-6deg)', borderBottom: '2px solid #a87378', borderRadius: '0 0 55% 55%' }}
       />
-      <div
-        className="absolute right-[8%] top-[42.5%] h-[1.2%] w-[13%] rounded-full opacity-60"
-        style={{ transform: 'translateZ(44px) rotate(4deg)', backgroundColor: '#d8cfc9' }}
-      />
-      {/* ほっぺ */}
-      <div
-        className="absolute left-[22.5%] top-[39%] h-[5%] w-[9%] rounded-full opacity-50"
-        style={{ transform: 'translateZ(42px)', backgroundColor: mascot.accent }}
-      />
-      <div
-        className="absolute right-[22.5%] top-[39%] h-[5%] w-[9%] rounded-full opacity-50"
-        style={{ transform: 'translateZ(42px)', backgroundColor: mascot.accent }}
-      />
-    </>
+
+      {/* ひげ(ぴくぴく動く) */}
+      <div className="absolute mio-whisker-left" style={mioWhisker('7deg', '0s', { left: '-5%', top: '44%', width: '22%' })} />
+      <div className="absolute mio-whisker-left" style={mioWhisker('1deg', '-.45s', { left: '-7%', top: '48%', width: '24%' })} />
+      <div className="absolute mio-whisker-left" style={mioWhisker('-6deg', '-.9s', { left: '-5%', top: '52%', width: '22%' })} />
+      <div className="absolute mio-whisker-right" style={mioWhisker('-7deg', '0s', { right: '-5%', top: '44%', width: '22%' })} />
+      <div className="absolute mio-whisker-right" style={mioWhisker('-1deg', '-.45s', { right: '-7%', top: '48%', width: '24%' })} />
+      <div className="absolute mio-whisker-right" style={mioWhisker('6deg', '-.9s', { right: '-5%', top: '52%', width: '22%' })} />
+    </div>
   )
 
   // ポスティ: レトロなポンコツブリキロボ
@@ -1192,7 +1313,6 @@ export function CourierMascot({
                 />
               </>
             )}
-            {!isMini && showEnvelope && carriedEnvelope}
           </div>
         </div>
       </div>

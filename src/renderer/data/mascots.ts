@@ -13,6 +13,9 @@ export interface MascotMeta {
   bodyBottom: string
   eyeColor: string
   accessoryColor: string
+  marking?: string
+  markingSoft?: string
+  markingStrong?: string
   model: 'bear' | 'cat' | 'robot' | 'bird'
   greeting: string
   blurb: string
@@ -39,15 +42,18 @@ export const mascotCatalog: MascotMeta[] = [
     name: 'ミオ',
     subtitle: '整えて案内する配達係',
     accent: '#f4a7b9',
-    accentSoft: '#ffe9ef',
-    accentStrong: '#e98aa4',
-    bodyTop: '#ffffff',
-    bodyBottom: '#efeae7',
-    eyeColor: '#5b8fd4',
+    accentSoft: '#f8dfe5',
+    accentStrong: '#d97f94',
+    bodyTop: '#fffaf5',
+    bodyBottom: '#eee4de',
+    eyeColor: '#26252b',
     accessoryColor: '#f4a7b9',
+    marking: '#aaa6aa',
+    markingSoft: '#cbc5c4',
+    markingStrong: '#77767d',
     model: 'cat',
     greeting: '迷わない導線づくりは、わたしに任せてください。',
-    blurb: 'まっしろでふわふわな子猫。落ち着いた案内が得意な使いやすさ担当。',
+    blurb: 'シルバーグレーの柄と、くるんと反った耳が目印のふわふわ子猫。落ち着いた案内が得意な使いやすさ担当。',
   },
   {
     id: 'posty',
