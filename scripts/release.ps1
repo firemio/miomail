@@ -92,6 +92,8 @@ function Rewrite-Version([string]$Path, [string]$Pattern, [string]$Replacement) 
 Rewrite-Version "package.json" "`"version`": `"$([regex]::Escape($cur))`"" "`"version`": `"$new`""
 Rewrite-Version "src-tauri/tauri.conf.json" "`"version`": `"$([regex]::Escape($cur))`"" "`"version`": `"$new`""
 Rewrite-Version "src-tauri/Cargo.toml" "(?m)^version = `"$([regex]::Escape($cur))`"" "version = `"$new`""
+# Cargo.lockのmiomailエントリも同期する(ビルド時に書き換わって毎回ツリーが汚れるのを防ぐ)
+Rewrite-Version "src-tauri/Cargo.lock" "(?s)(name = `"miomail`"\r?\nversion = )`"$([regex]::Escape($cur))`"" "`${1}`"$new`""
 
 # --- 2. コミット・タグ・プッシュ ---
 Invoke-Native git @("commit", "-am", "chore: v$new") "コミット"
