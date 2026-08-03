@@ -1302,7 +1302,7 @@ export function CourierMascot({
         style={{
           top: isCat ? '67%' : '52%',
           height: isCat ? '5%' : '7%',
-          width: isCat ? '26%' : '46%',
+          width: isCat ? '19%' : '46%',
           transform: `translateX(-50%) translateZ(${isCat ? 28 : 32}px)`,
           background: `linear-gradient(90deg, ${mascot.accentSoft} 0%, ${mascot.accent} 100%)`,
         }}
