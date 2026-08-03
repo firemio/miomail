@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
+import { motionForPose } from '../../characters/types'
 import { getMascotMeta, type MascotId } from '../../data/mascots'
 import {
   getMascotMoodFace,
@@ -14,6 +15,7 @@ interface CourierMascotProps {
   size?: number
   stage?: 'full' | 'mini'
   spinOnClick?: boolean
+  pose?: number
 }
 
 // 中央寄せ + 奥行き。インラインtransformはクラスの-translate-x-1/2を
@@ -28,6 +30,7 @@ export function CourierMascot({
   size = 160,
   stage = 'full',
   spinOnClick = false,
+  pose = 0,
 }: CourierMascotProps) {
   const [spinCycle, setSpinCycle] = useState(0)
   const mascot = getMascotMeta(mascotId)
@@ -35,7 +38,9 @@ export function CourierMascot({
   const phaseScale =
     phase === 'egg' ? 0.76 : phase === 'hatchling' ? 0.9 : phase === 'courier' ? 1 : phase === 'partner' ? 1.06 : 1.14
   const scale = (1 + Math.min(bond, 80) / 400) * phaseScale
-  const moodFace = care ? getMascotMoodFace(care) : 'calm'
+  // 居眠りポーズ中はお世話状態に関係なく眠り顔(目を閉じる)にする
+  const moodFace =
+    motionForPose(pose) === 'rest' ? 'sleepy' : care ? getMascotMoodFace(care) : 'calm'
   const bodyOpacity = care && care.energy <= 24 ? 0.84 : 1
   const isEgg = phase === 'egg'
   const isCourier = phase === 'courier'
@@ -414,8 +419,19 @@ export function CourierMascot({
     'drop-shadow(1px 0 0 rgba(98,91,94,.34)) drop-shadow(-1px 0 0 rgba(98,91,94,.34)) drop-shadow(0 1px 0 rgba(98,91,94,.34)) drop-shadow(0 -1px 0 rgba(98,91,94,.34))'
   const mioMarkGradient = 'linear-gradient(160deg, #87878a 0 10%, #aeabad 45%, transparent 85%)'
   const mioStripeGradient = 'linear-gradient(180deg, #87878a 0, #aeabad 58%, transparent 100%)'
-  const mioHeadPath =
-    'M 103 45 L 78 82 L 61 131 L 52 127 L 55 149 L 44 142 L 55 171 L 33 166 L 37 200 L 49 219 L 32 219 L 50 230 L 33 245 L 50 250 L 40 271 L 50 269 L 43 292 L 24 310 L 33 311 L 34 317 L 16 326 L 31 336 L 0 367 L 6 386 L 26 405 L 19 411 L 17 425 L 41 443 L 40 449 L 30 453 L 49 475 L 68 483 L 64 497 L 101 507 L 96 518 L 128 526 L 129 535 L 167 541 L 168 547 L 203 551 C 275 571 414 574 485 558 L 550 547 L 558 538 L 588 535 L 591 526 L 622 518 L 616 508 L 629 503 L 649 507 L 656 499 L 652 483 L 672 475 L 691 451 L 682 451 L 678 444 L 708 418 L 709 412 L 697 411 L 695 404 L 708 394 L 720 369 L 688 336 L 689 331 L 704 326 L 691 318 L 696 311 L 681 299 L 667 274 L 672 269 L 681 275 L 671 251 L 689 245 L 669 234 L 686 220 L 674 219 L 673 214 L 681 204 L 687 164 L 665 171 L 675 147 L 662 153 L 668 127 L 659 130 L 636 69 L 596 22 L 570 7 L 546 1 L 510 11 L 497 31 L 497 48 L 507 59 L 522 48 L 526 68 L 517 82 L 502 90 L 465 62 L 442 55 L 416 58 L 395 42 L 367 35 L 327 40 L 303 56 L 275 53 L 259 57 L 212 89 L 198 78 L 194 57 L 199 47 L 208 59 L 217 57 L 224 47 L 224 28 L 209 7 L 188 0 L 146 10 Z'
+  // 頭は「耳なしベース+左耳+右耳」の3パーツ構成(トレース輪郭から耳の頂点列を分離)。
+  // 耳はグループごと付け根を支点に動かせる。付け根の接合線(chord)は無ストロークで
+  // 頭と同色にし、輪郭線は可視エッジだけ別パスで描いて継ぎ目を消す
+  const mioHeadBasePath =
+    'M 61 131 L 52 127 L 55 149 L 44 142 L 55 171 L 33 166 L 37 200 L 49 219 L 32 219 L 50 230 L 33 245 L 50 250 L 40 271 L 50 269 L 43 292 L 24 310 L 33 311 L 34 317 L 16 326 L 31 336 L 0 367 L 6 386 L 26 405 L 19 411 L 17 425 L 41 443 L 40 449 L 30 453 L 49 475 L 68 483 L 64 497 L 101 507 L 96 518 L 128 526 L 129 535 L 167 541 L 168 547 L 203 551 C 275 571 414 574 485 558 L 550 547 L 558 538 L 588 535 L 591 526 L 622 518 L 616 508 L 629 503 L 649 507 L 656 499 L 652 483 L 672 475 L 691 451 L 682 451 L 678 444 L 708 418 L 709 412 L 697 411 L 695 404 L 708 394 L 720 369 L 688 336 L 689 331 L 704 326 L 691 318 L 696 311 L 681 299 L 667 274 L 672 269 L 681 275 L 671 251 L 689 245 L 669 234 L 686 220 L 674 219 L 673 214 L 681 204 L 687 164 L 665 171 L 675 147 L 662 153 L 668 127 L 659 130 Q 600 78 502 90 L 465 62 L 442 55 L 416 58 L 395 42 L 367 35 L 327 40 L 303 56 L 275 53 L 259 57 L 212 89 Q 120 80 61 131 Z'
+  const mioEarLeftFillPath =
+    'M 61 131 L 78 82 L 103 45 L 146 10 L 188 0 L 209 7 L 224 28 L 224 47 L 217 57 L 208 59 L 199 47 L 194 57 L 198 78 L 212 89 Z'
+  const mioEarLeftEdgePath =
+    'M 212 89 L 198 78 L 194 57 L 199 47 L 208 59 L 217 57 L 224 47 L 224 28 L 209 7 L 188 0 L 146 10 L 103 45 L 78 82 L 61 131'
+  const mioEarRightFillPath =
+    'M 659 130 L 636 69 L 596 22 L 570 7 L 546 1 L 510 11 L 497 31 L 497 48 L 507 59 L 522 48 L 526 68 L 517 82 L 502 90 Z'
+  const mioEarRightEdgePath =
+    'M 502 90 L 517 82 L 526 68 L 522 48 L 507 59 L 497 48 L 497 31 L 510 11 L 546 1 L 570 7 L 596 22 L 636 69 L 659 130'
   const mioEarLeftPath =
     'M 72 250 C 62 205 66 150 84 100 C 98 68 119 50 139 55 C 154 59 165 74 166 92 C 151 84 139 91 132 107 C 121 132 122 171 132 203 C 140 228 153 244 169 250 C 151 240 135 225 120 204 C 104 183 88 188 72 250 Z'
   const mioEarRightPath =
@@ -424,7 +440,6 @@ export function CourierMascot({
     ({
       ...position,
       height: 1,
-      zIndex: 10,
       borderRadius: 999,
       background: 'rgba(142,132,132,.5)',
       animationDelay: delay,
@@ -432,7 +447,14 @@ export function CourierMascot({
     }) as CSSProperties
 
   const catModel = (
-    <div className="absolute inset-0" style={{ transform: 'translateZ(30px)' }}>
+    // 元デザインはステージいっぱいに描かれているため、他キャラと大きさを揃えるよう
+    // 足元基準で縮小し、上へ持ち上げる(マクコとほぼ同じ 6%〜89% の範囲に収める)
+    // 他キャラや卵と同じ疑似3D(パーツごとのtranslateZ層積み)で描くため、
+    // このラッパーはpreserve-3dで子のZ軸を活かす。z-indexではなくZ値が前後を決める
+    <div
+      className="absolute inset-0"
+      style={{ transform: 'translateY(-6%) scale(0.88)', transformOrigin: '50% 100%', transformStyle: 'preserve-3d' }}
+    >
       {/* 胴体(柄と白い胸を内包) */}
       <div
         data-mascot-part="torso"
@@ -442,7 +464,7 @@ export function CourierMascot({
           top: '64%',
           width: '27%',
           height: '23.5%',
-          zIndex: 2,
+          transform: 'translateZ(22px)',
           borderRadius: '47% 47% 42% 42% / 36% 36% 62% 62%',
           background: mioFurBody,
           filter: `${mioOutline} drop-shadow(0 9px 9px rgba(89,70,75,.1))`,
@@ -502,7 +524,7 @@ export function CourierMascot({
       <div
         data-mascot-part="left-arm"
         className="absolute mio-arm-left"
-        style={{ left: '25.4%', top: '69.5%', width: '10.8%', height: '12.5%', zIndex: 4, transformOrigin: '88% 9%' }}
+        style={{ left: '25.4%', top: '69.5%', width: '10.8%', height: '12.5%', transform: 'translateZ(30px) rotate(15deg)', transformOrigin: '88% 9%' }}
       >
         <div
           className="absolute inset-0 overflow-hidden"
@@ -521,7 +543,7 @@ export function CourierMascot({
       <div
         data-mascot-part="right-arm"
         className="absolute mio-arm-right"
-        style={{ right: '25.4%', top: '69.5%', width: '10.8%', height: '12.5%', zIndex: 4, transformOrigin: '12% 9%' }}
+        style={{ right: '25.4%', top: '69.5%', width: '10.8%', height: '12.5%', transform: 'translateZ(30px) rotate(-15deg)', transformOrigin: '12% 9%' }}
       >
         <div
           className="absolute inset-0 overflow-hidden"
@@ -547,8 +569,7 @@ export function CourierMascot({
           top: '83.3%',
           width: '12.8%',
           height: '11%',
-          zIndex: 5,
-          transform: 'rotate(2deg)',
+          transform: 'translateZ(32px) rotate(2deg)',
           borderRadius: '46% 46% 58% 58% / 34% 34% 66% 66%',
           background: `radial-gradient(ellipse at 50% -15%, #d6d1cf 0 4%, transparent 38%), ${mioFurLimb}`,
           filter: `${mioOutline} drop-shadow(0 6px 6px rgba(89,70,75,.09))`,
@@ -567,8 +588,7 @@ export function CourierMascot({
           top: '83.3%',
           width: '12.8%',
           height: '11%',
-          zIndex: 5,
-          transform: 'rotate(-2deg)',
+          transform: 'translateZ(32px) rotate(-2deg)',
           borderRadius: '46% 46% 58% 58% / 34% 34% 66% 66%',
           background: `radial-gradient(ellipse at 50% -15%, #d6d1cf 0 4%, transparent 38%), ${mioFurLimb}`,
           filter: `${mioOutline} drop-shadow(0 6px 6px rgba(89,70,75,.09))`,
@@ -584,13 +604,13 @@ export function CourierMascot({
       <svg
         data-mascot-part="head"
         className="absolute"
-        style={{ left: '5%', top: 0, width: '90%', height: '71.5%', zIndex: 6, overflow: 'visible' }}
+        style={{ left: '5%', top: 0, width: '90%', height: '71.5%', transform: 'translateZ(36px)', overflow: 'visible' }}
         viewBox="0 0 721 575"
         preserveAspectRatio="none"
         aria-hidden="true"
       >
         <path
-          d={mioHeadPath}
+          d={mioHeadBasePath}
           fill="#fffdfa"
           stroke="rgba(98,91,94,.5)"
           strokeWidth={1.1}
@@ -598,26 +618,48 @@ export function CourierMascot({
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
-        <path
-          data-mascot-part="left-ear"
-          d={mioEarLeftPath}
-          fill="#efacb9"
-          stroke="rgba(173,117,132,.52)"
-          strokeWidth={0.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          data-mascot-part="right-ear"
-          d={mioEarRightPath}
-          fill="#efacb9"
-          stroke="rgba(173,117,132,.52)"
-          strokeWidth={0.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
+        <g data-mascot-part="left-ear" className="mio-ear-left">
+          <path d={mioEarLeftFillPath} fill="#fffdfa" />
+          <path
+            d={mioEarLeftEdgePath}
+            fill="none"
+            stroke="rgba(98,91,94,.5)"
+            strokeWidth={1.1}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d={mioEarLeftPath}
+            fill="#efacb9"
+            stroke="rgba(173,117,132,.52)"
+            strokeWidth={0.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
+        <g data-mascot-part="right-ear" className="mio-ear-right">
+          <path d={mioEarRightFillPath} fill="#fffdfa" />
+          <path
+            d={mioEarRightEdgePath}
+            fill="none"
+            stroke="rgba(98,91,94,.5)"
+            strokeWidth={1.1}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d={mioEarRightPath}
+            fill="#efacb9"
+            stroke="rgba(173,117,132,.52)"
+            strokeWidth={0.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </g>
       </svg>
 
       {/* 額の縞 */}
@@ -628,7 +670,7 @@ export function CourierMascot({
           top: '17%',
           width: '6%',
           height: '18.5%',
-          zIndex: 9,
+          transform: 'translateZ(43px)',
           opacity: 0.78,
           background: mioStripeGradient,
           clipPath: 'polygon(22% 0, 78% 0, 88% 38%, 58% 100%, 42% 100%, 12% 38%)',
@@ -641,9 +683,8 @@ export function CourierMascot({
           top: '17%',
           width: '4.5%',
           height: '15%',
-          zIndex: 9,
           opacity: 0.68,
-          transform: 'rotate(-12deg)',
+          transform: 'translateZ(43px) rotate(-12deg)',
           background: mioStripeGradient,
           clipPath: 'polygon(22% 0, 78% 0, 88% 38%, 58% 100%, 42% 100%, 12% 38%)',
         }}
@@ -655,9 +696,8 @@ export function CourierMascot({
           top: '17%',
           width: '4.5%',
           height: '15%',
-          zIndex: 9,
           opacity: 0.68,
-          transform: 'rotate(12deg)',
+          transform: 'translateZ(43px) rotate(12deg)',
           background: mioStripeGradient,
           clipPath: 'polygon(22% 0, 78% 0, 88% 38%, 58% 100%, 42% 100%, 12% 38%)',
         }}
@@ -671,70 +711,85 @@ export function CourierMascot({
           top: '43%',
           width: '38%',
           height: '19%',
-          zIndex: 9,
+          transform: 'translateZ(45px)',
           borderRadius: '47% 47% 52% 52%',
           background:
             'radial-gradient(ellipse at 50% 45%, #fff 0 47%, rgba(255,253,250,.86) 68%, transparent 82%)',
         }}
       />
 
-      {/* 目(まばたき+機嫌で細くなる) */}
-      <div
-        className="absolute mio-eye overflow-hidden"
-        style={{
-          left: '27%',
-          top: '36.5%',
-          width: '15.5%',
-          height: eyeHeight(15.5),
-          zIndex: 11,
-          border: '2px solid rgba(91,83,85,.88)',
-          borderRadius: '50%',
-          background:
-            'radial-gradient(circle at 50% 66%, rgba(151,121,95,.7) 0 4%, transparent 5%), radial-gradient(circle at 50% 52%, #17191e 0 56%, #34363a 57% 72%, #d8d5d0 74% 83%, #fff 84% 100%)',
-          boxShadow: '0 3px 0 rgba(99,82,82,.15), inset 0 -5px 8px rgba(172,132,97,.2)',
-        }}
-      >
-        <span
-          className="absolute"
-          style={{ left: '22%', top: '14%', width: '24%', height: '25%', borderRadius: '50%', background: 'rgba(255,255,255,.95)', transform: 'rotate(18deg)' }}
-        />
-        <span
-          className="absolute"
-          style={{ right: '18%', top: '42%', width: '9%', height: '10%', borderRadius: '50%', background: 'rgba(255,255,255,.78)' }}
-        />
-        <span
-          className="absolute"
-          style={{ left: '34%', bottom: '8%', width: '32%', height: '7%', borderRadius: '50%', background: 'rgba(214,168,127,.64)', filter: 'blur(.5px)' }}
-        />
-      </div>
-      <div
-        className="absolute mio-eye overflow-hidden"
-        style={{
-          right: '27%',
-          top: '36.5%',
-          width: '15.5%',
-          height: eyeHeight(15.5),
-          zIndex: 11,
-          border: '2px solid rgba(91,83,85,.88)',
-          borderRadius: '50%',
-          background:
-            'radial-gradient(circle at 50% 66%, rgba(151,121,95,.7) 0 4%, transparent 5%), radial-gradient(circle at 50% 52%, #17191e 0 56%, #34363a 57% 72%, #d8d5d0 74% 83%, #fff 84% 100%)',
-          boxShadow: '0 3px 0 rgba(99,82,82,.15), inset 0 -5px 8px rgba(172,132,97,.2)',
-        }}
-      >
-        <span
-          className="absolute"
-          style={{ left: '22%', top: '14%', width: '24%', height: '25%', borderRadius: '50%', background: 'rgba(255,255,255,.95)', transform: 'rotate(18deg)' }}
-        />
-        <span
-          className="absolute"
-          style={{ right: '18%', top: '42%', width: '9%', height: '10%', borderRadius: '50%', background: 'rgba(255,255,255,.78)' }}
-        />
-        <span
-          className="absolute"
-          style={{ left: '34%', bottom: '8%', width: '32%', height: '7%', borderRadius: '50%', background: 'rgba(214,168,127,.64)', filter: 'blur(.5px)' }}
-        />
-      </div>
+      {/* 目(まばたき+機嫌で細くなる)。居眠り中は潰すと不気味なので、閉じたまぶたの線に差し替える */}
+      {moodFace === 'sleepy' ? (
+        <>
+          <div
+            className="absolute"
+            style={{ left: '28.5%', top: '40%', width: '12.5%', height: '4.5%', transform: 'translateZ(52px)', borderBottom: '2.5px solid rgba(91,83,85,.85)', borderRadius: '0 0 60% 60%' }}
+          />
+          <div
+            className="absolute"
+            style={{ right: '28.5%', top: '40%', width: '12.5%', height: '4.5%', transform: 'translateZ(52px)', borderBottom: '2.5px solid rgba(91,83,85,.85)', borderRadius: '0 0 60% 60%' }}
+          />
+        </>
+      ) : (
+        <>
+          <div
+            className="absolute mio-eye overflow-hidden"
+            style={{
+              left: '27%',
+              top: '36.5%',
+              width: '15.5%',
+              height: eyeHeight(15.5),
+              transform: 'translateZ(52px)',
+              border: '2px solid rgba(91,83,85,.88)',
+              borderRadius: '50%',
+              background:
+                'radial-gradient(circle at 50% 66%, rgba(151,121,95,.7) 0 4%, transparent 5%), radial-gradient(circle at 50% 52%, #17191e 0 56%, #34363a 57% 72%, #d8d5d0 74% 83%, #fff 84% 100%)',
+              boxShadow: '0 3px 0 rgba(99,82,82,.15), inset 0 -5px 8px rgba(172,132,97,.2)',
+            }}
+          >
+            <span
+              className="absolute"
+              style={{ left: '22%', top: '14%', width: '24%', height: '25%', borderRadius: '50%', background: 'rgba(255,255,255,.95)', transform: 'rotate(18deg)' }}
+            />
+            <span
+              className="absolute"
+              style={{ right: '18%', top: '42%', width: '9%', height: '10%', borderRadius: '50%', background: 'rgba(255,255,255,.78)' }}
+            />
+            <span
+              className="absolute"
+              style={{ left: '34%', bottom: '8%', width: '32%', height: '7%', borderRadius: '50%', background: 'rgba(214,168,127,.64)', filter: 'blur(.5px)' }}
+            />
+          </div>
+          <div
+            className="absolute mio-eye overflow-hidden"
+            style={{
+              right: '27%',
+              top: '36.5%',
+              width: '15.5%',
+              height: eyeHeight(15.5),
+              transform: 'translateZ(52px)',
+              border: '2px solid rgba(91,83,85,.88)',
+              borderRadius: '50%',
+              background:
+                'radial-gradient(circle at 50% 66%, rgba(151,121,95,.7) 0 4%, transparent 5%), radial-gradient(circle at 50% 52%, #17191e 0 56%, #34363a 57% 72%, #d8d5d0 74% 83%, #fff 84% 100%)',
+              boxShadow: '0 3px 0 rgba(99,82,82,.15), inset 0 -5px 8px rgba(172,132,97,.2)',
+            }}
+          >
+            <span
+              className="absolute"
+              style={{ left: '22%', top: '14%', width: '24%', height: '25%', borderRadius: '50%', background: 'rgba(255,255,255,.95)', transform: 'rotate(18deg)' }}
+            />
+            <span
+              className="absolute"
+              style={{ right: '18%', top: '42%', width: '9%', height: '10%', borderRadius: '50%', background: 'rgba(255,255,255,.78)' }}
+            />
+            <span
+              className="absolute"
+              style={{ left: '34%', bottom: '8%', width: '32%', height: '7%', borderRadius: '50%', background: 'rgba(214,168,127,.64)', filter: 'blur(.5px)' }}
+            />
+          </div>
+        </>
+      )}
 
       {/* 鼻と口 */}
       <div
@@ -744,7 +799,7 @@ export function CourierMascot({
           top: '50.5%',
           width: '6%',
           height: '4.2%',
-          zIndex: 13,
+          transform: 'translateZ(58px)',
           borderRadius: '48% 48% 55% 55%',
           background: 'linear-gradient(145deg, #ffc3cf, #ef99aa)',
           clipPath: 'polygon(8% 10%, 92% 10%, 80% 62%, 50% 100%, 20% 62%)',
@@ -758,15 +813,15 @@ export function CourierMascot({
       </div>
       <div
         className="absolute"
-        style={{ left: '49.75%', top: '54.1%', width: '.5%', height: '3.2%', zIndex: 12, borderRadius: 999, background: '#a87378' }}
+        style={{ left: '49.75%', top: '54.1%', width: '.5%', height: '3.2%', transform: 'translateZ(56px)', borderRadius: 999, background: '#a87378' }}
       />
       <div
         className="absolute"
-        style={{ left: '43.25%', top: '54.7%', width: '7%', height: '4.5%', zIndex: 12, transform: 'rotate(6deg)', borderBottom: '2px solid #a87378', borderRadius: '0 0 55% 55%' }}
+        style={{ left: '43.25%', top: '54.7%', width: '7%', height: '4.5%', transform: 'translateZ(56px) rotate(6deg)', borderBottom: '2px solid #a87378', borderRadius: '0 0 55% 55%' }}
       />
       <div
         className="absolute"
-        style={{ right: '43.25%', top: '54.7%', width: '7%', height: '4.5%', zIndex: 12, transform: 'rotate(-6deg)', borderBottom: '2px solid #a87378', borderRadius: '0 0 55% 55%' }}
+        style={{ right: '43.25%', top: '54.7%', width: '7%', height: '4.5%', transform: 'translateZ(56px) rotate(-6deg)', borderBottom: '2px solid #a87378', borderRadius: '0 0 55% 55%' }}
       />
 
       {/* ひげ(ぴくぴく動く) */}
@@ -1198,19 +1253,29 @@ export function CourierMascot({
     </>
   )
 
+  // ミオ(cat)は頭が大きく顔が低い位置まであるため、帽子は小さく上へ、
+  // マフラーは顔にかからない首元(胴体の上端)へずらす
+  const isCat = mascot.model === 'cat'
   const courierGear = (
     <>
       <div
-        className="absolute left-1/2 top-[9%] h-[8%] w-[36%] rounded-[14px] mascot-courier-cap"
+        className="absolute left-1/2 rounded-[14px] mascot-courier-cap"
         style={{
-          transform: 'translateX(-50%) translateZ(56px) rotate(-2deg)',
+          top: isCat ? '9.5%' : '9%',
+          height: isCat ? '4.2%' : '8%',
+          width: isCat ? '18%' : '36%',
+          // 3D回転で頭から浮かないよう、Zは頭のすぐ上に寄せる
+          transform: 'translateX(-50%) translateZ(42px) rotate(-2deg)',
           background: `linear-gradient(180deg, ${mascot.accent} 0%, ${mascot.accentStrong} 100%)`,
         }}
       />
       <div
-        className="absolute left-1/2 top-[14.5%] h-[3.5%] w-[46%] rounded-full mascot-courier-strap"
+        className="absolute left-1/2 rounded-full mascot-courier-strap"
         style={{
-          transform: 'translateX(-50%) translateZ(54px)',
+          top: isCat ? '13%' : '14.5%',
+          height: isCat ? '2.2%' : '3.5%',
+          width: isCat ? '24%' : '46%',
+          transform: 'translateX(-50%) translateZ(40px)',
           backgroundColor: mascot.accentStrong,
           opacity: 0.9,
         }}
@@ -1221,17 +1286,25 @@ export function CourierMascot({
   const partnerGear = (
     <>
       {courierGear}
+      {/* ミオはあごの下に巻き、Zを頭(36)と胴体(22)の間にして「顔の後ろ・体の前」に挟む */}
       <div
-        className="absolute left-1/2 top-[52%] h-[7%] w-[46%] rounded-[18px] mascot-partner-scarf"
+        className="absolute left-1/2 rounded-[18px] mascot-partner-scarf"
         style={{
-          transform: 'translateX(-50%) translateZ(60px)',
+          top: isCat ? '67%' : '52%',
+          height: isCat ? '5%' : '7%',
+          width: isCat ? '26%' : '46%',
+          transform: `translateX(-50%) translateZ(${isCat ? 28 : 32}px)`,
           background: `linear-gradient(90deg, ${mascot.accentSoft} 0%, ${mascot.accent} 100%)`,
         }}
       />
       <div
-        className="absolute left-[60%] top-[55%] h-[13%] w-[7%] rounded-full"
+        className="absolute rounded-full"
         style={{
-          transform: 'translateZ(58px) rotate(16deg)',
+          left: isCat ? '52%' : '60%',
+          top: isCat ? '71%' : '55%',
+          height: isCat ? '8%' : '13%',
+          width: isCat ? '4.5%' : '7%',
+          transform: `translateZ(${isCat ? 27 : 31}px) rotate(${isCat ? 8 : 16}deg)`,
           backgroundColor: mascot.accent,
         }}
       />
@@ -1272,7 +1345,11 @@ export function CourierMascot({
       className={`relative mascot-stage mascot-model-${mascot.model} ${
         isStar ? 'mascot-phase-star-stage' : ''
       } ${spinOnClick ? 'mascot-stage-interactive' : ''} ${className}`}
-      style={{ width: size, height: size, perspective: size * 4, opacity: bodyOpacity }}
+      // perspectiveをsize比例にするとZオフセット(固定px)との比率が変わり、
+      // 小さい表示ほど奥行きが強く・大きい表示ほど平面的に見えてしまう。
+      // どのサイズでも同じ立体感になるよう固定値(96px表示時の見え方)に合わせる。
+      // preserve-3dで外側のポーズ回転(見回し等)にもZ層を引き継ぐ
+      style={{ width: size, height: size, perspective: 384, opacity: bodyOpacity, transformStyle: 'preserve-3d' }}
       onClick={spinOnClick ? () => setSpinCycle((cycle) => cycle + 1) : undefined}
       title={spinOnClick ? 'クリックでくるっと回る' : undefined}
     >

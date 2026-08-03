@@ -799,38 +799,67 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
 .mio-arm-left { animation: mio-arm-left 4.2s ease-in-out infinite; }
 .mio-arm-right { animation: mio-arm-right 4.2s ease-in-out infinite; }
 
+/* 疑似3D層(preserve-3d)のため、アニメ中もtranslateZを含めて深度を保つ */
 @keyframes mio-arm-left {
-  0%, 100% { transform: rotate(15deg); }
-  50% { transform: rotate(11deg) translateY(-1px); }
+  0%, 100% { transform: translateZ(30px) rotate(15deg); }
+  50% { transform: translateZ(30px) rotate(11deg) translateY(-1px); }
 }
 
 @keyframes mio-arm-right {
-  0%, 100% { transform: rotate(-15deg); }
-  50% { transform: rotate(-11deg) translateY(-1px); }
+  0%, 100% { transform: translateZ(30px) rotate(-15deg); }
+  50% { transform: translateZ(30px) rotate(-11deg) translateY(-1px); }
 }
 
 .mio-whisker-left {
-  transform: rotate(var(--mio-whisker-angle));
+  transform: translateZ(50px) rotate(var(--mio-whisker-angle));
   transform-origin: 100% 50%;
   animation: mio-whisker-left 3.1s ease-in-out infinite;
   will-change: transform;
 }
 
 .mio-whisker-right {
-  transform: rotate(var(--mio-whisker-angle));
+  transform: translateZ(50px) rotate(var(--mio-whisker-angle));
   transform-origin: 0 50%;
   animation: mio-whisker-right 3.1s ease-in-out infinite;
   will-change: transform;
 }
 
 @keyframes mio-whisker-left {
-  0%, 100% { transform: rotate(var(--mio-whisker-angle)) scaleX(1); }
-  50% { transform: rotate(calc(var(--mio-whisker-angle) + 1.8deg)) scaleX(1.07); }
+  0%, 100% { transform: translateZ(50px) rotate(var(--mio-whisker-angle)) scaleX(1); }
+  50% { transform: translateZ(50px) rotate(calc(var(--mio-whisker-angle) + 1.8deg)) scaleX(1.07); }
 }
 
 @keyframes mio-whisker-right {
-  0%, 100% { transform: rotate(var(--mio-whisker-angle)) scaleX(1); }
-  50% { transform: rotate(calc(var(--mio-whisker-angle) - 1.8deg)) scaleX(1.07); }
+  0%, 100% { transform: translateZ(50px) rotate(var(--mio-whisker-angle)) scaleX(1); }
+  50% { transform: translateZ(50px) rotate(calc(var(--mio-whisker-angle) - 1.8deg)) scaleX(1.07); }
+}
+
+/* 耳(白い外形+内耳のグループ)は付け根を支点に、たまにピクッと動く */
+.mio-ear-left,
+.mio-ear-right {
+  transform-box: fill-box;
+  transform-origin: 50% 44%;
+  will-change: transform;
+}
+
+.mio-ear-left {
+  animation: mio-ear-left 5.1s ease-in-out infinite;
+}
+
+.mio-ear-right {
+  animation: mio-ear-right 5.1s ease-in-out 0.28s infinite;
+}
+
+@keyframes mio-ear-left {
+  0%, 83%, 100% { transform: rotate(0deg); }
+  89% { transform: rotate(-5deg); }
+  95% { transform: rotate(1.8deg); }
+}
+
+@keyframes mio-ear-right {
+  0%, 83%, 100% { transform: rotate(0deg); }
+  89% { transform: rotate(5deg); }
+  95% { transform: rotate(-1.8deg); }
 }
 
 .mio-eye {
@@ -839,9 +868,9 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
 }
 
 @keyframes mio-blink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(.12); }
-  98% { transform: scaleY(1); }
+  0%, 92%, 100% { transform: translateZ(52px) scaleY(1); }
+  95% { transform: translateZ(52px) scaleY(.12); }
+  98% { transform: translateZ(52px) scaleY(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -849,6 +878,8 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
   .mio-arm-right,
   .mio-whisker-left,
   .mio-whisker-right,
+  .mio-ear-left,
+  .mio-ear-right,
   .mio-eye {
     animation: none;
   }
@@ -866,12 +897,17 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
 .companion-pose-makko.companion-pose-1,
 .companion-pose-mio.companion-pose-1 { animation: companion-look-around-3d 7.2s ease-in-out infinite; }
 
+/*
+ * キャラ内部のZ層(preserve-3d)がこの回転にも引き継がれるため、投影距離が
+ * 近すぎると内側のperspectiveと二重にかかって顔・帽子が膨張して見える。
+ * 1100pxまで離して回転の立体感だけを残す。
+ */
 @keyframes companion-look-around-3d {
-  0%, 8% { transform: perspective(520px) rotateY(0deg) translateY(-2px); }
-  24%, 36% { transform: perspective(520px) rotateY(-45deg) translateY(-2px); }
-  50%, 58% { transform: perspective(520px) rotateY(0deg) translateY(-2px); }
-  74%, 86% { transform: perspective(520px) rotateY(45deg) translateY(-2px); }
-  100% { transform: perspective(520px) rotateY(0deg) translateY(-2px); }
+  0%, 8% { transform: perspective(1100px) rotateY(0deg) translateY(-2px); }
+  24%, 36% { transform: perspective(1100px) rotateY(-45deg) translateY(-2px); }
+  50%, 58% { transform: perspective(1100px) rotateY(0deg) translateY(-2px); }
+  74%, 86% { transform: perspective(1100px) rotateY(45deg) translateY(-2px); }
+  100% { transform: perspective(1100px) rotateY(0deg) translateY(-2px); }
 }
 
 .companion-pose-posty.companion-pose-2 {

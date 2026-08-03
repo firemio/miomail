@@ -384,7 +384,7 @@ export function SettingsModal() {
                   </div>
                 </div>
                 <div className="grid grid-cols-[minmax(250px,0.85fr)_minmax(0,1.15fr)] gap-4">
-                  <div className="relative flex min-h-[300px] flex-col items-center justify-center overflow-hidden rounded-[28px] border border-white/85 bg-[radial-gradient(circle_at_50%_40%,rgba(255,255,255,0.98),rgba(255,241,244,0.76)_48%,rgba(255,255,255,0.62)_76%)] p-5 shadow-[0_18px_46px_rgba(121,85,96,0.08)]">
+                  <div className="relative flex min-h-[300px] flex-col items-center justify-center overflow-hidden rounded-[28px] border border-white/85 bg-white/72 p-5 shadow-[0_18px_46px_rgba(121,85,96,0.08)]">
                     <div className="absolute left-4 top-4 rounded-full border border-white/90 bg-white/82 px-3 py-1.5 text-[9px] font-semibold tracking-[0.16em] text-sumi-text-muted">POSE {debugPoseIndex + 1} / 8</div>
                     <MascotRenderer mascotId={debugMascotId} bond={idlePreviewBond} care={careByMascot[debugMascotId]} size={190} pose={debugPoseIndex} forceBuiltinRenderer={debugRenderer} />
                     <p className="mt-1 text-base font-semibold text-sumi-text">{MASCOT_IDLE_MOTION_LABELS[debugMascotId][debugPoseIndex]}</p>

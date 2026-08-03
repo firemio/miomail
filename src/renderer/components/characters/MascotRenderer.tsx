@@ -39,8 +39,13 @@ function BuiltinMascot({
         style={{ width: size, height: size }}
         data-character-renderer="classic-2d"
       >
-        <div key={spinSignal ?? 0} className={(spinSignal ?? 0) > 0 ? 'mascot-spin-once' : ''}>
-          <CourierMascot mascotId={mascotId} bond={bond} care={care} size={size} stage="full" />
+        {/* ポーズの3D回転(見回し等)で内部のZ層が板に潰れないよう、3Dを親へ引き継ぐ */}
+        <div
+          key={spinSignal ?? 0}
+          className={(spinSignal ?? 0) > 0 ? 'mascot-spin-once' : ''}
+          style={{ transformStyle: 'preserve-3d' }}
+        >
+          <CourierMascot mascotId={mascotId} bond={bond} care={care} size={size} stage="full" pose={pose} />
         </div>
       </div>
     )
