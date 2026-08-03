@@ -113,7 +113,11 @@ $sig  = "$exe.sig"
 foreach ($f in @($exe, $sig, "$nsis/latest.json")) {
   if (-not (Test-Path $f)) { throw "成果物が見つかりません: $f" }
 }
-Invoke-Native gh @("release", "create", "v$new", $exe, $sig, "$nsis/latest.json",
+# サイトの直DLリンクが releases/latest/download/MioMail-x64-setup.exe を指すため、
+# 固定名コピーを毎リリース必ず同梱する(欠けるとサイトのダウンロードが404になる)
+$fixedExe = "$nsis/MioMail-x64-setup.exe"
+Copy-Item $exe $fixedExe -Force
+Invoke-Native gh @("release", "create", "v$new", $exe, $sig, "$nsis/latest.json", $fixedExe,
   "--title", "MioMail v$new", "--notes", $Notes) "GitHub Release 作成"
 
 Invoke-Native gh @("release", "view", "v$new") "リリース確認"
