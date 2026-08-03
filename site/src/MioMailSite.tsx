@@ -51,7 +51,7 @@ const features = [
   },
 ]
 
-// ローカルAI検索バンドの紹介項目。MCP(外部AIエージェント連携)と区別し、
+// 意味検索バンドの紹介項目。MCP(外部AIエージェント連携)と区別し、
 // アプリ内の検索機能として伝える。
 const aiSearchPoints = [
   {
@@ -61,7 +61,7 @@ const aiSearchPoints = [
   },
   {
     icon: Brain,
-    title: '「意味」で探すAI検索',
+    title: '意味の近さで探す「意味検索」',
     body: 'ローカル埋め込みモデル(ruri-v3)が言葉の意味でメールを検索。ベクトル+FTSのハイブリッドで、うろ覚えの一件にもたどり着けます。初回のみ約70MBのダウンロード・利用はオプトイン。',
   },
   {
@@ -183,7 +183,7 @@ export function MioMailSite() {
 
         <nav className={`site-nav ${menuOpen ? 'is-open' : ''}`} aria-label="メインナビゲーション">
           <a href="#features" onClick={() => setMenuOpen(false)}>できること</a>
-          <a href="#ai-search" onClick={() => setMenuOpen(false)}>AI検索</a>
+          <a href="#ai-search" onClick={() => setMenuOpen(false)}>意味検索</a>
           <a href="#companion" onClick={() => setMenuOpen(false)}>相棒について</a>
           <a href="#mcp" onClick={() => setMenuOpen(false)}>AIエージェントとつながる</a>
           <a href="#security" onClick={() => setMenuOpen(false)}>安心設計</a>
@@ -299,11 +299,11 @@ export function MioMailSite() {
         </section>
 
         <section className="site-ai-search" id="ai-search" data-reveal>
-          <p className="site-ai-search__kicker">LOCAL AI SEARCH</p>
+          <p className="site-ai-search__kicker">LOCAL SEMANTIC SEARCH</p>
           <h2>メールを、意味で探す。</h2>
           <p className="site-ai-search__lead">
             MioMailの検索は、アプリの中だけで完結します。
-            キーワードの全文検索に加えて、ローカルAIが「意味」で探すセマンティック検索も。
+            キーワードの全文検索に加えて、意味の近さで探せる「意味検索」も。
             <strong>メールもベクトルも外部サーバーには送られません。</strong>
           </p>
           <div className="site-ai-search__grid">
@@ -338,7 +338,7 @@ export function MioMailSite() {
           </a>
           <p className="site-mcp-setup__note">
             ※ MCPはClaudeなど外部AIエージェントとの連携機能です。アプリ内でメールを探す
-            <a className="site-text-link" href="#ai-search">ローカルAI検索 <ArrowRight size={13} /></a>
+            <a className="site-text-link" href="#ai-search">意味検索 <ArrowRight size={13} /></a>
             もあわせてどうぞ。
           </p>
         </section>
