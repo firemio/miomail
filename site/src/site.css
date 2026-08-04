@@ -341,7 +341,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .site-hero__actions { flex-direction: column; gap: 18px; }
   .site-hero__visual { height: 440px; }
   .site-character-halo { top: 50px; width: 330px; height: 330px; }
-  .site-character-wrap { top: 57px; width: 380px; height: 355px; transform: translateX(-50%) scale(.75); transform-origin: top center; }
+  /* 疑似3Dの投影で頭が上へ膨らむため、少し小さく・少し下げて上の文言と衝突しないようにする */
+  .site-character-wrap { top: 70px; width: 380px; height: 355px; transform: translateX(-50%) scale(.7); transform-origin: top center; }
   .site-speech { right: 4px; bottom: 16px; width: 202px; padding: 14px 16px; }
   .site-stamp--one { top: 65px; right: -3px; }
   .site-stamp--two { bottom: 22px; left: 0; }
