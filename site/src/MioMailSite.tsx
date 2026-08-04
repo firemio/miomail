@@ -238,7 +238,8 @@ export function MioMailSite() {
             <div className="site-spark site-spark--two">✦</div>
             <div className="site-character-halo" />
             <div className="site-character-wrap">
-              <SiteMio bond={88} size={420} />
+              {/* 疑似3Dの投影拡大(サイズ比例)を含めて背後の円に収まる大きさ */}
+              <SiteMio bond={88} size={330} />
             </div>
             <div className="site-speech">
               <span>おかえりなさい！</span>
