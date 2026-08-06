@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "id": "firemio.mio-3d",
-  "name": "ミオ（3D）",
-  "version": "2.0.0",
+  "id": "firemio.posty-simple-robo",
+  "name": "シンプルロボ（3D）",
+  "version": "1.0.0",
   "author": "firemio",
-  "description": "2D版のミオをそのまま立体化した同梱キャラクター",
+  "description": "旧ふわふわ3Dのポスティ。まるっとしたシンプルなブリキロボ",
   "license": "MIT",
-  "behaviorProfile": "mio",
+  "behaviorProfile": "posty",
   "renderer": "gltf-3d",
   "thumbnail": "thumbnail.webp",
   "source": {

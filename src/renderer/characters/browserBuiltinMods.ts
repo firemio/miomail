@@ -19,6 +19,9 @@ import posty3dThumbUrl from '../../../mods/posty-3d/thumbnail.webp?url'
 import saeta3dManifestRaw from '../../../mods/saeta-3d/character.json?raw'
 import saeta3dGlbUrl from '../../../mods/saeta-3d/assets/character.glb?url'
 import saeta3dThumbUrl from '../../../mods/saeta-3d/thumbnail.webp?url'
+import simpleRoboManifestRaw from '../../../mods/posty-simple-robo/character.json?raw'
+import simpleRoboGlbUrl from '../../../mods/posty-simple-robo/assets/character.glb?url'
+import simpleRoboThumbUrl from '../../../mods/posty-simple-robo/thumbnail.webp?url'
 
 /**
  * ブラウザープレビュー(非Tauri)用: 同梱MOD(SVG 4体+3D 4体)をバンドルへ静的に取り込み、
@@ -36,6 +39,7 @@ const entries: Array<[manifestRaw: string, sceneRaw: string | null, glbUrl: stri
   [mio3dManifestRaw, null, mio3dGlbUrl, mio3dThumbUrl],
   [posty3dManifestRaw, null, posty3dGlbUrl, posty3dThumbUrl],
   [saeta3dManifestRaw, null, saeta3dGlbUrl, saeta3dThumbUrl],
+  [simpleRoboManifestRaw, null, simpleRoboGlbUrl, simpleRoboThumbUrl],
 ]
 
 const sceneRawById = new Map<string, string>()

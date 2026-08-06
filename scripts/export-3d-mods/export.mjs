@@ -29,7 +29,9 @@ globalThis.FileReader = class {
 
 const THREE = await import('three')
 const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter.js')
-const { MASCOT_IDS, MASCOT_META, IDLE_MOTION_REST, sampleIdleMotion, buildCharacter } = await import('./legacy3d.mjs')
+const { IDLE_MOTION_REST, sampleIdleMotion, buildCharacter } = await import('./legacy3d.mjs')
+const { buildMioFaithful } = await import('./mio2d3d.mjs')
+const { buildPostyFaithful } = await import('./posty2d3d.mjs')
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
@@ -42,12 +44,57 @@ const EPSILON = 1e-4
 const POSE_CLIPS = ['idle', 'look-around', 'alert', 'bounce', 'self-care', 'rest', 'inspect', 'celebrate']
 const EXTRA_MOTIONS = { walk: 'idle', deliver: 'bounce' }
 
-const DISPLAY = {
-  makko: 'マクコ',
-  mio: 'ミオ',
-  posty: 'ポスティ',
-  saeta: 'サエタ',
-}
+/**
+ * 同梱3D MODの一覧。mio/postyは2D版(mods/*-svg)を忠実に立体化したv2、
+ * 旧ふわふわ3Dのポスティは「シンプルロボ」として別MODで残す。
+ */
+const EXPORTS = [
+  {
+    folder: 'makko-3d',
+    id: 'firemio.makko-3d',
+    name: 'マクコ（3D）',
+    version: '1.0.0',
+    mascotId: 'makko',
+    build: () => buildCharacter('makko'),
+    description: 'ふわふわ3D(WebGL)のマクコをGLB MODとして再構成した同梱キャラクター',
+  },
+  {
+    folder: 'mio-3d',
+    id: 'firemio.mio-3d',
+    name: 'ミオ（3D）',
+    version: '2.0.0',
+    mascotId: 'mio',
+    build: buildMioFaithful,
+    description: '2D版のミオをそのまま立体化した同梱キャラクター',
+  },
+  {
+    folder: 'posty-3d',
+    id: 'firemio.posty-3d',
+    name: 'ポスティ（3D）',
+    version: '2.0.0',
+    mascotId: 'posty',
+    build: buildPostyFaithful,
+    description: '2D版のポスティをそのまま立体化した同梱キャラクター',
+  },
+  {
+    folder: 'saeta-3d',
+    id: 'firemio.saeta-3d',
+    name: 'サエタ（3D）',
+    version: '1.0.0',
+    mascotId: 'saeta',
+    build: () => buildCharacter('saeta'),
+    description: 'ふわふわ3D(WebGL)のサエタをGLB MODとして再構成した同梱キャラクター',
+  },
+  {
+    folder: 'posty-simple-robo',
+    id: 'firemio.posty-simple-robo',
+    name: 'シンプルロボ（3D）',
+    version: '1.0.0',
+    mascotId: 'posty',
+    build: () => buildCharacter('posty'),
+    description: '旧ふわふわ3Dのポスティ。まるっとしたシンプルなブリキロボ',
+  },
+]
 
 // 旧render loopのapplyPartMotionと同じ「rest + オフセット」を、時刻tの値として純粋計算する
 function sampleTransforms(mascotId, rig, rest, pose, t) {
@@ -216,6 +263,41 @@ function bakeClip(mascotId, rig, rest, restState, morphMeshes, pose) {
   return new THREE.AnimationClip(POSE_CLIPS[pose], DURATION, tracks)
 }
 
+// 同一パラメータのマテリアルを共有インスタンスへ寄せる(GLBのmaterials上限32対策)。
+// ビルダーがパーツごとにnewしていても、見た目が同じなら1つに数えられるようにする
+function dedupeMaterials(root) {
+  const canonical = new Map()
+  let before = 0
+  const seen = new Set()
+  root.traverse((object) => {
+    if (!object.isMesh) return
+    const materials = Array.isArray(object.material) ? object.material : [object.material]
+    materials.forEach((material) => seen.add(material))
+    const replace = (material) => {
+      const key = [
+        material.type,
+        material.color?.getHexString() ?? '-',
+        material.roughness ?? '-',
+        material.metalness ?? '-',
+        material.emissive?.getHexString() ?? '-',
+        material.emissiveIntensity ?? '-',
+        material.vertexColors ? 'vc' : '-',
+        material.transparent ? 'tr' : '-',
+        material.opacity ?? '-',
+        material.side ?? '-',
+        material.flatShading ? 'flat' : '-',
+      ].join('|')
+      if (!canonical.has(key)) canonical.set(key, material)
+      return canonical.get(key)
+    }
+    object.material = Array.isArray(object.material)
+      ? object.material.map(replace)
+      : replace(object.material)
+  })
+  before = seen.size
+  return { before, after: canonical.size }
+}
+
 function stripUserData(root) {
   root.traverse((object) => {
     object.userData = {}
@@ -268,8 +350,9 @@ function stripExtrasFromGlb(buffer) {
   return out.buffer.slice(out.byteOffset, out.byteOffset + out.length)
 }
 
-for (const mascotId of MASCOT_IDS) {
-  const rig = buildCharacter(mascotId)
+for (const entry of EXPORTS) {
+  const mascotId = entry.mascotId
+  const rig = entry.build()
   rig.root.position.y = 0.04 // 組み込みと同じ持ち上げ(rootLiftの基準)
 
   // モーフ対象は旧実装と同じくtraverse順(位相ずらしのindexを揃える)
@@ -308,6 +391,7 @@ for (const mascotId of MASCOT_IDS) {
   }
 
   stripUserData(rig.root)
+  const materials = dedupeMaterials(rig.root)
   const buffer = stripExtrasFromGlb(await exportGlb(rig.root, clips))
 
   // バリデーター禁止事項の事前チェック(extensions/extras/camera)
@@ -321,7 +405,7 @@ for (const mascotId of MASCOT_IDS) {
   if (accessors > 512) throw new Error(`${mascotId}: accessorが多すぎます (${accessors})`)
   if (channels > 512) throw new Error(`${mascotId}: animation channelが多すぎます (${channels})`)
 
-  const modDir = join(repoRoot, 'mods', `${mascotId}-3d`)
+  const modDir = join(repoRoot, 'mods', entry.folder)
   mkdirSync(join(modDir, 'assets'), { recursive: true })
   writeFileSync(join(modDir, 'assets', 'character.glb'), Buffer.from(buffer))
 
@@ -335,11 +419,11 @@ for (const mascotId of MASCOT_IDS) {
 
   const manifest = {
     schemaVersion: 1,
-    id: `firemio.${mascotId}-3d`,
-    name: `${DISPLAY[mascotId]}（3D）`,
-    version: '1.0.0',
+    id: entry.id,
+    name: entry.name,
+    version: entry.version,
     author: 'firemio',
-    description: `ふわふわ3D(WebGL)の${DISPLAY[mascotId]}をGLB MODとして再構成した同梱キャラクター`,
+    description: entry.description,
     license: 'MIT',
     behaviorProfile: mascotId,
     renderer: 'gltf-3d',
@@ -357,7 +441,7 @@ for (const mascotId of MASCOT_IDS) {
   writeFileSync(join(modDir, 'character.json'), JSON.stringify(manifest, null, 2) + '\n')
 
   console.log(
-    `OK ${mascotId}: glb=${(buffer.byteLength / 1024).toFixed(0)}KB accessors=${accessors} channels=${channels} morphMeshes=${morphMeshes.length}`,
+    `OK ${entry.folder}: glb=${(buffer.byteLength / 1024).toFixed(0)}KB accessors=${accessors} channels=${channels} materials=${materials.before}->${materials.after} morphMeshes=${morphMeshes.length}`,
   )
 }
 console.log('ALL DONE')

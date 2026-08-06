@@ -3950,6 +3950,7 @@ mod tests {
             "firemio.mio-3d",
             "firemio.posty-3d",
             "firemio.saeta-3d",
+            "firemio.posty-simple-robo",
         ] {
             assert!(
                 loaded
