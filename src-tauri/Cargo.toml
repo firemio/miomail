@@ -4,6 +4,8 @@ version = "2.1.16"
 edition = "2021"
 homepage = "https://miomail.app/"
 repository = "https://github.com/firemio/miomail"
+# MCPサーバー(miomail-mcp)も同じcrateのbinなので、`cargo run` / `tauri dev` の既定を明示する
+default-run = "miomail"
 
 [lib]
 name = "miomail_lib"

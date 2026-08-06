@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
-import type { BuiltinCharacterRenderer, CharacterMotion } from '../../characters/types'
-import { motionForPose } from '../../characters/types'
+import type { CharacterModPackage, CharacterMotion } from '../../characters/types'
+import { DEFAULT_MOD_ID_BY_MASCOT, motionForPose } from '../../characters/types'
 import type { MascotId } from '../../data/mascots'
 import type { MascotCareStats } from '../../stores/mascotStore'
-import { useMascotStore } from '../../stores/mascotStore'
+import { getMascotPhase, useMascotStore } from '../../stores/mascotStore'
 import { useCharacterStore } from '../../stores/characterStore'
-import { CourierMascot } from '../layout/CourierMascot'
-import { CourierMascot3D } from '../layout/CourierMascot3D'
+import { DomModMascot } from './DomModMascot'
+import { EggMascot } from './EggMascot'
 import { GltfModMascot } from './GltfModMascot'
 import { SpriteModMascot } from './SpriteModMascot'
 
@@ -19,48 +19,25 @@ interface MascotRendererProps {
   motion?: CharacterMotion
   spinSignal?: number
   className?: string
-  forceBuiltinRenderer?: BuiltinCharacterRenderer
+  /** 選択中MODによる差し替えを無視して既定の同梱MODで描く（設定のキャラ一覧用） */
+  forceDefaultMod?: boolean
 }
 
-function BuiltinMascot({
-  renderer,
-  mascotId,
-  bond,
-  care,
-  size,
-  pose,
-  spinSignal,
-  className,
-}: MascotRendererProps & { renderer: BuiltinCharacterRenderer }) {
-  if (renderer === 'classic-2d') {
-    return (
-      <div
-        className={`mascot-classic-2d companion-pose companion-pose-${mascotId} companion-pose-${Math.max(0, Math.min(7, Math.trunc(pose ?? 0)))} relative shrink-0 ${className ?? ''}`}
-        style={{ width: size, height: size }}
-        data-character-renderer="classic-2d"
-      >
-        {/* ポーズの3D回転(見回し等)で内部のZ層が板に潰れないよう、3Dを親へ引き継ぐ */}
-        <div
-          key={spinSignal ?? 0}
-          className={(spinSignal ?? 0) > 0 ? 'mascot-spin-once' : ''}
-          style={{ transformStyle: 'preserve-3d' }}
-        >
-          <CourierMascot mascotId={mascotId} bond={bond} care={care} size={size} stage="full" pose={pose} />
-        </div>
-      </div>
-    )
+function resolvePackage(
+  packages: CharacterModPackage[],
+  mascotId: MascotId,
+  selectedMascotId: MascotId,
+  selectedModId: string | null,
+  forceDefaultMod: boolean,
+): CharacterModPackage | null {
+  if (!forceDefaultMod && mascotId === selectedMascotId && selectedModId) {
+    const chosen = packages.find((item) => item.manifest.id === selectedModId)
+    if (chosen) return chosen
   }
-
   return (
-    <CourierMascot3D
-      mascotId={mascotId}
-      bond={bond}
-      care={care}
-      size={size}
-      pose={pose}
-      spinSignal={spinSignal}
-      className={className}
-    />
+    packages.find((item) => item.manifest.id === DEFAULT_MOD_ID_BY_MASCOT[mascotId])
+    ?? packages.find((item) => item.origin === 'builtin' && item.manifest.behaviorProfile === mascotId)
+    ?? null
   )
 }
 
@@ -73,47 +50,80 @@ export function MascotRenderer({
   motion,
   spinSignal = 0,
   className = '',
-  forceBuiltinRenderer,
+  forceDefaultMod = false,
 }: MascotRendererProps) {
   const selectedMascotId = useMascotStore((state) => state.selectedMascotId)
-  const { builtinRenderer, selectedModId, packages } = useCharacterStore()
-  const selectedPackage = !forceBuiltinRenderer && mascotId === selectedMascotId
-    ? packages.find((item) => item.manifest.id === selectedModId) ?? null
-    : null
-  const fallback: ReactNode = (
-    <BuiltinMascot
-      renderer={forceBuiltinRenderer ?? builtinRenderer}
-      mascotId={mascotId}
-      bond={bond}
-      care={care}
-      size={size}
-      pose={pose}
-      spinSignal={spinSignal}
-      className={className}
-    />
-  )
+  const { selectedModId, packages } = useCharacterStore()
 
-  if (!selectedPackage) return fallback
-  const resolvedMotion = motion ?? motionForPose(pose)
+  const phase = getMascotPhase(bond)
+  // 育成スケールは組み込み時代の式を踏襲: (1 + min(bond,80)/400) * phaseScale
+  const phaseScale =
+    phase === 'egg' ? 0.76 : phase === 'hatchling' ? 0.9 : phase === 'courier' ? 1 : phase === 'partner' ? 1.06 : 1.14
+  const growthScale = (1 + Math.min(bond, 80) / 400) * phaseScale
+  const bodyOpacity = care && care.energy <= 24 ? 0.84 : 1
 
-  return selectedPackage.manifest.renderer === 'sprite-2d' ? (
-    <SpriteModMascot
-      characterPackage={selectedPackage}
-      motion={resolvedMotion}
-      size={size}
-      spinSignal={spinSignal}
-      className={className}
-      fallback={fallback}
-    />
-  ) : (
-    <GltfModMascot
-      characterPackage={selectedPackage}
-      motion={resolvedMotion}
-      size={size}
-      spinSignal={spinSignal}
-      className={className}
-      fallback={fallback}
-    />
+  const selectedPackage = resolvePackage(packages, mascotId, selectedMascotId, selectedModId, forceDefaultMod)
+  // 孵化前はたまご。ポスティだけは卵期もロボの姿を貫く（組み込み時代からの仕様）
+  const showEgg = phase === 'egg' && mascotId !== 'posty'
+
+  const egg = <EggMascot mascotId={mascotId} size={size} spinSignal={spinSignal} />
+
+  let content: ReactNode
+  if (showEgg || !selectedPackage) {
+    content = egg
+  } else {
+    const resolvedMotion = motion ?? motionForPose(pose)
+    switch (selectedPackage.manifest.renderer) {
+      case 'sprite-2d':
+        content = (
+          <SpriteModMascot
+            characterPackage={selectedPackage}
+            motion={resolvedMotion}
+            size={size}
+            spinSignal={spinSignal}
+            fallback={egg}
+          />
+        )
+        break
+      case 'dom-svg':
+        content = (
+          <DomModMascot
+            characterPackage={selectedPackage}
+            motion={resolvedMotion}
+            size={size}
+            spinSignal={spinSignal}
+            fallback={egg}
+          />
+        )
+        break
+      case 'gltf-3d':
+        content = (
+          <GltfModMascot
+            characterPackage={selectedPackage}
+            motion={resolvedMotion}
+            size={size}
+            spinSignal={spinSignal}
+            fallback={egg}
+          />
+        )
+        break
+      default:
+        content = egg
+    }
+  }
+
+  // 育成の伸縮とお疲れ時の薄まりは全MOD共通で外側から掛ける
+  return (
+    <div className={`relative shrink-0 ${className}`} style={{ width: size, height: size, opacity: bodyOpacity }}>
+      <div
+        className="absolute inset-0"
+        style={{
+          transformStyle: 'preserve-3d',
+          transform: growthScale === 1 ? undefined : `scale3d(${growthScale}, ${growthScale}, ${growthScale})`,
+        }}
+      >
+        {content}
+      </div>
+    </div>
   )
 }
-

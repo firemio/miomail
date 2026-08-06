@@ -18,8 +18,10 @@ import {
   Sparkles,
   X,
 } from 'lucide-react'
-import { CourierMascot } from '../../src/renderer/components/layout/CourierMascot'
-import { CourierMascot3D } from '../../src/renderer/components/layout/CourierMascot3D'
+import { DomModMascot } from '../../src/renderer/components/characters/DomModMascot'
+import { browserBuiltinScan } from '../../src/renderer/characters/browserBuiltinMods'
+import { DEFAULT_MOD_ID_BY_MASCOT, motionForPose } from '../../src/renderer/characters/types'
+import type { MascotId } from '../../src/renderer/data/mascots'
 import { MASCOT_IDLE_MOTION_DURATIONS } from '../../src/renderer/data/mascotIdleMotions'
 import logoImage from '../../src/renderer/assets/miomail-logo.png'
 import titleBanner from './assets/miomail-title-banner.png'
@@ -121,33 +123,41 @@ function useIdlePose() {
   return pose
 }
 
-function SiteMio({ bond, size }: { bond: number; size: number }) {
-  const pose = useIdlePose()
+const sitePackages = browserBuiltinScan().packages
 
-  return (
-    <div>
-      <div
-        className={`companion-pose companion-pose-mio companion-pose-${pose}`}
-        style={{ position: 'relative' }}
-      >
-        <CourierMascot mascotId="mio" bond={bond} size={size} spinOnClick pose={pose} />
-      </div>
-    </div>
-  )
+// アプリのMascotRendererと同じ育成スケール式: (1 + min(bond,80)/400) * phaseScale
+function growthScaleForBond(bond: number) {
+  const phaseScale = bond >= 72 ? 1.14 : bond >= 40 ? 1.06 : bond >= 20 ? 1 : bond >= 8 ? 0.9 : 0.76
+  return (1 + Math.min(bond, 80) / 400) * phaseScale
 }
 
-function SitePosty3D({ bond, size }: { bond: number; size: number }) {
+function SiteCharacter({ mascotId, bond, size }: { mascotId: MascotId; bond: number; size: number }) {
   const pose = useIdlePose()
   const [spinSignal, setSpinSignal] = useState(0)
+  const characterPackage = sitePackages.find(
+    (item) => item.manifest.id === DEFAULT_MOD_ID_BY_MASCOT[mascotId],
+  )
+  if (!characterPackage) return null
 
+  const scale = growthScaleForBond(bond)
   return (
     <div>
       <div
-        style={{ position: 'relative', cursor: 'pointer' }}
+        style={{
+          position: 'relative',
+          cursor: 'pointer',
+          transform: scale === 1 ? undefined : `scale(${scale})`,
+        }}
         onClick={() => setSpinSignal((signal) => signal + 1)}
         title="クリックでくるっと回る"
       >
-        <CourierMascot3D mascotId="posty" bond={bond} size={size} pose={pose} spinSignal={spinSignal} />
+        <DomModMascot
+          characterPackage={characterPackage}
+          motion={motionForPose(pose)}
+          size={size}
+          spinSignal={spinSignal}
+          fallback={null}
+        />
       </div>
     </div>
   )
@@ -239,7 +249,7 @@ export function MioMailSite() {
             <div className="site-character-halo" />
             <div className="site-character-wrap">
               {/* 手書き風の円に大きく重なる構図が本来のデザイン(はみ出しは意図) */}
-              <SiteMio bond={88} size={420} />
+              <SiteCharacter mascotId="mio" bond={88} size={420} />
             </div>
             <div className="site-speech">
               <span>おかえりなさい！</span>
@@ -348,7 +358,7 @@ export function MioMailSite() {
           <div className="site-companion__art" data-reveal>
             <span className="site-companion__label">MEET POSTY</span>
             <div className="site-companion__circle">
-              <SitePosty3D bond={45} size={330} />
+              <SiteCharacter mascotId="posty" bond={45} size={330} />
             </div>
             <span className="site-companion__orbit site-companion__orbit--one">ピピッ！</span>
             <span className="site-companion__orbit site-companion__orbit--two">メール トドケマス</span>

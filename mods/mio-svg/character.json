@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "firemio.mio-svg",
+  "name": "ミオ（SVG）",
+  "version": "1.0.0",
+  "author": "firemio",
+  "description": "組み込みのミオをDOM/SVG MODとして再構成したサンプル。scene.jsonの書き方の見本にどうぞ",
+  "license": "MIT",
+  "behaviorProfile": "mio",
+  "renderer": "dom-svg",
+  "source": {
+    "type": "scene",
+    "file": "scene.json",
+    "motions": {
+      "idle": {
+        "pose": { "rotate": -2 },
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "look-around": {
+        "poseAnimation": "pose-look-around",
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "alert": {
+        "pose": { "rotate": -6, "translateY": 2, "scaleX": 0.97, "scaleY": 1.04 },
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "bounce": {
+        "pose": { "rotate": 1, "translateY": -3, "scaleX": 1.06, "scaleY": 0.96 },
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "self-care": {
+        "poseAnimation": "pose-groom",
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "rest": {
+        "poseAnimation": "pose-doze",
+        "poseOrigin": [50, 90],
+        "expression": "sleepy",
+        "animations": ["ear-left", "ear-right", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "inspect": {
+        "poseAnimation": "pose-peek",
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "celebrate": {
+        "poseAnimation": "pose-pounce",
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "walk": {
+        "pose": { "rotate": -2, "translateY": -1 },
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      },
+      "deliver": {
+        "pose": { "rotate": 2, "translateY": -2, "scale": 1.02 },
+        "poseOrigin": [50, 90],
+        "animations": ["arm-left", "arm-right", "ear-left", "ear-right", "blink", "whisker-left", "whisker-right"],
+        "loop": true
+      }
+    }
+  }
+}

@@ -1,0 +1,481 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://firemio.local/schemas/character-mod-dom-svg-scene-v1.json",
+  "title": "MioMail Character MOD dom-svg scene.json v1",
+  "description": "renderer: \"dom-svg\" のMODが参照するシーン定義。任意のHTML/CSS/SVGマークアップではなく、固定語彙のノード木として記述します。アプリはこのJSONの数値・enumだけからDOM/CSSを組み立て、文字列がそのままマークアップやCSSへ渡ることはありません。",
+  "type": "object",
+  "required": ["sceneVersion", "viewBox", "root"],
+  "properties": {
+    "sceneVersion": { "const": 1 },
+    "viewBox": {
+      "description": "論理サイズ。奥行き(z)はこの幅を基準にサイズ比例で伸縮します",
+      "type": "array",
+      "items": { "type": "number", "minimum": 1, "maximum": 4096 },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "animations": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,39}$" },
+      "additionalProperties": { "$ref": "#/$defs/animation" }
+    },
+    "root": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "animation": {
+      "type": "object",
+      "required": ["durationMs", "easing", "iteration", "keyframes"],
+      "properties": {
+        "durationMs": { "type": "number", "minimum": 100, "maximum": 30000 },
+        "easing": { "enum": ["linear", "ease", "ease-in", "ease-out", "ease-in-out"] },
+        "iteration": {
+          "oneOf": [
+            { "const": "infinite" },
+            { "type": "number", "minimum": 1, "maximum": 1000 }
+          ]
+        },
+        "delayMs": { "type": "number", "minimum": 0, "maximum": 10000, "default": 0 },
+        "keyframes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 24,
+          "items": { "$ref": "#/$defs/keyframe" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "keyframe": {
+      "description": "atは昇順にします。transformを空オブジェクトにすると「変形なし」の基準点になります",
+      "type": "object",
+      "required": ["at"],
+      "properties": {
+        "at": { "type": "number", "minimum": 0, "maximum": 100 },
+        "transform": { "$ref": "#/$defs/transform" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "transform": {
+      "type": "object",
+      "properties": {
+        "rotate": { "type": "number", "minimum": -360, "maximum": 360 },
+        "rotateX": { "type": "number", "minimum": -360, "maximum": 360 },
+        "rotateY": { "type": "number", "minimum": -360, "maximum": 360 },
+        "translateX": { "type": "number", "minimum": -200, "maximum": 200 },
+        "translateY": { "type": "number", "minimum": -200, "maximum": 200 },
+        "scale": { "type": "number", "minimum": 0.01, "maximum": 10 },
+        "scaleX": { "type": "number", "minimum": 0.01, "maximum": 10 },
+        "scaleY": { "type": "number", "minimum": 0.01, "maximum": 10 }
+      },
+      "additionalProperties": false
+    },
+    "expressionNames": { "enum": ["normal", "sleepy", "happy", "sad"] },
+    "sceneId": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "percent": { "type": "number", "minimum": -200, "maximum": 300 },
+    "angle": { "type": "number", "minimum": -360, "maximum": 360 },
+    "scaleFactor": { "type": "number", "minimum": 0.01, "maximum": 10 },
+    "color": {
+      "description": "#rgb / #rgba / #rrggbb / #rrggbbaa、rgb()/rgba()（数値のみ）、transparent。url()・var()・名前付き色は使用不可。",
+      "type": "string",
+      "pattern": "^(transparent|#[0-9a-fA-F]{3,8}|rgba?\\([0-9., ]+\\))$"
+    },
+    "paint": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "color"],
+          "properties": {
+            "type": { "const": "solid" },
+            "color": { "$ref": "#/$defs/color" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "angle", "stops"],
+          "properties": {
+            "type": { "const": "linear" },
+            "angle": { "$ref": "#/$defs/angle" },
+            "stops": { "$ref": "#/$defs/gradientStops" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type", "shape", "cx", "cy", "stops"],
+          "properties": {
+            "type": { "const": "radial" },
+            "shape": { "enum": ["ellipse", "circle"] },
+            "cx": { "type": "number", "minimum": -100, "maximum": 200 },
+            "cy": { "type": "number", "minimum": -100, "maximum": 200 },
+            "stops": { "$ref": "#/$defs/gradientStops" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "background": {
+      "description": "単一paint、またはCSSと同じ「先頭が最前面」のレイヤー配列",
+      "oneOf": [
+        { "$ref": "#/$defs/paint" },
+        { "type": "array", "minItems": 1, "maxItems": 4, "items": { "$ref": "#/$defs/paint" } }
+      ]
+    },
+    "gradientStops": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["color", "at"],
+        "properties": {
+          "color": { "$ref": "#/$defs/color" },
+          "at": { "type": "number", "minimum": 0, "maximum": 100 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "dropShadows": {
+      "description": "filter: drop-shadow(...) の並び。同じ色を上下左右1pxずつ重ねると輪郭線になります",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["dx", "dy", "color"],
+        "properties": {
+          "dx": { "type": "number", "minimum": -50, "maximum": 50 },
+          "dy": { "type": "number", "minimum": -50, "maximum": 50 },
+          "blur": { "type": "number", "minimum": 0, "maximum": 50 },
+          "color": { "$ref": "#/$defs/color" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "boxShadows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["dx", "dy", "color"],
+        "properties": {
+          "dx": { "type": "number", "minimum": -50, "maximum": 50 },
+          "dy": { "type": "number", "minimum": -50, "maximum": 50 },
+          "blur": { "type": "number", "minimum": 0, "maximum": 50 },
+          "spread": { "type": "number", "minimum": -50, "maximum": 50 },
+          "color": { "$ref": "#/$defs/color" },
+          "inset": { "type": "boolean" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "border": {
+      "type": "object",
+      "required": ["width", "color"],
+      "properties": {
+        "width": { "type": "number", "minimum": 0, "maximum": 20 },
+        "color": { "$ref": "#/$defs/color" }
+      },
+      "additionalProperties": false
+    },
+    "borderRadius": {
+      "description": "\"50%\" や \"47% 47% 42% 42% / 36% 36% 62% 62%\" のようなパーセント指定。ゼロだけは単位なしで書けます",
+      "type": "string",
+      "pattern": "^[0-9. /%]{1,64}$"
+    },
+    "clipPath": {
+      "description": "polygon(x% y%, ...) 形式のみ。最大24頂点。ゼロだけは単位なしで書けます",
+      "type": "string",
+      "pattern": "^polygon\\([0-9.%,\\- ]{1,510}\\)$"
+    },
+    "pathData": {
+      "description": "SVG path dataのMLHVCSQTAZ系コマンドと数値のみ。url()・#参照・エンティティは文字種の時点で拒否されます",
+      "type": "string",
+      "maxLength": 12000,
+      "pattern": "^[MmLlHhVvCcSsQqTtAaZz0-9 .,+\\-eE\\n\\t\\r]+$"
+    },
+
+    "commonNodeProperties": {
+      "id": { "$ref": "#/$defs/sceneId" },
+      "left": { "$ref": "#/$defs/percent" },
+      "right": { "$ref": "#/$defs/percent" },
+      "top": { "$ref": "#/$defs/percent" },
+      "bottom": { "$ref": "#/$defs/percent" },
+      "width": { "$ref": "#/$defs/percent" },
+      "height": { "$ref": "#/$defs/percent" },
+      "z": {
+        "description": "疑似3Dの層。大きいほど手前。viewBox幅を基準にサイズ比例で伸縮します",
+        "type": "number",
+        "minimum": 0,
+        "maximum": 200
+      },
+      "rotate": { "$ref": "#/$defs/angle" },
+      "rotateX": { "$ref": "#/$defs/angle" },
+      "rotateY": { "$ref": "#/$defs/angle" },
+      "translateX": { "type": "number", "minimum": -200, "maximum": 200 },
+      "translateY": { "type": "number", "minimum": -200, "maximum": 200 },
+      "scale": {
+        "description": "一様スケール。子のzにも掛かるので、疑似3D層を保ったまま縮小できます",
+        "$ref": "#/$defs/scaleFactor"
+      },
+      "scaleX": { "$ref": "#/$defs/scaleFactor" },
+      "scaleY": { "$ref": "#/$defs/scaleFactor" },
+      "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+      "overflowHidden": { "type": "boolean" },
+      "filter": { "$ref": "#/$defs/dropShadows" },
+      "animation": { "type": "string" },
+      "transformOrigin": {
+        "description": "回転・拡大の支点 [x%, y%]",
+        "type": "array",
+        "items": { "type": "number" },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "visibleIn": {
+        "description": "このパーツを表示する表情。省略すると全ての表情で表示されます",
+        "type": "array",
+        "maxItems": 4,
+        "items": { "$ref": "#/$defs/expressionNames" }
+      }
+    },
+
+    "node": {
+      "oneOf": [
+        { "$ref": "#/$defs/groupNode" },
+        { "$ref": "#/$defs/boxNode" },
+        { "$ref": "#/$defs/svgNode" }
+      ]
+    },
+    "groupNode": {
+      "description": "入れ子コンテナ。子のzを保ったまま、まとめて動かせます",
+      "type": "object",
+      "required": ["kind", "children"],
+      "properties": {
+        "kind": { "const": "group" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "id": { "$ref": "#/$defs/commonNodeProperties/id" },
+        "left": { "$ref": "#/$defs/commonNodeProperties/left" },
+        "right": { "$ref": "#/$defs/commonNodeProperties/right" },
+        "top": { "$ref": "#/$defs/commonNodeProperties/top" },
+        "bottom": { "$ref": "#/$defs/commonNodeProperties/bottom" },
+        "width": { "$ref": "#/$defs/commonNodeProperties/width" },
+        "height": { "$ref": "#/$defs/commonNodeProperties/height" },
+        "z": { "$ref": "#/$defs/commonNodeProperties/z" },
+        "rotate": { "$ref": "#/$defs/commonNodeProperties/rotate" },
+        "rotateX": { "$ref": "#/$defs/commonNodeProperties/rotateX" },
+        "rotateY": { "$ref": "#/$defs/commonNodeProperties/rotateY" },
+        "translateX": { "$ref": "#/$defs/commonNodeProperties/translateX" },
+        "translateY": { "$ref": "#/$defs/commonNodeProperties/translateY" },
+        "scale": { "$ref": "#/$defs/commonNodeProperties/scale" },
+        "scaleX": { "$ref": "#/$defs/commonNodeProperties/scaleX" },
+        "scaleY": { "$ref": "#/$defs/commonNodeProperties/scaleY" },
+        "opacity": { "$ref": "#/$defs/commonNodeProperties/opacity" },
+        "overflowHidden": { "$ref": "#/$defs/commonNodeProperties/overflowHidden" },
+        "filter": { "$ref": "#/$defs/commonNodeProperties/filter" },
+        "animation": { "$ref": "#/$defs/commonNodeProperties/animation" },
+        "transformOrigin": { "$ref": "#/$defs/commonNodeProperties/transformOrigin" },
+        "visibleIn": { "$ref": "#/$defs/commonNodeProperties/visibleIn" }
+      },
+      "additionalProperties": false
+    },
+    "boxNode": {
+      "description": "角丸・グラデーション・枠線を持つ矩形。子ノードを入れられます",
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "const": "box" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/node" } },
+        "background": { "$ref": "#/$defs/background" },
+        "borderRadius": { "$ref": "#/$defs/borderRadius" },
+        "clipPath": { "$ref": "#/$defs/clipPath" },
+        "border": { "$ref": "#/$defs/border" },
+        "borderBottom": { "$ref": "#/$defs/border" },
+        "boxShadow": { "$ref": "#/$defs/boxShadows" },
+        "id": { "$ref": "#/$defs/commonNodeProperties/id" },
+        "left": { "$ref": "#/$defs/commonNodeProperties/left" },
+        "right": { "$ref": "#/$defs/commonNodeProperties/right" },
+        "top": { "$ref": "#/$defs/commonNodeProperties/top" },
+        "bottom": { "$ref": "#/$defs/commonNodeProperties/bottom" },
+        "width": { "$ref": "#/$defs/commonNodeProperties/width" },
+        "height": { "$ref": "#/$defs/commonNodeProperties/height" },
+        "z": { "$ref": "#/$defs/commonNodeProperties/z" },
+        "rotate": { "$ref": "#/$defs/commonNodeProperties/rotate" },
+        "rotateX": { "$ref": "#/$defs/commonNodeProperties/rotateX" },
+        "rotateY": { "$ref": "#/$defs/commonNodeProperties/rotateY" },
+        "translateX": { "$ref": "#/$defs/commonNodeProperties/translateX" },
+        "translateY": { "$ref": "#/$defs/commonNodeProperties/translateY" },
+        "scale": { "$ref": "#/$defs/commonNodeProperties/scale" },
+        "scaleX": { "$ref": "#/$defs/commonNodeProperties/scaleX" },
+        "scaleY": { "$ref": "#/$defs/commonNodeProperties/scaleY" },
+        "opacity": { "$ref": "#/$defs/commonNodeProperties/opacity" },
+        "overflowHidden": { "$ref": "#/$defs/commonNodeProperties/overflowHidden" },
+        "filter": { "$ref": "#/$defs/commonNodeProperties/filter" },
+        "animation": { "$ref": "#/$defs/commonNodeProperties/animation" },
+        "transformOrigin": { "$ref": "#/$defs/commonNodeProperties/transformOrigin" },
+        "visibleIn": { "$ref": "#/$defs/commonNodeProperties/visibleIn" }
+      },
+      "additionalProperties": false
+    },
+    "svgNode": {
+      "description": "SVGルート。中にpath / ellipse / rect / shapeGroup を置きます",
+      "type": "object",
+      "required": ["kind", "viewBox", "children"],
+      "properties": {
+        "kind": { "const": "svg" },
+        "viewBox": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 1, "maximum": 4096 },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/shape" } },
+        "id": { "$ref": "#/$defs/commonNodeProperties/id" },
+        "left": { "$ref": "#/$defs/commonNodeProperties/left" },
+        "right": { "$ref": "#/$defs/commonNodeProperties/right" },
+        "top": { "$ref": "#/$defs/commonNodeProperties/top" },
+        "bottom": { "$ref": "#/$defs/commonNodeProperties/bottom" },
+        "width": { "$ref": "#/$defs/commonNodeProperties/width" },
+        "height": { "$ref": "#/$defs/commonNodeProperties/height" },
+        "z": { "$ref": "#/$defs/commonNodeProperties/z" },
+        "rotate": { "$ref": "#/$defs/commonNodeProperties/rotate" },
+        "rotateX": { "$ref": "#/$defs/commonNodeProperties/rotateX" },
+        "rotateY": { "$ref": "#/$defs/commonNodeProperties/rotateY" },
+        "translateX": { "$ref": "#/$defs/commonNodeProperties/translateX" },
+        "translateY": { "$ref": "#/$defs/commonNodeProperties/translateY" },
+        "scale": { "$ref": "#/$defs/commonNodeProperties/scale" },
+        "scaleX": { "$ref": "#/$defs/commonNodeProperties/scaleX" },
+        "scaleY": { "$ref": "#/$defs/commonNodeProperties/scaleY" },
+        "opacity": { "$ref": "#/$defs/commonNodeProperties/opacity" },
+        "overflowHidden": { "$ref": "#/$defs/commonNodeProperties/overflowHidden" },
+        "filter": { "$ref": "#/$defs/commonNodeProperties/filter" },
+        "animation": { "$ref": "#/$defs/commonNodeProperties/animation" },
+        "transformOrigin": { "$ref": "#/$defs/commonNodeProperties/transformOrigin" },
+        "visibleIn": { "$ref": "#/$defs/commonNodeProperties/visibleIn" }
+      },
+      "additionalProperties": false
+    },
+
+    "shape": {
+      "oneOf": [
+        { "$ref": "#/$defs/pathShape" },
+        { "$ref": "#/$defs/ellipseShape" },
+        { "$ref": "#/$defs/rectShape" },
+        { "$ref": "#/$defs/shapeGroupShape" }
+      ]
+    },
+    "commonShapeProperties": {
+      "id": { "$ref": "#/$defs/sceneId" },
+      "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+      "animation": { "type": "string" },
+      "transformOrigin": {
+        "type": "array",
+        "items": { "type": "number" },
+        "minItems": 2,
+        "maxItems": 2
+      },
+      "visibleIn": {
+        "type": "array",
+        "maxItems": 4,
+        "items": { "$ref": "#/$defs/expressionNames" }
+      },
+      "fill": { "$ref": "#/$defs/paint" },
+      "stroke": { "$ref": "#/$defs/paint" },
+      "strokeWidth": { "type": "number", "minimum": 0, "maximum": 20 },
+      "strokeLinecap": { "enum": ["butt", "round", "square"] },
+      "strokeLinejoin": { "enum": ["miter", "round", "bevel"] },
+      "nonScalingStroke": {
+        "description": "trueにすると、SVGを縦横別々に引き伸ばしても線の太さが変わりません",
+        "type": "boolean"
+      }
+    },
+    "pathShape": {
+      "type": "object",
+      "required": ["kind", "d"],
+      "properties": {
+        "kind": { "const": "path" },
+        "d": { "$ref": "#/$defs/pathData" },
+        "id": { "$ref": "#/$defs/commonShapeProperties/id" },
+        "opacity": { "$ref": "#/$defs/commonShapeProperties/opacity" },
+        "animation": { "$ref": "#/$defs/commonShapeProperties/animation" },
+        "transformOrigin": { "$ref": "#/$defs/commonShapeProperties/transformOrigin" },
+        "visibleIn": { "$ref": "#/$defs/commonShapeProperties/visibleIn" },
+        "fill": { "$ref": "#/$defs/commonShapeProperties/fill" },
+        "stroke": { "$ref": "#/$defs/commonShapeProperties/stroke" },
+        "strokeWidth": { "$ref": "#/$defs/commonShapeProperties/strokeWidth" },
+        "strokeLinecap": { "$ref": "#/$defs/commonShapeProperties/strokeLinecap" },
+        "strokeLinejoin": { "$ref": "#/$defs/commonShapeProperties/strokeLinejoin" },
+        "nonScalingStroke": { "$ref": "#/$defs/commonShapeProperties/nonScalingStroke" }
+      },
+      "additionalProperties": false
+    },
+    "ellipseShape": {
+      "type": "object",
+      "required": ["kind", "cx", "cy", "rx", "ry"],
+      "properties": {
+        "kind": { "const": "ellipse" },
+        "cx": { "type": "number" },
+        "cy": { "type": "number" },
+        "rx": { "type": "number" },
+        "ry": { "type": "number" },
+        "id": { "$ref": "#/$defs/commonShapeProperties/id" },
+        "opacity": { "$ref": "#/$defs/commonShapeProperties/opacity" },
+        "animation": { "$ref": "#/$defs/commonShapeProperties/animation" },
+        "transformOrigin": { "$ref": "#/$defs/commonShapeProperties/transformOrigin" },
+        "visibleIn": { "$ref": "#/$defs/commonShapeProperties/visibleIn" },
+        "fill": { "$ref": "#/$defs/commonShapeProperties/fill" },
+        "stroke": { "$ref": "#/$defs/commonShapeProperties/stroke" },
+        "strokeWidth": { "$ref": "#/$defs/commonShapeProperties/strokeWidth" },
+        "strokeLinecap": { "$ref": "#/$defs/commonShapeProperties/strokeLinecap" },
+        "strokeLinejoin": { "$ref": "#/$defs/commonShapeProperties/strokeLinejoin" },
+        "nonScalingStroke": { "$ref": "#/$defs/commonShapeProperties/nonScalingStroke" }
+      },
+      "additionalProperties": false
+    },
+    "rectShape": {
+      "type": "object",
+      "required": ["kind", "x", "y", "width", "height"],
+      "properties": {
+        "kind": { "const": "rect" },
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "width": { "type": "number" },
+        "height": { "type": "number" },
+        "rx": { "type": "number", "minimum": 0 },
+        "id": { "$ref": "#/$defs/commonShapeProperties/id" },
+        "opacity": { "$ref": "#/$defs/commonShapeProperties/opacity" },
+        "animation": { "$ref": "#/$defs/commonShapeProperties/animation" },
+        "transformOrigin": { "$ref": "#/$defs/commonShapeProperties/transformOrigin" },
+        "visibleIn": { "$ref": "#/$defs/commonShapeProperties/visibleIn" },
+        "fill": { "$ref": "#/$defs/commonShapeProperties/fill" },
+        "stroke": { "$ref": "#/$defs/commonShapeProperties/stroke" },
+        "strokeWidth": { "$ref": "#/$defs/commonShapeProperties/strokeWidth" },
+        "strokeLinecap": { "$ref": "#/$defs/commonShapeProperties/strokeLinecap" },
+        "strokeLinejoin": { "$ref": "#/$defs/commonShapeProperties/strokeLinejoin" },
+        "nonScalingStroke": { "$ref": "#/$defs/commonShapeProperties/nonScalingStroke" }
+      },
+      "additionalProperties": false
+    },
+    "shapeGroupShape": {
+      "description": "SVGの<g>相当。耳などをまとめて付け根から動かすのに使います",
+      "type": "object",
+      "required": ["kind", "children"],
+      "properties": {
+        "kind": { "const": "shapeGroup" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/shape" } },
+        "id": { "$ref": "#/$defs/commonShapeProperties/id" },
+        "opacity": { "$ref": "#/$defs/commonShapeProperties/opacity" },
+        "animation": { "$ref": "#/$defs/commonShapeProperties/animation" },
+        "transformOrigin": { "$ref": "#/$defs/commonShapeProperties/transformOrigin" },
+        "visibleIn": { "$ref": "#/$defs/commonShapeProperties/visibleIn" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

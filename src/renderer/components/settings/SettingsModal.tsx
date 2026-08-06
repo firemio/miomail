@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Box, Code2, Cpu, Database, Download, FolderOpen, Image as ImageIcon, Mail, Palette, Plus, RefreshCw, Settings2, Sparkles, Star, TriangleAlert, X } from 'lucide-react'
-import type { BuiltinCharacterRenderer } from '../../characters/types'
+import { Code2, Cpu, Database, Download, FolderOpen, Mail, Palette, Plus, RefreshCw, Settings2, Sparkles, Star, TriangleAlert, X } from 'lucide-react'
+import { DEFAULT_MOD_ID_BY_MASCOT } from '../../characters/types'
 import { mascotCatalog, type MascotId } from '../../data/mascots'
 import { MASCOT_IDLE_MOTION_DURATIONS, MASCOT_IDLE_MOTION_LABELS } from '../../data/mascotIdleMotions'
 import { themeCatalog } from '../../data/themes'
@@ -36,20 +36,17 @@ export function SettingsModal() {
   const { closeSettings, openImport, themeId, setTheme } = useUIStore()
   const { selectedMascotId, selectMascot, bondByMascot, careByMascot, debugSetPhase, debugEvolveFrom } = useMascotStore()
   const {
-    builtinRenderer,
     selectedModId,
     packages: characterPackages,
     issues: characterModIssues,
     loading: characterModsLoading,
     installing: characterModsInstalling,
     error: characterModsError,
-    selectBuiltinRenderer,
     selectMod,
     refreshMods,
     installArchive,
     openModsFolder,
   } = useCharacterStore()
-  const [debugRenderer, setDebugRenderer] = useState<BuiltinCharacterRenderer>(builtinRenderer)
   const [debugIdlePhase, setDebugIdlePhase] = useState<MascotPhase>('courier')
   const idlePreviewBond = MASCOT_GROWTH_STAGES.find(({ phase }) => phase === debugIdlePhase)?.minBond ?? 20
   const debugStartIndex = MASCOT_GROWTH_STAGES.findIndex(({ phase }) => phase === debugStartPhase)
@@ -200,14 +197,15 @@ export function SettingsModal() {
                   </div>
                   <div className="grid grid-cols-4 gap-3">
                     {mascotCatalog.map((mascot) => {
-                      const active = mascot.id === selectedMascotId && !selectedModId
-                      return <button key={mascot.id} type="button" aria-pressed={active} onClick={() => { selectMascot(mascot.id); if (selectedModId) selectBuiltinRenderer(builtinRenderer) }} className={`rounded-[24px] border p-4 text-left transition hover:-translate-y-0.5 ${active ? 'border-sumi-accent bg-sumi-accent/10 shadow-[0_16px_34px_rgba(255,138,160,0.16)]' : 'border-white/80 bg-white/72'}`}>
-                        <div className="flex items-start justify-between"><MascotRenderer mascotId={mascot.id} bond={bondByMascot[mascot.id] ?? 0} care={careByMascot[mascot.id]} size={72} pose={0} forceBuiltinRenderer={builtinRenderer} /><span className="rounded-full bg-sumi-surface px-2 py-1 text-[10px] text-sumi-text-muted">{bondByMascot[mascot.id] ?? 0}pt</span></div>
+                      const active = mascot.id === selectedMascotId
+                        && (!selectedModId || selectedModId === DEFAULT_MOD_ID_BY_MASCOT[mascot.id])
+                      return <button key={mascot.id} type="button" aria-pressed={active} onClick={() => { selectMascot(mascot.id); if (selectedModId) selectMod(null) }} className={`rounded-[24px] border p-4 text-left transition hover:-translate-y-0.5 ${active ? 'border-sumi-accent bg-sumi-accent/10 shadow-[0_16px_34px_rgba(255,138,160,0.16)]' : 'border-white/80 bg-white/72'}`}>
+                        <div className="flex items-start justify-between"><MascotRenderer mascotId={mascot.id} bond={bondByMascot[mascot.id] ?? 0} care={careByMascot[mascot.id]} size={72} pose={0} forceDefaultMod /><span className="rounded-full bg-sumi-surface px-2 py-1 text-[10px] text-sumi-text-muted">{bondByMascot[mascot.id] ?? 0}pt</span></div>
                         <div className="mt-3 flex items-center justify-between"><span className="font-semibold text-sumi-text">{mascot.name}</span>{active && <span className="rounded-full bg-sumi-accent px-2 py-1 text-[10px] font-semibold text-white">選択中</span>}</div>
                         <p className="mt-1 text-[11px] leading-5 text-sumi-text-muted">{mascot.subtitle}</p>
                       </button>
                     })}
-                    {characterPackages.map((characterPackage) => {
+                    {characterPackages.filter((characterPackage) => !Object.values(DEFAULT_MOD_ID_BY_MASCOT).includes(characterPackage.manifest.id)).map((characterPackage) => {
                       const { manifest } = characterPackage
                       const active = selectedModId === manifest.id
                       return (
@@ -217,17 +215,17 @@ export function SettingsModal() {
                             <span className="rounded-full bg-sumi-surface px-2 py-1 text-[10px] text-sumi-text-muted">{bondByMascot[manifest.behaviorProfile] ?? 0}pt</span>
                           </div>
                           <div className="mt-3 flex items-center justify-between gap-2"><span className="truncate font-semibold text-sumi-text">{manifest.name}</span>{active && <span className="shrink-0 rounded-full bg-sumi-accent px-2 py-1 text-[10px] font-semibold text-white">選択中</span>}</div>
-                          <p className="mt-1 truncate text-[11px] leading-5 text-sumi-text-muted">MOD・{manifest.renderer === 'gltf-3d' ? '3D' : '2D'}・{manifest.author} v{manifest.version}</p>
+                          <p className="mt-1 truncate text-[11px] leading-5 text-sumi-text-muted">MOD・{manifest.renderer === 'gltf-3d' ? '3D' : manifest.renderer === 'dom-svg' ? 'SVG' : '2D'}・{manifest.author} v{manifest.version}</p>
                         </button>
                       )
                     })}
                   </div>
                   <p className="mt-3 text-[11px] leading-5 text-sumi-text-muted">選んだ1体が画面内を自由に移動します。MODは「MODを追加」からzipまたはtar.xz（XZ / LZMA2）を選ぶだけでここに並び、検証に通ったものだけが使われます。MOD内のコードは実行しません。</p>
 
-                  {!isTauriRuntime && <div className="mt-3 rounded-[18px] border border-white/85 bg-sumi-surface/65 px-4 py-3 text-[11px] leading-5 text-sumi-text-muted">ブラウザープレビューでは組み込みキャラクターだけを表示します。ローカルMODの検出はデスクトップ版で有効になります。</div>}
+                  {!isTauriRuntime && <div className="mt-3 rounded-[18px] border border-white/85 bg-sumi-surface/65 px-4 py-3 text-[11px] leading-5 text-sumi-text-muted">ブラウザープレビューでは同梱の既定キャラクターだけを表示します。ローカルMODの検出はデスクトップ版で有効になります。</div>}
 
                   {selectedModId && !characterPackages.some((item) => item.manifest.id === selectedModId) && !characterModsLoading && (
-                    <div className="mt-3 flex items-start gap-3 rounded-[18px] border border-[#e7b674]/45 bg-[#fff2dc]/70 px-4 py-3 text-[11px] leading-5 text-[#98632d]"><TriangleAlert size={15} className="mt-0.5 shrink-0" /><span>選択中だったMODが見つからないか、検証に通りませんでした。現在は組み込みキャラクターへ安全にフォールバックしています。</span></div>
+                    <div className="mt-3 flex items-start gap-3 rounded-[18px] border border-[#e7b674]/45 bg-[#fff2dc]/70 px-4 py-3 text-[11px] leading-5 text-[#98632d]"><TriangleAlert size={15} className="mt-0.5 shrink-0" /><span>選択中だったMODが見つからないか、検証に通りませんでした。現在は既定のキャラクター（同梱MOD）へ安全にフォールバックしています。</span></div>
                   )}
 
                   {(characterModsError || characterModIssues.length > 0) && (
@@ -237,33 +235,6 @@ export function SettingsModal() {
                       {characterModIssues.map((issue) => <p key={`${issue.folder}:${issue.message}`} className="mt-1 text-[10px] leading-5 text-[#a9554a]"><span className="font-semibold">{issue.folder}</span> — {issue.message}</p>)}
                     </div>
                   )}
-                </section>
-
-                <section>
-                  <div className="mb-4 flex items-end justify-between gap-4">
-                    <div><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">RENDERER</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">描画スタイル</h3></div>
-                    <p className="text-xs text-sumi-text-muted">組み込みキャラクターの2D/3Dを切り替えます。MODは自身の形式で表示されます。</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    {([
-                      { id: 'classic-2d' as const, label: 'クラシック2D', note: '軽快に動く2Dイラスト版。', icon: ImageIcon },
-                      { id: 'soft-3d' as const, label: 'ふわふわ3D', note: '光と影を使うWebGL 3D版。', icon: Box },
-                    ]).map((renderer) => {
-                      const active = !selectedModId && builtinRenderer === renderer.id
-                      const Icon = renderer.icon
-                      return (
-                        <button key={renderer.id} type="button" aria-pressed={active} onClick={() => selectBuiltinRenderer(renderer.id)} className={`grid grid-cols-[84px_1fr] items-center gap-4 rounded-[24px] border p-4 text-left transition hover:-translate-y-0.5 ${active ? 'border-sumi-accent bg-sumi-accent/10 shadow-[0_16px_34px_rgba(255,138,160,0.14)]' : 'border-white/80 bg-white/72'}`}>
-                          <span className="flex h-[84px] items-center justify-center overflow-hidden rounded-[20px] bg-sumi-surface/65">
-                            <MascotRenderer mascotId={selectedMascotId} bond={Math.max(20, bondByMascot[selectedMascotId] ?? 0)} care={careByMascot[selectedMascotId]} size={76} pose={0} forceBuiltinRenderer={renderer.id} />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="flex items-center gap-2 text-sm font-semibold text-sumi-text"><Icon size={15} className="text-sumi-accent" />{renderer.label}{active && <span className="rounded-full bg-sumi-accent px-2 py-1 text-[9px] font-semibold text-white">使用中</span>}</span>
-                            <span className="mt-1 block text-[11px] leading-5 text-sumi-text-muted">{renderer.note}</span>
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
                 </section>
 
                 <section>
@@ -367,13 +338,8 @@ export function SettingsModal() {
 
               <section>
                 <div className="mb-4 flex items-end justify-between gap-4">
-                  <div><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">IDLE MOTION CATALOG</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">待機モーション一覧</h3><p className="mt-1 text-xs text-sumi-text-muted">選んだ成長段階の相棒を大きく表示し、8種類の待機モーションを2D/3Dで確認します。</p></div>
+                  <div><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">IDLE MOTION CATALOG</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">待機モーション一覧</h3><p className="mt-1 text-xs text-sumi-text-muted">選んだ成長段階の相棒を大きく表示し、8種類の待機モーションを確認します。</p></div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    <div className="flex h-10 items-center rounded-2xl border border-white/90 bg-white/80 p-1">
-                      {([{ id: 'classic-2d' as const, label: '2D' }, { id: 'soft-3d' as const, label: '3D' }]).map((option) => (
-                        <button key={option.id} type="button" aria-pressed={debugRenderer === option.id} onClick={() => setDebugRenderer(option.id)} className={`h-8 rounded-xl px-3 text-[11px] font-semibold transition ${debugRenderer === option.id ? 'bg-sumi-accent text-white shadow-[0_6px_14px_rgba(255,111,145,0.2)]' : 'text-sumi-text-muted hover:text-sumi-text'}`}>{option.label}</button>
-                      ))}
-                    </div>
                     <button type="button" aria-pressed={idleAutoPlay} onClick={() => setIdleAutoPlay((current) => !current)} className={`h-10 rounded-2xl px-4 text-[11px] font-semibold transition ${idleAutoPlay ? 'bg-sumi-accent text-white shadow-[0_8px_18px_rgba(255,111,145,0.2)]' : 'border border-white/90 bg-white/80 text-sumi-text-muted hover:text-sumi-text'}`}>{idleAutoPlay ? '連続再生を停止' : '全て順番に再生'}</button>
                     <select value={debugMascotId} onChange={(event) => setDebugMascotId(event.target.value as MascotId)} className="h-10 min-w-[120px] rounded-2xl border border-white/90 bg-white/85 px-3 text-xs font-semibold text-sumi-text outline-none focus:border-sumi-accent/40">
                       {mascotCatalog.map((mascot) => <option key={mascot.id} value={mascot.id}>{mascot.name}</option>)}
@@ -386,9 +352,9 @@ export function SettingsModal() {
                 <div className="grid grid-cols-[minmax(250px,0.85fr)_minmax(0,1.15fr)] gap-4">
                   <div className="relative flex min-h-[300px] flex-col items-center justify-center overflow-hidden rounded-[28px] border border-white/85 bg-white/72 p-5 shadow-[0_18px_46px_rgba(121,85,96,0.08)]">
                     <div className="absolute left-4 top-4 rounded-full border border-white/90 bg-white/82 px-3 py-1.5 text-[9px] font-semibold tracking-[0.16em] text-sumi-text-muted">POSE {debugPoseIndex + 1} / 8</div>
-                    <MascotRenderer mascotId={debugMascotId} bond={idlePreviewBond} care={careByMascot[debugMascotId]} size={190} pose={debugPoseIndex} forceBuiltinRenderer={debugRenderer} />
+                    <MascotRenderer mascotId={debugMascotId} bond={idlePreviewBond} care={careByMascot[debugMascotId]} size={190} pose={debugPoseIndex} />
                     <p className="mt-1 text-base font-semibold text-sumi-text">{MASCOT_IDLE_MOTION_LABELS[debugMascotId][debugPoseIndex]}</p>
-                    <p className="mt-1 text-[10px] text-sumi-text-muted">{mascotCatalog.find((mascot) => mascot.id === debugMascotId)?.name}・{getMascotPhaseLabel(debugIdlePhase)}・{debugRenderer === 'classic-2d' ? '2D' : '3D'}モーション</p>
+                    <p className="mt-1 text-[10px] text-sumi-text-muted">{mascotCatalog.find((mascot) => mascot.id === debugMascotId)?.name}・{getMascotPhaseLabel(debugIdlePhase)}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2.5">
                     {MASCOT_IDLE_MOTION_LABELS[debugMascotId].map((label, poseIndex) => {
@@ -405,11 +371,11 @@ export function SettingsModal() {
               </section>
 
               <section>
-                <div className="mb-4"><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">GROWTH CATALOG</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">{mascotCatalog.find((mascot) => mascot.id === debugMascotId)?.name}・全成長段階</h3><p className="mt-1 text-xs text-sumi-text-muted">上のキャラクター選択・2D/3D切り替えと連動し、実際の成長境界値で5段階を表示します。</p></div>
+                <div className="mb-4"><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">GROWTH CATALOG</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">{mascotCatalog.find((mascot) => mascot.id === debugMascotId)?.name}・全成長段階</h3><p className="mt-1 text-xs text-sumi-text-muted">上のキャラクター選択と連動し、実際の成長境界値で5段階を表示します。</p></div>
                 <div className="grid grid-cols-5 gap-3">
                   {growthPreviews.map(({ phase, bond }) => (
                     <div key={`${debugMascotId}-${phase}`} className="rounded-[22px] border border-white/80 bg-white/70 p-3 text-center">
-                      <div className="flex h-[105px] items-center justify-center"><MascotRenderer mascotId={debugMascotId} bond={bond} care={careByMascot[debugMascotId]} size={96} pose={0} forceBuiltinRenderer={debugRenderer} /></div>
+                      <div className="flex h-[105px] items-center justify-center"><MascotRenderer mascotId={debugMascotId} bond={bond} care={careByMascot[debugMascotId]} size={96} pose={0} /></div>
                       <p className="mt-2 text-xs font-semibold text-sumi-text">{mascotCatalog.find((mascot) => mascot.id === debugMascotId)?.name}</p>
                       <p className="mt-1 text-[10px] text-sumi-text-muted">{getMascotPhaseLabel(phase)}</p>
                       <span className="mt-2 inline-block rounded-full bg-sumi-surface px-2 py-1 text-[9px] text-sumi-text-muted">{bond}pt</span>

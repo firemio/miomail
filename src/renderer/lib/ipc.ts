@@ -17,6 +17,7 @@ import type {
   UpdateStatus,
 } from '../types'
 import type { CharacterModInstallResult, CharacterModScanResult } from '../characters/types'
+import { browserBuiltinAssetBytes, browserBuiltinScan } from '../characters/browserBuiltinMods'
 import { mockApi } from './mockApi'
 
 export const isTauriRuntime =
@@ -121,10 +122,13 @@ const characterModsApi = isTauriRuntime
         invoke('character_mod_install_archive'),
     }
   : {
-      list: async (): Promise<CharacterModScanResult> => ({ packages: [], issues: [] }),
-      readAsset: async (): Promise<ArrayBuffer> => {
-        throw new Error('キャラクターMODはデスクトップ版で読み込めます。')
-      },
+      // ブラウザープレビューでは同梱の既定MODだけを静的バンドルから供給する
+      list: async (): Promise<CharacterModScanResult> => browserBuiltinScan(),
+      readAsset: async (
+        modId: string,
+        _revision: string,
+        assetKey: string
+      ): Promise<ArrayBuffer | Uint8Array | number[]> => browserBuiltinAssetBytes(modId, assetKey),
       openFolder: async (): Promise<void> => {
         throw new Error('MODフォルダーはデスクトップ版から開けます。')
       },

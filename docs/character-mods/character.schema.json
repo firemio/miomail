@@ -37,6 +37,12 @@
             "renderer": { "const": "gltf-3d" },
             "source": { "$ref": "#/$defs/modelSource" }
           }
+        },
+        {
+          "properties": {
+            "renderer": { "const": "dom-svg" },
+            "source": { "$ref": "#/$defs/sceneSource" }
+          }
         }
       ]
     }
@@ -45,6 +51,9 @@
   "$defs": {
     "motionNames": {
       "enum": ["idle", "look-around", "alert", "bounce", "self-care", "rest", "inspect", "celebrate", "walk", "deliver"]
+    },
+    "expressionNames": {
+      "enum": ["normal", "sleepy", "happy", "sad"]
     },
     "sheetMotion": {
       "type": "object",
@@ -124,6 +133,65 @@
           "then": { "required": ["idle"] },
           "propertyNames": { "$ref": "#/$defs/motionNames" },
           "additionalProperties": { "$ref": "#/$defs/gltfMotion" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "domSvgTransform": {
+      "type": "object",
+      "properties": {
+        "rotate": { "type": "number", "minimum": -360, "maximum": 360 },
+        "rotateX": { "type": "number", "minimum": -360, "maximum": 360 },
+        "rotateY": { "type": "number", "minimum": -360, "maximum": 360 },
+        "translateX": { "type": "number", "minimum": -200, "maximum": 200 },
+        "translateY": { "type": "number", "minimum": -200, "maximum": 200 },
+        "scale": { "type": "number", "minimum": 0.01, "maximum": 10 },
+        "scaleX": { "type": "number", "minimum": 0.01, "maximum": 10 },
+        "scaleY": { "type": "number", "minimum": 0.01, "maximum": 10 }
+      },
+      "additionalProperties": false
+    },
+    "domSvgMotion": {
+      "type": "object",
+      "properties": {
+        "pose": {
+          "description": "この動作中、キャラクター全体に掛ける静的な変形",
+          "$ref": "#/$defs/domSvgTransform"
+        },
+        "poseAnimation": {
+          "description": "キャラクター全体を動かすscene.json側のanimation名。spriteのframes、gltfのclipに相当する。poseと同時には使わない",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+        },
+        "poseOrigin": {
+          "description": "pose / poseAnimation の回転・拡大の支点 [x%, y%]",
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "animations": {
+          "description": "この動作中に有効にするパーツ単位のanimation名",
+          "type": "array",
+          "maxItems": 32,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,39}$" }
+        },
+        "expression": { "$ref": "#/$defs/expressionNames" },
+        "loop": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+    "sceneSource": {
+      "type": "object",
+      "required": ["type", "file", "motions"],
+      "properties": {
+        "type": { "const": "scene" },
+        "file": { "type": "string", "pattern": "^[^:\\\\]+\\.json$" },
+        "motions": {
+          "type": "object",
+          "required": ["idle"],
+          "propertyNames": { "$ref": "#/$defs/motionNames" },
+          "additionalProperties": { "$ref": "#/$defs/domSvgMotion" }
         }
       },
       "additionalProperties": false

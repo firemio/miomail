@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "creator.fluffy-bear-svg",
+  "name": "Fluffy Bear SVG",
+  "version": "1.0.0",
+  "author": "Creator",
+  "description": "手描きSVGパーツで組んだ配達くま",
+  "license": "CC-BY-4.0",
+  "behaviorProfile": "makko",
+  "renderer": "dom-svg",
+  "thumbnail": "thumbnail.webp",
+  "source": {
+    "type": "scene",
+    "file": "assets/scene.json",
+    "motions": {
+      "idle": {
+        "animations": ["breath", "ear-left", "ear-right"],
+        "loop": true
+      },
+      "look-around": {
+        "pose": { "rotate": -2 },
+        "animations": ["breath", "look-around"],
+        "loop": true
+      },
+      "rest": {
+        "pose": { "rotate": 3, "translateY": 3 },
+        "expression": "sleepy",
+        "animations": ["doze"],
+        "loop": true
+      },
+      "celebrate": {
+        "pose": { "scale": 1.03 },
+        "animations": ["hop", "ear-left", "ear-right"],
+        "loop": true
+      }
+    }
+  }
+}

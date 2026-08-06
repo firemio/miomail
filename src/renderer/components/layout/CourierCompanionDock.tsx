@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { MailOpen, SendHorizontal, Sparkles, Star } from 'lucide-react'
 import { getMascotMeta } from '../../data/mascots'
 import {
@@ -9,7 +9,7 @@ import {
   getMascotProgress,
   useMascotStore,
 } from '../../stores/mascotStore'
-import { CourierMascot } from './CourierMascot'
+import { MascotRenderer } from '../characters/MascotRenderer'
 
 const EVOLUTION_CONFETTI = [
   { x: -88, y: -104, r: -190, color: '#ff8faa', delay: 0 },
@@ -88,6 +88,7 @@ function getEventTone(mascotId: string, reason: 'unread' | 'new-mail' | 'sent') 
 }
 
 export function CourierCompanionDock({ compact = false }: { compact?: boolean }) {
+  const [spinCycle, setSpinCycle] = useState(0)
   const {
     selectedMascotId,
     bondByMascot,
@@ -275,14 +276,18 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
               />
             </>
           )}
-          <div className={`companion-stage ${mascotMotionClass}`}>
-            <CourierMascot
+          <div
+            className={`companion-stage ${mascotMotionClass} cursor-pointer`}
+            onClick={() => setSpinCycle((cycle) => cycle + 1)}
+            title="クリックでくるっと回る"
+          >
+            <MascotRenderer
               mascotId={selectedMascotId}
               bond={bond}
               care={care}
               size={compact ? 112 : 138}
-              stage="full"
-              spinOnClick
+              pose={0}
+              spinSignal={spinCycle}
             />
           </div>
         </div>

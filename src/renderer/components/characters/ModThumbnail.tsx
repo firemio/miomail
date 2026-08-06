@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { Box, Image as ImageIcon } from 'lucide-react'
+import { Box, Image as ImageIcon, Shapes } from 'lucide-react'
 import type { CharacterModPackage } from '../../characters/types'
 import { useCharacterModAssetUrl } from '../../lib/characterMods'
+import { DomModMascot } from './DomModMascot'
 
 function mimeForFile(file: string) {
   return file.toLowerCase().endsWith('.png') ? 'image/png' : 'image/webp'
@@ -101,6 +102,24 @@ export function ModThumbnail({ characterPackage }: { characterPackage: Character
     return (
       <span ref={hostRef} className="block h-full w-full">
         <img src={url} alt="" className="h-full w-full object-contain" draggable={false} loading="lazy" decoding="async" />
+      </span>
+    )
+  }
+
+  // dom-svgはDOMだけで描けるので、thumbnail画像が無くても本体をそのまま縮小表示する
+  if (characterPackage.manifest.renderer === 'dom-svg') {
+    return (
+      <span ref={hostRef} className="flex h-full w-full items-center justify-center" aria-hidden="true">
+        {visible && (
+          <DomModMascot
+            characterPackage={characterPackage}
+            motion="idle"
+            // ひげのように枠外へ描くパーツがあるMODでも切れないよう、少し余白を残す
+            size={60}
+            spinSignal={0}
+            fallback={<Shapes size={28} strokeWidth={1.6} className="text-sumi-accent" />}
+          />
+        )}
       </span>
     )
   }

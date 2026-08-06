@@ -70,6 +70,31 @@ const GLB_EXAMPLE = `{
   }
 }`
 
+const DOM_SVG_EXAMPLE = `{
+  "schemaVersion": 1,
+  "id": "creator.fluffy-bear-svg",
+  "name": "Fluffy Bear SVG",
+  "version": "1.0.0",
+  "author": "Creator",
+  "description": "手描きSVGパーツで組んだ配達くま",
+  "behaviorProfile": "makko",
+  "renderer": "dom-svg",
+  "thumbnail": "thumbnail.webp",
+  "source": {
+    "type": "scene",
+    "file": "assets/scene.json",
+    "motions": {
+      "idle": { "animations": ["breath", "ear-left", "ear-right"], "loop": true },
+      "rest": {
+        "pose": { "rotate": 3, "translateY": 3 },
+        "expression": "sleepy",
+        "animations": ["doze"],
+        "loop": true
+      }
+    }
+  }
+}`
+
 const MANIFEST_FIELDS = [
   ['schemaVersion', '固定で 1'],
   ['id', '全MODで一意なID。半角小文字・数字・「. _ -」のみ、3〜64文字(例: creator.fluffy-bear-2d)'],
@@ -79,7 +104,7 @@ const MANIFEST_FIELDS = [
   ['description', 'キャラクターの説明'],
   ['license', '任意。CC-BY-4.0 など配布条件を書いておくと親切'],
   ['behaviorProfile', 'makko / mio / posty / saeta のどれか。仕草のタイミングや性格をどの組み込みキャラから引き継ぐか'],
-  ['renderer', 'sprite-2d(2D) または gltf-3d(3D)'],
+  ['renderer', 'sprite-2d(2D) / gltf-3d(3D) / dom-svg(手描きSVGパーツ)'],
   ['thumbnail', '任意。一覧用サムネイル(512px・512KBまで)'],
   ['source', '素材とモーションの定義(下のセクションを参照)'],
 ] as const
@@ -135,14 +160,20 @@ export function ModsGuide() {
               <td>テクスチャ埋め込み済みの単一GLB(Blenderなどから書き出し)</td>
               <td>3Dモデリングをする人</td>
             </tr>
+            <tr>
+              <td><code>dom-svg</code></td>
+              <td>固定語彙の構造化JSON(<code>scene.json</code>)で組んだSVGパーツ + CSSアニメーション</td>
+              <td>組み込みキャラのような手描きイラストを、コードなしで動かしたい人</td>
+            </tr>
           </tbody>
         </table>
         <div className="site-docs-note">
           <ShieldCheck size={18} />
           <span>
-            <strong>非対応:</strong> HTML / JavaScript / CSS / シェーダー、GIF・APNG・アニメWebP・SVG、
+            <strong>非対応:</strong> HTML / JavaScript / CSS / シェーダー / 生のSVGファイル、GIF・APNG・アニメWebP、
             リモートURL・絶対パス・フォルダー外参照・外部.bin。
-            読み込み時にすべて検証され、通らないMODは組み込みキャラクターへ安全にフォールバックします。
+            <code>dom-svg</code>も生マークアップは受け取らず、色や座標などの値だけを検証してアプリ側がDOM/CSSを組み立てます。
+            読み込み時にすべて検証され、通らないMODは既定キャラクター(同梱MOD)へ安全にフォールバックします。
           </span>
         </div>
 
@@ -201,6 +232,30 @@ export function ModsGuide() {
           <li>モーションを省略して静止モデルだけでもOK(書く場合はidleが必須)</li>
           <li>外部テクスチャや外部.bin、glTF拡張は使えません。書き出し時に「埋め込み」を選んでください</li>
         </ul>
+
+        <h2>DOM/SVG MOD(手描きSVGパーツ)</h2>
+        <p>
+          組み込みキャラクター(ミオなど)と同じ、「体はパーツの重なり、頭はSVG」という描き方をMODでも使えます。
+          ただし生のSVG/CSSファイルはそのまま読み込みません。<code>scene.json</code>という<strong>固定語彙の構造化JSON</strong>でパーツと動きを記述し、
+          アプリ側がその数値だけからDOM/CSSを組み立てます。呼吸・耳揺れのようなループも、まばたきのような単発演出も、寝顔への表情差し替えも作れます。
+        </p>
+        <pre className="site-docs-code">{DOM_SVG_EXAMPLE}</pre>
+        <ul>
+          <li><code>assets/scene.json</code> — <code>group</code>(入れ子コンテナ)/ <code>box</code>(角丸・グラデーション・枠線付きのdiv)/ <code>svg</code>(中に<code>path</code> / <code>ellipse</code> / <code>rect</code> / <code>shapeGroup</code>を持つ)だけで木構造を組みます</li>
+          <li><code>z</code>でパーツの前後(奥行き)を決めます。表示サイズに比例して伸縮するので、どの大きさでも同じ立体感になります</li>
+          <li><code>animations</code>にキーフレームを定義し、パーツから<code>animation: "名前"</code>で参照(ループ・単発どちらも可)</li>
+          <li>キャラクター全体の動き(うたた寝・跳ねる・見回すなど)は<code>motions.*.poseAnimation</code>に指定します。2Dの<code>frames</code>、3Dの<code>clip</code>にあたるものです</li>
+          <li>各パーツに<code>visibleIn: ["sleepy"]</code>のように表情タグを付け、<code>motions.rest.expression</code>などで切り替え</li>
+          <li>色は<code>{'{ "type": "solid", "color": "#rrggbb" }'}</code>のような構造化指定のみ。<code>url()</code>や外部画像参照は使えません</li>
+          <li>node/shape合計400個・ネスト12階層・animation32個までなど、上限は組み込みキャラと同等の規模を想定しています</li>
+        </ul>
+        <p>
+          既定の4キャラクター(<strong>マクコ・ミオ・ポスティ・サエタ</strong>)は、まさにこの形式のMODとして
+          アプリに同梱されています。実物はリポジトリの<code>mods/makko-svg</code>・<code>mods/mio-svg</code>・
+          <code>mods/posty-svg</code>・<code>mods/saeta-svg</code>にあり、輪郭線・まばたき・寝顔・ひげのぴくつきまで
+          含めた完成形の見本としてそのままコピーして使えます。同じ<code>id</code>のMODをユーザーフォルダーへ入れると
+          同梱版より優先されるため、既定キャラクターの差し替えも可能です。
+        </p>
 
         <h2>モーション一覧</h2>
         <p>使える動作名は次の10種類。ぜんぶ作らなくても大丈夫、足りない分はidleで動きます。</p>

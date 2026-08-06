@@ -49,7 +49,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../scripts/extract_outlook.py": "_up_/scripts/extract_outlook.py"
+      "../scripts/extract_outlook.py": "_up_/scripts/extract_outlook.py",
+      "../mods": "mods"
     },
     "windows": {
       "nsis": {

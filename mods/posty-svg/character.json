@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "firemio.posty-svg",
+  "name": "ポスティ（SVG）",
+  "version": "1.0.0",
+  "author": "firemio",
+  "description": "組み込みのポスティをDOM/SVG MODとして再構成した同梱キャラクター",
+  "license": "MIT",
+  "behaviorProfile": "posty",
+  "renderer": "dom-svg",
+  "source": {
+    "type": "scene",
+    "file": "scene.json",
+    "motions": {
+      "idle": {
+        "pose": { "rotate": -2 },
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "look-around": {
+        "poseAnimation": "pose-look-around",
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "alert": {
+        "poseAnimation": "pose-check",
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "bounce": {
+        "pose": { "rotate": 1, "translateY": -3, "scaleX": 1.06, "scaleY": 0.96 },
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "self-care": {
+        "poseAnimation": "pose-scan",
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "rest": {
+        "poseAnimation": "pose-charge",
+        "poseOrigin": [50, 90],
+        "expression": "sleepy",
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "inspect": {
+        "poseAnimation": "pose-reboot",
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "celebrate": {
+        "poseAnimation": "pose-salute",
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "walk": {
+        "pose": { "rotate": -2, "translateY": -1 },
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      },
+      "deliver": {
+        "pose": { "rotate": 2, "translateY": -2, "scale": 1.02 },
+        "poseOrigin": [50, 90],
+        "animations": ["antenna-bob", "beacon-pulse"],
+        "loop": true
+      }
+    }
+  }
+}

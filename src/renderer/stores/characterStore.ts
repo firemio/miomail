@@ -1,17 +1,17 @@
 import { create } from 'zustand'
 import type {
-  BuiltinCharacterRenderer,
   CharacterModInstallResult,
   CharacterModIssue,
   CharacterModPackage,
 } from '../characters/types'
+import { DEFAULT_MOD_ID_BY_MASCOT } from '../characters/types'
 import { api } from '../lib/ipc'
 import { pruneCharacterModAssetCache } from '../lib/characterMods'
 
 const STORAGE_KEY = 'miomail-character-source-v1'
 
 interface PersistedCharacterSource {
-  builtinRenderer: BuiltinCharacterRenderer
+  /** null = 選択中マスコットも既定の同梱MODで描く */
   selectedModId: string | null
 }
 
@@ -21,15 +21,13 @@ interface CharacterStore extends PersistedCharacterSource {
   loading: boolean
   installing: boolean
   error: string | null
-  selectBuiltinRenderer: (renderer: BuiltinCharacterRenderer) => void
-  selectMod: (modId: string) => void
+  selectMod: (modId: string | null) => void
   refreshMods: () => Promise<void>
   installArchive: () => Promise<CharacterModInstallResult | null>
   openModsFolder: () => Promise<void>
 }
 
 const fallback: PersistedCharacterSource = {
-  builtinRenderer: 'soft-3d',
   selectedModId: null,
 }
 
@@ -38,7 +36,6 @@ function loadSelection(): PersistedCharacterSource {
   try {
     const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<PersistedCharacterSource>
     return {
-      builtinRenderer: parsed.builtinRenderer === 'classic-2d' ? 'classic-2d' : 'soft-3d',
       selectedModId: typeof parsed.selectedModId === 'string' && parsed.selectedModId
         ? parsed.selectedModId
         : null,
@@ -53,8 +50,15 @@ function persist(selection: PersistedCharacterSource) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(selection))
   } catch {
-    // A storage failure must not prevent the built-in character from rendering.
+    // 保存に失敗してもキャラクター表示は継続する
   }
+}
+
+// 既定4キャラの同梱MODは常に描画に使うため、キャッシュから追い出さない
+function liveModIds(selectedModId: string | null) {
+  const ids = Object.values(DEFAULT_MOD_ID_BY_MASCOT)
+  if (selectedModId && !ids.includes(selectedModId)) ids.push(selectedModId)
+  return ids
 }
 
 const initial = loadSelection()
@@ -67,18 +71,11 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
   installing: false,
   error: null,
 
-  selectBuiltinRenderer: (builtinRenderer) => {
-    const selection = { builtinRenderer, selectedModId: null }
-    persist(selection)
-    set(selection)
-    pruneCharacterModAssetCache(get().packages, null)
-  },
-
   selectMod: (selectedModId) => {
-    const selection = { builtinRenderer: get().builtinRenderer, selectedModId }
+    const selection = { selectedModId }
     persist(selection)
     set(selection)
-    pruneCharacterModAssetCache(get().packages, selectedModId)
+    pruneCharacterModAssetCache(get().packages, liveModIds(selectedModId))
   },
 
   refreshMods: async () => {
@@ -86,7 +83,7 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const result = await api.characterMods.list()
-      pruneCharacterModAssetCache(result.packages, get().selectedModId)
+      pruneCharacterModAssetCache(result.packages, liveModIds(get().selectedModId))
       set({ packages: result.packages, issues: result.issues, loading: false })
     } catch (error) {
       pruneCharacterModAssetCache([])

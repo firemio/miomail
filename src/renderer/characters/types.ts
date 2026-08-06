@@ -14,8 +14,18 @@ export const CHARACTER_MOTIONS = [
 ] as const
 
 export type CharacterMotion = (typeof CHARACTER_MOTIONS)[number]
-export type BuiltinCharacterRenderer = 'classic-2d' | 'soft-3d'
-export type CharacterModRenderer = 'sprite-2d' | 'gltf-3d'
+export type CharacterModRenderer = 'sprite-2d' | 'gltf-3d' | 'dom-svg'
+/** builtin=アプリ同梱（読み取り専用・既定4キャラ）、user=ユーザー導入 */
+export type CharacterModOrigin = 'builtin' | 'user'
+
+/** 既定キャラの見た目を担う同梱MOD。ユーザーが同idのMODを導入すると差し替わる */
+export const DEFAULT_MOD_ID_BY_MASCOT: Record<MascotId, string> = {
+  makko: 'firemio.makko-svg',
+  mio: 'firemio.mio-svg',
+  posty: 'firemio.posty-svg',
+  saeta: 'firemio.saeta-svg',
+}
+export type DomSvgExpression = 'normal' | 'sleepy' | 'happy' | 'sad'
 
 export const POSE_MOTIONS: readonly CharacterMotion[] = [
   'idle',
@@ -70,6 +80,33 @@ export interface GltfModelSource {
   motions: Partial<Record<CharacterMotion, GltfMotion>>
 }
 
+export interface DomSvgTransform {
+  rotate?: number
+  rotateX?: number
+  rotateY?: number
+  translateX?: number
+  translateY?: number
+  scale?: number
+  scaleX?: number
+  scaleY?: number
+}
+
+export interface DomSvgMotion {
+  pose?: DomSvgTransform
+  /** モデル全体に掛けるアニメーション。spriteのframes、gltfのclipに相当する */
+  poseAnimation?: string
+  poseOrigin?: [number, number]
+  animations?: string[]
+  expression?: DomSvgExpression
+  loop: boolean
+}
+
+export interface DomSvgSceneSource {
+  type: 'scene'
+  file: string
+  motions: Partial<Record<CharacterMotion, DomSvgMotion>>
+}
+
 interface CharacterModManifestBase {
   schemaVersion: 1
   id: string
@@ -92,11 +129,20 @@ export interface GltfCharacterModManifest extends CharacterModManifestBase {
   source: GltfModelSource
 }
 
-export type CharacterModManifest = SpriteCharacterModManifest | GltfCharacterModManifest
+export interface DomSvgCharacterModManifest extends CharacterModManifestBase {
+  renderer: 'dom-svg'
+  source: DomSvgSceneSource
+}
+
+export type CharacterModManifest =
+  | SpriteCharacterModManifest
+  | GltfCharacterModManifest
+  | DomSvgCharacterModManifest
 
 export interface CharacterModPackage {
   manifest: CharacterModManifest
   revision: string
+  origin: CharacterModOrigin
 }
 
 export interface CharacterModIssue {

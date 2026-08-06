@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "firemio.saeta-svg",
+  "name": "サエタ（SVG）",
+  "version": "1.0.0",
+  "author": "firemio",
+  "description": "組み込みのサエタをDOM/SVG MODとして再構成した同梱キャラクター",
+  "license": "MIT",
+  "behaviorProfile": "saeta",
+  "renderer": "dom-svg",
+  "source": {
+    "type": "scene",
+    "file": "scene.json",
+    "motions": {
+      "idle": {
+        "pose": { "rotate": -2 },
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      },
+      "look-around": {
+        "poseAnimation": "pose-look-around",
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      },
+      "alert": {
+        "pose": { "rotate": -6, "translateY": 2, "scaleX": 0.97, "scaleY": 1.04 },
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      },
+      "bounce": {
+        "poseAnimation": "pose-ready",
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      },
+      "self-care": {
+        "poseAnimation": "pose-preen",
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      },
+      "rest": {
+        "poseAnimation": "pose-perch",
+        "poseOrigin": [50, 90],
+        "expression": "sleepy",
+        "animations": ["bird-tail-fan"],
+        "loop": true
+      },
+      "inspect": {
+        "poseAnimation": "pose-hover",
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      },
+      "celebrate": {
+        "poseAnimation": "pose-look",
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      },
+      "walk": {
+        "pose": { "rotate": -2, "translateY": -1 },
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      },
+      "deliver": {
+        "pose": { "rotate": 2, "translateY": -2, "scale": 1.02 },
+        "poseOrigin": [50, 90],
+        "animations": ["bird-wing-left", "bird-wing-right", "bird-tail-fan"],
+        "loop": true
+      }
+    }
+  }
+}

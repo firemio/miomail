@@ -93,7 +93,7 @@ export function loadCharacterModAssetBytes(
 
 export function pruneCharacterModAssetCache(
   packages: CharacterModPackage[],
-  selectedModId: string | null = null,
+  liveModIds: string[] = [],
 ) {
   const livePackages = packages.map((characterPackage) => ({
     id: characterPackage.manifest.id,
@@ -102,7 +102,7 @@ export function pruneCharacterModAssetCache(
   const isLive = (cacheKey: string) => livePackages.some(({ id, prefix }) => {
     if (!cacheKey.startsWith(prefix)) return false
     const assetKey = cacheKey.slice(prefix.length)
-    return assetKey === 'thumbnail' || id === selectedModId
+    return assetKey === 'thumbnail' || liveModIds.includes(id)
   })
 
   for (const cacheKey of assetBytesCache.keys()) {

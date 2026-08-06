@@ -39,6 +39,21 @@ const MAX_ARCHIVE_UNPACKED_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_ARCHIVE_ENTRIES: usize = 600;
 const ARCHIVE_TMP_PREFIX: &str = ".install-";
 const SKIPPED_ARCHIVE_FILES: [&str; 3] = [".DS_Store", "Thumbs.db", "desktop.ini"];
+const MAX_SCENE_BYTES: u64 = 512 * 1024;
+const MAX_SCENE_NODES: usize = 400;
+const MAX_SCENE_DEPTH: usize = 12;
+const MAX_PATH_DATA_CHARS: usize = 12_000;
+const MAX_SCENE_ANIMATIONS: usize = 32;
+const MAX_KEYFRAMES_PER_ANIMATION: usize = 24;
+const MAX_GRADIENT_STOPS: usize = 8;
+const MAX_CLIP_PATH_POINTS: usize = 24;
+const MAX_BACKGROUND_LAYERS: usize = 4;
+const MAX_SHADOWS: usize = 6;
+const ALLOWED_STROKE_LINECAPS: [&str; 3] = ["butt", "round", "square"];
+const ALLOWED_STROKE_LINEJOINS: [&str; 3] = ["miter", "round", "bevel"];
+const ALLOWED_EXPRESSIONS: [&str; 4] = ["normal", "sleepy", "happy", "sad"];
+const ALLOWED_EASINGS: [&str; 5] = ["linear", "ease", "ease-in", "ease-out", "ease-in-out"];
+const PATH_DATA_ALLOWED_BYTES: &[u8] = b"MmLlHhVvCcSsQqTtAaZz0123456789 .,+-eE\n\t\r";
 const ALLOWED_MOTIONS: [&str; 10] = [
     "idle",
     "look-around",
@@ -54,12 +69,15 @@ const ALLOWED_MOTIONS: [&str; 10] = [
 
 const MOD_README: &str = include_str!("../../../docs/character-mods/MOD_FOLDER_README.txt");
 const MOD_SCHEMA: &str = include_str!("../../../docs/character-mods/character.schema.json");
+const MOD_SCENE_SCHEMA: &str = include_str!("../../../docs/character-mods/scene.schema.json");
 const SPRITE_EXAMPLE: &str =
     include_str!("../../../docs/character-mods/examples/sprite-sheet.example.json");
 const SEQUENCE_EXAMPLE: &str =
     include_str!("../../../docs/character-mods/examples/image-sequence.example.json");
 const GLB_EXAMPLE: &str =
     include_str!("../../../docs/character-mods/examples/blender-glb.example.json");
+const DOM_SVG_EXAMPLE: &str =
+    include_str!("../../../docs/character-mods/examples/dom-svg.example.json");
 
 fn default_true() -> bool {
     true
@@ -72,6 +90,8 @@ pub enum CharacterModRenderer {
     Sprite2d,
     #[serde(rename = "gltf-3d")]
     Gltf3d,
+    #[serde(rename = "dom-svg")]
+    DomSvg,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +116,45 @@ pub struct SpriteSequenceMotion {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct GltfMotion {
     pub clip: String,
+    #[serde(default = "default_true")]
+    pub r#loop: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DomSvgTransform {
+    #[serde(default)]
+    pub rotate: Option<f32>,
+    #[serde(default)]
+    pub rotate_x: Option<f32>,
+    #[serde(default)]
+    pub rotate_y: Option<f32>,
+    #[serde(default)]
+    pub translate_x: Option<f32>,
+    #[serde(default)]
+    pub translate_y: Option<f32>,
+    #[serde(default)]
+    pub scale: Option<f32>,
+    #[serde(default)]
+    pub scale_x: Option<f32>,
+    #[serde(default)]
+    pub scale_y: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DomSvgMotion {
+    #[serde(default)]
+    pub pose: Option<DomSvgTransform>,
+    /// モデル全体に掛けるアニメーション。spriteのframes、gltfのclipに相当する
+    #[serde(default)]
+    pub pose_animation: Option<String>,
+    #[serde(default)]
+    pub pose_origin: Option<[f32; 2]>,
+    #[serde(default)]
+    pub animations: Vec<String>,
+    #[serde(default)]
+    pub expression: Option<String>,
     #[serde(default = "default_true")]
     pub r#loop: bool,
 }
@@ -132,6 +191,10 @@ pub enum CharacterSource {
         rotation_y: Option<f32>,
         motions: HashMap<String, GltfMotion>,
     },
+    Scene {
+        file: String,
+        motions: HashMap<String, DomSvgMotion>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,11 +216,20 @@ pub struct CharacterModManifest {
     pub source: CharacterSource,
 }
 
+/// MODの出自。builtin=アプリ同梱（リソースdir、読み取り専用）、user=ユーザーが導入
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CharacterModOrigin {
+    Builtin,
+    User,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CharacterModPackage {
     pub manifest: CharacterModManifest,
     pub revision: String,
+    pub origin: CharacterModOrigin,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -188,6 +260,7 @@ enum AssetRole {
     Thumbnail,
     Sprite,
     Model,
+    Scene,
 }
 
 #[derive(Debug, Clone)]
@@ -272,6 +345,15 @@ fn mods_root(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| format!("MODフォルダーを決定できません: {error}"))
 }
 
+/// アプリ同梱MOD（既定4キャラ）のリソースフォルダー。
+/// 見つからない環境（テスト等）は同梱なしとして扱う。
+fn builtin_mods_root(app: &AppHandle) -> Option<PathBuf> {
+    app.path()
+        .resolve("mods", tauri::path::BaseDirectory::Resource)
+        .ok()
+        .filter(|path| path.is_dir())
+}
+
 fn ensure_mod_root(root: &Path) -> Result<(), String> {
     fs::create_dir_all(root).map_err(|error| format!("MODフォルダーを作成できません: {error}"))?;
     let readme = root.join("README.txt");
@@ -283,9 +365,11 @@ fn ensure_mod_root(root: &Path) -> Result<(), String> {
     }
     for (name, contents) in [
         ("character.schema.json", MOD_SCHEMA),
+        ("scene.schema.json", MOD_SCENE_SCHEMA),
         ("sprite-sheet.example.json", SPRITE_EXAMPLE),
         ("image-sequence.example.json", SEQUENCE_EXAMPLE),
         ("blender-glb.example.json", GLB_EXAMPLE),
+        ("dom-svg.example.json", DOM_SVG_EXAMPLE),
     ] {
         let path = root.join(name);
         if !path.exists() {
@@ -359,6 +443,33 @@ fn validate_motion_rate(fps: f32, frames: usize, label: &str) -> Result<(), Stri
     }
     if !(1..=240).contains(&frames) {
         return Err(format!("{label}のコマ数は1〜240にしてください"));
+    }
+    Ok(())
+}
+
+fn validate_dom_svg_transform(transform: &DomSvgTransform) -> Result<(), String> {
+    if [transform.rotate, transform.rotate_x, transform.rotate_y]
+        .into_iter()
+        .flatten()
+        .any(|value| !value.is_finite() || value.abs() > 360.0)
+    {
+        return Err("dom-svgのposeのrotateは-360〜360にしてください".into());
+    }
+    if transform
+        .translate_x
+        .is_some_and(|value| !value.is_finite() || value.abs() > 200.0)
+        || transform
+            .translate_y
+            .is_some_and(|value| !value.is_finite() || value.abs() > 200.0)
+    {
+        return Err("dom-svgのposeのtranslateは-200〜200にしてください".into());
+    }
+    if [transform.scale, transform.scale_x, transform.scale_y]
+        .into_iter()
+        .flatten()
+        .any(|value| !value.is_finite() || !(0.01..=10.0).contains(&value))
+    {
+        return Err("dom-svgのposeのscaleは0.01〜10にしてください".into());
     }
     Ok(())
 }
@@ -464,6 +575,37 @@ fn validate_manifest(manifest: &CharacterModManifest) -> Result<(), String> {
             for (name, motion) in motions {
                 validate_motion_name(name)?;
                 validate_text(&motion.clip, "clip", 80, true)?;
+            }
+        }
+        (CharacterModRenderer::DomSvg, CharacterSource::Scene { motions, .. }) => {
+            if motions.is_empty() || !motions.contains_key("idle") {
+                return Err("DOM/SVG MODにはidleモーションが必要です".into());
+            }
+            for (name, motion) in motions {
+                validate_motion_name(name)?;
+                if motion.animations.len() > MAX_SCENE_ANIMATIONS {
+                    return Err(format!("{name}のanimations指定数が多すぎます"));
+                }
+                for animation_name in &motion.animations {
+                    validate_scene_animation_name(animation_name)?;
+                }
+                if let Some(expression) = &motion.expression {
+                    if !ALLOWED_EXPRESSIONS.contains(&expression.as_str()) {
+                        return Err(format!("未対応のexpressionです: {expression}"));
+                    }
+                }
+                if let Some(pose) = &motion.pose {
+                    validate_dom_svg_transform(pose)?;
+                }
+                if let Some(pose_animation) = &motion.pose_animation {
+                    validate_scene_animation_name(pose_animation)?;
+                }
+                if motion
+                    .pose_origin
+                    .is_some_and(|origin| origin.iter().any(|value| !value.is_finite()))
+                {
+                    return Err(format!("{name}のposeOriginは有限数にしてください"));
+                }
             }
         }
         _ => return Err("rendererとsource.typeの組み合わせが一致しません".into()),
@@ -1490,6 +1632,862 @@ fn validate_glb(bytes: &[u8]) -> Result<HashSet<String>, String> {
     Ok(animation_names)
 }
 
+// dom-svg MODは生のHTML/CSS/SVGマークアップを一切受け取らない。scene.jsonは固定語彙の
+// ノード木として構造化JSONで表現し、色・path data・寸法などの値をここで厳格に検証したうえで、
+// フロント側が数値/enumからスタイルを組み立てる（MOD文字列がそのままDOM/CSSへ渡ることはない）。
+
+struct SceneWalkState<'a> {
+    animation_names: &'a HashSet<String>,
+    node_budget: usize,
+}
+
+fn assert_object_keys(
+    object: &serde_json::Map<String, Value>,
+    allowed: &[&str],
+    label: &str,
+) -> Result<(), String> {
+    for key in object.keys() {
+        if !allowed.contains(&key.as_str()) {
+            return Err(format!("{label}に未対応のキーがあります: {key}"));
+        }
+    }
+    Ok(())
+}
+
+fn opt_f64_range(
+    object: &serde_json::Map<String, Value>,
+    key: &str,
+    min: f64,
+    max: f64,
+    label: &str,
+) -> Result<Option<f64>, String> {
+    match object.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => {
+            let number = value
+                .as_f64()
+                .ok_or_else(|| format!("{label}.{key}は数値にしてください"))?;
+            if !number.is_finite() || number < min || number > max {
+                return Err(format!("{label}.{key}は{min}〜{max}にしてください"));
+            }
+            Ok(Some(number))
+        }
+    }
+}
+
+fn validate_scene_id(id: &str) -> Result<(), String> {
+    if id.is_empty()
+        || id.len() > 64
+        || !id
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    {
+        return Err("dom-svg sceneのidは半角小文字・数字・-のみ、64文字以内にしてください".into());
+    }
+    Ok(())
+}
+
+fn validate_scene_animation_name(name: &str) -> Result<(), String> {
+    let valid = !name.is_empty()
+        && name.len() <= 40
+        && name.as_bytes()[0].is_ascii_lowercase()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
+    if valid {
+        Ok(())
+    } else {
+        Err(format!("animation名の形式が不正です: {name}"))
+    }
+}
+
+fn validate_view_box(items: &[Value]) -> Result<(), String> {
+    if items.len() != 2 {
+        return Err("viewBoxは[width,height]の2要素にしてください".into());
+    }
+    for item in items {
+        let number = item.as_f64().ok_or("viewBoxは数値にしてください")?;
+        if !number.is_finite() || !(1.0..=4096.0).contains(&number) {
+            return Err("viewBoxの値は1〜4096にしてください".into());
+        }
+    }
+    Ok(())
+}
+
+fn validate_color(color: &str) -> Result<(), String> {
+    if color.len() > 32 {
+        return Err("colorが長すぎます".into());
+    }
+    if color == "transparent" {
+        return Ok(());
+    }
+    if let Some(hex) = color.strip_prefix('#') {
+        if matches!(hex.len(), 3 | 4 | 6 | 8) && hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Ok(());
+        }
+        return Err(format!("colorのhex表記が不正です: {color}"));
+    }
+    for (prefix, expected_components) in [("rgba(", 4), ("rgb(", 3)] {
+        if let Some(rest) = color.strip_prefix(prefix) {
+            let rest = rest
+                .strip_suffix(')')
+                .ok_or_else(|| format!("colorの括弧が不正です: {color}"))?;
+            let parts: Vec<&str> = rest.split(',').map(str::trim).collect();
+            if parts.len() != expected_components {
+                return Err(format!("colorの要素数が不正です: {color}"));
+            }
+            for (index, part) in parts.iter().enumerate() {
+                let number: f64 = part
+                    .parse()
+                    .map_err(|_| format!("colorの数値が不正です: {color}"))?;
+                let max = if index == 3 { 1.0 } else { 255.0 };
+                if !number.is_finite() || number < 0.0 || number > max {
+                    return Err(format!("colorの数値が範囲外です: {color}"));
+                }
+            }
+            return Ok(());
+        }
+    }
+    Err(format!("未対応のcolor形式です: {color}"))
+}
+
+fn validate_gradient_stops(object: &serde_json::Map<String, Value>) -> Result<(), String> {
+    let stops = object
+        .get("stops")
+        .and_then(Value::as_array)
+        .ok_or("paintにstopsが必要です")?;
+    if stops.is_empty() || stops.len() > MAX_GRADIENT_STOPS {
+        return Err(format!("paint.stopsは1〜{MAX_GRADIENT_STOPS}個にしてください"));
+    }
+    for stop in stops {
+        let stop_object = stop.as_object().ok_or("paint.stopはobjectにしてください")?;
+        assert_object_keys(stop_object, &["color", "at"], "paint.stop")?;
+        let color = stop_object
+            .get("color")
+            .and_then(Value::as_str)
+            .ok_or("paint.stopにcolorが必要です")?;
+        validate_color(color)?;
+        opt_f64_range(stop_object, "at", 0.0, 100.0, "paint.stop")?
+            .ok_or("paint.stopにatが必要です")?;
+    }
+    Ok(())
+}
+
+fn validate_paint(value: &Value) -> Result<(), String> {
+    let object = value.as_object().ok_or("paintはobjectにしてください")?;
+    let paint_type = object
+        .get("type")
+        .and_then(Value::as_str)
+        .ok_or("paint.typeが必要です")?;
+    match paint_type {
+        "solid" => {
+            assert_object_keys(object, &["type", "color"], "solid paint")?;
+            let color = object
+                .get("color")
+                .and_then(Value::as_str)
+                .ok_or("solid paintにcolorが必要です")?;
+            validate_color(color)?;
+        }
+        "linear" => {
+            assert_object_keys(object, &["type", "angle", "stops"], "linear paint")?;
+            opt_f64_range(object, "angle", -360.0, 360.0, "linear paint")?
+                .ok_or("linear paintにangleが必要です")?;
+            validate_gradient_stops(object)?;
+        }
+        "radial" => {
+            assert_object_keys(object, &["type", "shape", "cx", "cy", "stops"], "radial paint")?;
+            let shape = object
+                .get("shape")
+                .and_then(Value::as_str)
+                .ok_or("radial paintにshapeが必要です")?;
+            if !matches!(shape, "ellipse" | "circle") {
+                return Err("radial paint.shapeはellipseまたはcircleにしてください".into());
+            }
+            opt_f64_range(object, "cx", -100.0, 200.0, "radial paint")?
+                .ok_or("radial paintにcxが必要です")?;
+            opt_f64_range(object, "cy", -100.0, 200.0, "radial paint")?
+                .ok_or("radial paintにcyが必要です")?;
+            validate_gradient_stops(object)?;
+        }
+        other => return Err(format!("未対応のpaint.typeです: {other}")),
+    }
+    Ok(())
+}
+
+// backgroundは単一paint、またはCSSと同じ「先頭が最前面」のレイヤー配列を取れる
+fn validate_background(value: &Value) -> Result<(), String> {
+    let layers = match value.as_array() {
+        Some(layers) => {
+            if layers.is_empty() || layers.len() > MAX_BACKGROUND_LAYERS {
+                return Err(format!(
+                    "backgroundのレイヤーは1〜{MAX_BACKGROUND_LAYERS}枚にしてください"
+                ));
+            }
+            layers.as_slice()
+        }
+        None => std::slice::from_ref(value),
+    };
+    for layer in layers {
+        validate_paint(layer)?;
+    }
+    Ok(())
+}
+
+fn validate_shadow_list(value: &Value, label: &str, allow_inset: bool) -> Result<(), String> {
+    let shadows = value
+        .as_array()
+        .ok_or_else(|| format!("{label}は配列にしてください"))?;
+    if shadows.is_empty() || shadows.len() > MAX_SHADOWS {
+        return Err(format!("{label}は1〜{MAX_SHADOWS}個にしてください"));
+    }
+    for shadow in shadows {
+        let object = shadow
+            .as_object()
+            .ok_or_else(|| format!("{label}の要素はobjectにしてください"))?;
+        let allowed: &[&str] = if allow_inset {
+            &["dx", "dy", "blur", "spread", "color", "inset"]
+        } else {
+            &["dx", "dy", "blur", "color"]
+        };
+        assert_object_keys(object, allowed, label)?;
+        opt_f64_range(object, "dx", -50.0, 50.0, label)?.ok_or(format!("{label}にdxが必要です"))?;
+        opt_f64_range(object, "dy", -50.0, 50.0, label)?.ok_or(format!("{label}にdyが必要です"))?;
+        opt_f64_range(object, "blur", 0.0, 50.0, label)?;
+        if allow_inset {
+            opt_f64_range(object, "spread", -50.0, 50.0, label)?;
+            if object
+                .get("inset")
+                .is_some_and(|value| !value.is_boolean())
+            {
+                return Err(format!("{label}.insetは真偽値にしてください"));
+            }
+        }
+        let color = object
+            .get("color")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("{label}にcolorが必要です"))?;
+        validate_color(color)?;
+    }
+    Ok(())
+}
+
+fn validate_border(value: &Value, label: &str) -> Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| format!("{label}はobjectにしてください"))?;
+    assert_object_keys(object, &["width", "color"], label)?;
+    opt_f64_range(object, "width", 0.0, 20.0, label)?.ok_or(format!("{label}にwidthが必要です"))?;
+    let color = object
+        .get("color")
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("{label}にcolorが必要です"))?;
+    validate_color(color)
+}
+
+fn validate_border_radius(value: &str) -> Result<(), String> {
+    if value.len() > 64 {
+        return Err("borderRadiusが長すぎます".into());
+    }
+    let mut token_count = 0usize;
+    for token in value.split(|c: char| c == ' ' || c == '/') {
+        if token.is_empty() {
+            continue;
+        }
+        // CSSと同じく、ゼロだけは単位なしで書ける
+        let number_part = match token.strip_suffix('%') {
+            Some(number_part) => number_part,
+            None if token == "0" => token,
+            None => return Err(format!("borderRadiusは%指定にしてください: {value}")),
+        };
+        let number: f64 = number_part
+            .parse()
+            .map_err(|_| format!("borderRadiusの数値が不正です: {value}"))?;
+        if !number.is_finite() || !(0.0..=100.0).contains(&number) {
+            return Err(format!("borderRadiusは0〜100%にしてください: {value}"));
+        }
+        token_count += 1;
+        if token_count > 8 {
+            return Err("borderRadiusの指定数が多すぎます".into());
+        }
+    }
+    if token_count == 0 {
+        return Err("borderRadiusが空です".into());
+    }
+    Ok(())
+}
+
+fn validate_clip_path(value: &str) -> Result<(), String> {
+    if value.len() > 512 {
+        return Err("clipPathが長すぎます".into());
+    }
+    let inner = value
+        .strip_prefix("polygon(")
+        .and_then(|rest| rest.strip_suffix(')'))
+        .ok_or("clipPathはpolygon(...)にしてください")?;
+    let points: Vec<&str> = inner.split(',').collect();
+    if points.is_empty() || points.len() > MAX_CLIP_PATH_POINTS {
+        return Err(format!(
+            "clipPathの頂点数は1〜{MAX_CLIP_PATH_POINTS}個にしてください"
+        ));
+    }
+    for point in points {
+        let coords: Vec<&str> = point.split_whitespace().collect();
+        if coords.len() != 2 {
+            return Err("clipPathの頂点は\"x% y%\"の形式にしてください".into());
+        }
+        for coord in coords {
+            let number_part = match coord.strip_suffix('%') {
+                Some(number_part) => number_part,
+                None if coord == "0" => coord,
+                None => return Err("clipPathの座標は%指定にしてください".into()),
+            };
+            let number: f64 = number_part
+                .parse()
+                .map_err(|_| "clipPathの数値が不正です".to_string())?;
+            if !number.is_finite() || !(-50.0..=150.0).contains(&number) {
+                return Err("clipPathの座標は-50〜150%にしてください".into());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_path_data(d: &str) -> Result<(), String> {
+    if d.is_empty() || d.chars().count() > MAX_PATH_DATA_CHARS {
+        return Err(format!(
+            "path dataは1〜{MAX_PATH_DATA_CHARS}文字にしてください"
+        ));
+    }
+    if !d.bytes().all(|byte| PATH_DATA_ALLOWED_BYTES.contains(&byte)) {
+        return Err("path dataに使用できない文字が含まれています".into());
+    }
+    let first = d.trim_start().bytes().next();
+    if !matches!(first, Some(b'M') | Some(b'm')) {
+        return Err("path dataはMまたはmで始めてください".into());
+    }
+    Ok(())
+}
+
+fn validate_animation_ref(
+    object: &serde_json::Map<String, Value>,
+    animation_names: &HashSet<String>,
+    label: &str,
+) -> Result<(), String> {
+    if let Some(animation) = object.get("animation") {
+        let name = animation
+            .as_str()
+            .ok_or_else(|| format!("{label}.animationは文字列にしてください"))?;
+        if !animation_names.contains(name) {
+            return Err(format!("未定義のanimationを参照しています: {name}"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_transform_origin(
+    object: &serde_json::Map<String, Value>,
+    label: &str,
+) -> Result<(), String> {
+    let Some(origin) = object.get("transformOrigin") else {
+        return Ok(());
+    };
+    let items = origin
+        .as_array()
+        .ok_or_else(|| format!("{label}.transformOriginは[x,y]にしてください"))?;
+    if items.len() != 2 {
+        return Err(format!("{label}.transformOriginは[x,y]の2要素にしてください"));
+    }
+    for item in items {
+        let number = item
+            .as_f64()
+            .ok_or_else(|| format!("{label}.transformOriginは数値にしてください"))?;
+        if !number.is_finite() {
+            return Err(format!("{label}.transformOriginは有限数にしてください"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_visible_in(
+    object: &serde_json::Map<String, Value>,
+    label: &str,
+) -> Result<(), String> {
+    let Some(visible_in) = object.get("visibleIn") else {
+        return Ok(());
+    };
+    let items = visible_in
+        .as_array()
+        .ok_or_else(|| format!("{label}.visibleInは配列にしてください"))?;
+    if items.len() > ALLOWED_EXPRESSIONS.len() {
+        return Err(format!("{label}.visibleInの要素数が多すぎます"));
+    }
+    let mut seen = HashSet::new();
+    for item in items {
+        let expression = item
+            .as_str()
+            .ok_or_else(|| format!("{label}.visibleInは文字列配列にしてください"))?;
+        if !ALLOWED_EXPRESSIONS.contains(&expression) {
+            return Err(format!("未対応のexpressionです: {expression}"));
+        }
+        if !seen.insert(expression) {
+            return Err(format!("{label}.visibleInに重複があります"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_common_node_fields(
+    object: &serde_json::Map<String, Value>,
+    animation_names: &HashSet<String>,
+) -> Result<(), String> {
+    if let Some(id) = object.get("id") {
+        let id = id.as_str().ok_or("node.idは文字列にしてください")?;
+        validate_scene_id(id)?;
+    }
+    for key in ["left", "right", "top", "bottom", "width", "height"] {
+        opt_f64_range(object, key, -200.0, 300.0, "node")?;
+    }
+    opt_f64_range(object, "z", 0.0, 200.0, "node")?;
+    for key in ["rotate", "rotateX", "rotateY"] {
+        opt_f64_range(object, key, -360.0, 360.0, "node")?;
+    }
+    opt_f64_range(object, "translateX", -200.0, 200.0, "node")?;
+    opt_f64_range(object, "translateY", -200.0, 200.0, "node")?;
+    for key in ["scale", "scaleX", "scaleY"] {
+        opt_f64_range(object, key, 0.01, 10.0, "node")?;
+    }
+    opt_f64_range(object, "opacity", 0.0, 1.0, "node")?;
+    if object
+        .get("overflowHidden")
+        .is_some_and(|value| !value.is_boolean())
+    {
+        return Err("node.overflowHiddenは真偽値にしてください".into());
+    }
+    if let Some(filter) = object.get("filter") {
+        validate_shadow_list(filter, "node.filter", false)?;
+    }
+    validate_animation_ref(object, animation_names, "node")?;
+    validate_transform_origin(object, "node")?;
+    validate_visible_in(object, "node")?;
+    Ok(())
+}
+
+// 全nodeが共通で持てるキー。各kindはこれに固有キーを足したものを許可する
+macro_rules! common_node_keys {
+    ($($extra:literal),* $(,)?) => {
+        &[
+            "kind", "id",
+            "left", "right", "top", "bottom", "width", "height",
+            "z", "rotate", "rotateX", "rotateY", "translateX", "translateY", "scale", "scaleX", "scaleY",
+            "opacity", "overflowHidden", "filter",
+            "animation", "transformOrigin", "visibleIn",
+            $($extra,)*
+        ]
+    };
+}
+
+const GROUP_NODE_KEYS: &[&str] = common_node_keys!("children");
+const BOX_NODE_KEYS: &[&str] = common_node_keys!(
+    "children",
+    "background",
+    "borderRadius",
+    "clipPath",
+    "border",
+    "borderBottom",
+    "boxShadow",
+);
+const SVG_NODE_KEYS: &[&str] = common_node_keys!("children", "viewBox");
+
+fn validate_shape_common_fields(
+    object: &serde_json::Map<String, Value>,
+    animation_names: &HashSet<String>,
+) -> Result<(), String> {
+    if let Some(id) = object.get("id") {
+        let id = id.as_str().ok_or("shape.idは文字列にしてください")?;
+        validate_scene_id(id)?;
+    }
+    opt_f64_range(object, "opacity", 0.0, 1.0, "shape")?;
+    validate_animation_ref(object, animation_names, "shape")?;
+    validate_transform_origin(object, "shape")?;
+    validate_visible_in(object, "shape")?;
+    Ok(())
+}
+
+// 全shapeが共通で持てるキー。塗り・線を持つshapeはさらにpaint系を足す
+macro_rules! shape_paint_keys {
+    ($($extra:literal),* $(,)?) => {
+        &[
+            "kind", "id", "opacity", "animation", "transformOrigin", "visibleIn",
+            "fill", "stroke", "strokeWidth", "strokeLinecap", "strokeLinejoin", "nonScalingStroke",
+            $($extra,)*
+        ]
+    };
+}
+
+const PATH_SHAPE_KEYS: &[&str] = shape_paint_keys!("d");
+const ELLIPSE_SHAPE_KEYS: &[&str] = shape_paint_keys!("cx", "cy", "rx", "ry");
+const RECT_SHAPE_KEYS: &[&str] = shape_paint_keys!("x", "y", "width", "height", "rx");
+
+// path / ellipse / rect が共通で持つ塗り・線の指定
+fn validate_shape_paint_fields(object: &serde_json::Map<String, Value>) -> Result<(), String> {
+    if let Some(fill) = object.get("fill") {
+        validate_paint(fill)?;
+    }
+    if let Some(stroke) = object.get("stroke") {
+        validate_paint(stroke)?;
+    }
+    opt_f64_range(object, "strokeWidth", 0.0, 20.0, "shape")?;
+    if let Some(linecap) = object.get("strokeLinecap") {
+        let linecap = linecap
+            .as_str()
+            .ok_or("shape.strokeLinecapは文字列にしてください")?;
+        if !ALLOWED_STROKE_LINECAPS.contains(&linecap) {
+            return Err(format!("未対応のstrokeLinecapです: {linecap}"));
+        }
+    }
+    if let Some(linejoin) = object.get("strokeLinejoin") {
+        let linejoin = linejoin
+            .as_str()
+            .ok_or("shape.strokeLinejoinは文字列にしてください")?;
+        if !ALLOWED_STROKE_LINEJOINS.contains(&linejoin) {
+            return Err(format!("未対応のstrokeLinejoinです: {linejoin}"));
+        }
+    }
+    if object
+        .get("nonScalingStroke")
+        .is_some_and(|value| !value.is_boolean())
+    {
+        return Err("shape.nonScalingStrokeは真偽値にしてください".into());
+    }
+    Ok(())
+}
+
+fn validate_scene_node(
+    value: &Value,
+    depth: usize,
+    state: &mut SceneWalkState,
+) -> Result<(), String> {
+    if depth > MAX_SCENE_DEPTH {
+        return Err("dom-svg sceneのネスト階層が深すぎます".into());
+    }
+    state.node_budget = state
+        .node_budget
+        .checked_sub(1)
+        .ok_or("dom-svg sceneのノード数が上限を超えています")?;
+    let object = value.as_object().ok_or("dom-svg sceneのnodeはobjectにしてください")?;
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or("dom-svg sceneのnodeにkindが必要です")?;
+    match kind {
+        "group" => {
+            assert_object_keys(object, GROUP_NODE_KEYS, "group node")?;
+            validate_common_node_fields(object, state.animation_names)?;
+            let children = object
+                .get("children")
+                .and_then(Value::as_array)
+                .ok_or("groupにはchildrenが必要です")?;
+            for child in children {
+                validate_scene_node(child, depth + 1, state)?;
+            }
+        }
+        "box" => {
+            assert_object_keys(object, BOX_NODE_KEYS, "box node")?;
+            validate_common_node_fields(object, state.animation_names)?;
+            if let Some(background) = object.get("background") {
+                validate_background(background)?;
+            }
+            if let Some(border_radius) = object.get("borderRadius") {
+                let value = border_radius
+                    .as_str()
+                    .ok_or("box.borderRadiusは文字列にしてください")?;
+                validate_border_radius(value)?;
+            }
+            if let Some(clip_path) = object.get("clipPath") {
+                let value = clip_path
+                    .as_str()
+                    .ok_or("box.clipPathは文字列にしてください")?;
+                validate_clip_path(value)?;
+            }
+            if let Some(border) = object.get("border") {
+                validate_border(border, "box.border")?;
+            }
+            if let Some(border_bottom) = object.get("borderBottom") {
+                validate_border(border_bottom, "box.borderBottom")?;
+            }
+            if let Some(box_shadow) = object.get("boxShadow") {
+                validate_shadow_list(box_shadow, "box.boxShadow", true)?;
+            }
+            if let Some(children) = object.get("children") {
+                let children = children
+                    .as_array()
+                    .ok_or("box.childrenは配列にしてください")?;
+                for child in children {
+                    validate_scene_node(child, depth + 1, state)?;
+                }
+            }
+        }
+        "svg" => {
+            assert_object_keys(object, SVG_NODE_KEYS, "svg node")?;
+            validate_common_node_fields(object, state.animation_names)?;
+            let view_box = object
+                .get("viewBox")
+                .and_then(Value::as_array)
+                .ok_or("svg nodeにはviewBoxが必要です")?;
+            validate_view_box(view_box)?;
+            let children = object
+                .get("children")
+                .and_then(Value::as_array)
+                .ok_or("svg nodeにはchildrenが必要です")?;
+            for child in children {
+                validate_scene_shape(child, depth + 1, state)?;
+            }
+        }
+        other => return Err(format!("未対応のnode kindです: {other}")),
+    }
+    Ok(())
+}
+
+fn validate_scene_shape(
+    value: &Value,
+    depth: usize,
+    state: &mut SceneWalkState,
+) -> Result<(), String> {
+    if depth > MAX_SCENE_DEPTH {
+        return Err("dom-svg sceneのネスト階層が深すぎます".into());
+    }
+    state.node_budget = state
+        .node_budget
+        .checked_sub(1)
+        .ok_or("dom-svg sceneのノード数が上限を超えています")?;
+    let object = value
+        .as_object()
+        .ok_or("dom-svg sceneのshapeはobjectにしてください")?;
+    let kind = object
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or("dom-svg sceneのshapeにkindが必要です")?;
+    match kind {
+        "path" => {
+            assert_object_keys(object, PATH_SHAPE_KEYS, "path")?;
+            validate_shape_common_fields(object, state.animation_names)?;
+            let d = object
+                .get("d")
+                .and_then(Value::as_str)
+                .ok_or("pathにはdが必要です")?;
+            validate_path_data(d)?;
+            validate_shape_paint_fields(object)?;
+        }
+        "ellipse" => {
+            assert_object_keys(object, ELLIPSE_SHAPE_KEYS, "ellipse")?;
+            validate_shape_common_fields(object, state.animation_names)?;
+            for key in ["cx", "cy", "rx", "ry"] {
+                opt_f64_range(object, key, -2000.0, 4096.0, "ellipse")?
+                    .ok_or_else(|| format!("ellipseに{key}が必要です"))?;
+            }
+            validate_shape_paint_fields(object)?;
+        }
+        "rect" => {
+            assert_object_keys(object, RECT_SHAPE_KEYS, "rect")?;
+            validate_shape_common_fields(object, state.animation_names)?;
+            for key in ["x", "y", "width", "height"] {
+                opt_f64_range(object, key, -2000.0, 4096.0, "rect")?
+                    .ok_or_else(|| format!("rectに{key}が必要です"))?;
+            }
+            opt_f64_range(object, "rx", 0.0, 2048.0, "rect")?;
+            validate_shape_paint_fields(object)?;
+        }
+        "shapeGroup" => {
+            assert_object_keys(
+                object,
+                &[
+                    "kind",
+                    "id",
+                    "opacity",
+                    "animation",
+                    "transformOrigin",
+                    "visibleIn",
+                    "children",
+                ],
+                "shapeGroup",
+            )?;
+            validate_shape_common_fields(object, state.animation_names)?;
+            let children = object
+                .get("children")
+                .and_then(Value::as_array)
+                .ok_or("shapeGroupにはchildrenが必要です")?;
+            for child in children {
+                validate_scene_shape(child, depth + 1, state)?;
+            }
+        }
+        other => return Err(format!("未対応のshape kindです: {other}")),
+    }
+    Ok(())
+}
+
+fn validate_scene_animations(value: Option<&Value>) -> Result<HashSet<String>, String> {
+    let mut names = HashSet::new();
+    let Some(value) = value else {
+        return Ok(names);
+    };
+    let object = value
+        .as_object()
+        .ok_or("scene.animationsはobjectにしてください")?;
+    if object.len() > MAX_SCENE_ANIMATIONS {
+        return Err(format!(
+            "scene.animationsは{MAX_SCENE_ANIMATIONS}個までにしてください"
+        ));
+    }
+    for (name, definition) in object {
+        validate_scene_animation_name(name)?;
+        if !names.insert(name.clone()) {
+            return Err(format!("animation名が重複しています: {name}"));
+        }
+        let def_object = definition
+            .as_object()
+            .ok_or_else(|| format!("animation定義はobjectにしてください: {name}"))?;
+        assert_object_keys(
+            def_object,
+            &["durationMs", "easing", "iteration", "delayMs", "keyframes"],
+            "animation",
+        )?;
+        opt_f64_range(def_object, "durationMs", 100.0, 30_000.0, "animation")?
+            .ok_or_else(|| format!("animation.durationMsが必要です: {name}"))?;
+        let easing = def_object
+            .get("easing")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("animation.easingが必要です: {name}"))?;
+        if !ALLOWED_EASINGS.contains(&easing) {
+            return Err(format!("未対応のeasingです: {easing}"));
+        }
+        match def_object.get("iteration") {
+            Some(Value::String(value)) if value == "infinite" => {}
+            Some(Value::Number(number)) => {
+                let count = number
+                    .as_f64()
+                    .ok_or_else(|| format!("animation.iterationが不正です: {name}"))?;
+                if !count.is_finite() || !(1.0..=1000.0).contains(&count) {
+                    return Err(format!("animation.iterationは1〜1000にしてください: {name}"));
+                }
+            }
+            _ => {
+                return Err(format!(
+                    "animation.iterationは\"infinite\"または1〜1000の数値にしてください: {name}"
+                ))
+            }
+        }
+        opt_f64_range(def_object, "delayMs", 0.0, 10_000.0, "animation")?;
+        let keyframes = def_object
+            .get("keyframes")
+            .and_then(Value::as_array)
+            .ok_or_else(|| format!("animation.keyframesが必要です: {name}"))?;
+        if keyframes.is_empty() || keyframes.len() > MAX_KEYFRAMES_PER_ANIMATION {
+            return Err(format!(
+                "animation.keyframesは1〜{MAX_KEYFRAMES_PER_ANIMATION}個にしてください: {name}"
+            ));
+        }
+        let mut previous_at = -1.0f64;
+        for keyframe in keyframes {
+            let keyframe_object = keyframe
+                .as_object()
+                .ok_or_else(|| format!("keyframeはobjectにしてください: {name}"))?;
+            assert_object_keys(keyframe_object, &["at", "transform", "opacity"], "keyframe")?;
+            let at = opt_f64_range(keyframe_object, "at", 0.0, 100.0, "keyframe")?
+                .ok_or_else(|| format!("keyframe.atが必要です: {name}"))?;
+            if at <= previous_at {
+                return Err(format!("keyframe.atは昇順にしてください: {name}"));
+            }
+            previous_at = at;
+            if let Some(transform) = keyframe_object.get("transform") {
+                let transform_object = transform
+                    .as_object()
+                    .ok_or_else(|| format!("keyframe.transformはobjectにしてください: {name}"))?;
+                assert_object_keys(
+                    transform_object,
+                    &[
+                        "rotate", "rotateX", "rotateY",
+                        "translateX", "translateY",
+                        "scale", "scaleX", "scaleY",
+                    ],
+                    "keyframe.transform",
+                )?;
+                for key in ["rotate", "rotateX", "rotateY"] {
+                    opt_f64_range(transform_object, key, -360.0, 360.0, "transform")?;
+                }
+                opt_f64_range(transform_object, "translateX", -200.0, 200.0, "transform")?;
+                opt_f64_range(transform_object, "translateY", -200.0, 200.0, "transform")?;
+                for key in ["scale", "scaleX", "scaleY"] {
+                    opt_f64_range(transform_object, key, 0.01, 10.0, "transform")?;
+                }
+            }
+            opt_f64_range(keyframe_object, "opacity", 0.0, 1.0, "keyframe")?;
+        }
+    }
+    Ok(names)
+}
+
+fn validate_scene(bytes: &[u8]) -> Result<HashSet<String>, String> {
+    let root: Value = serde_json::from_slice(bytes)
+        .map_err(|error| format!("scene.jsonを解析できません: {error}"))?;
+    let object = root.as_object().ok_or("scene.jsonはobjectにしてください")?;
+    assert_object_keys(
+        object,
+        &["sceneVersion", "viewBox", "animations", "root"],
+        "scene.json",
+    )?;
+
+    let scene_version = object
+        .get("sceneVersion")
+        .and_then(Value::as_u64)
+        .ok_or("scene.jsonにsceneVersionが必要です")?;
+    if scene_version != 1 {
+        return Err(format!("未対応のsceneVersionです: {scene_version}"));
+    }
+    let view_box = object
+        .get("viewBox")
+        .and_then(Value::as_array)
+        .ok_or("scene.jsonにviewBoxが必要です")?;
+    validate_view_box(view_box)?;
+
+    let animation_names = validate_scene_animations(object.get("animations"))?;
+
+    let root_nodes = object
+        .get("root")
+        .and_then(Value::as_array)
+        .ok_or("scene.jsonにrootが必要です")?;
+    if root_nodes.is_empty() {
+        return Err("scene.jsonのrootは最低1個のnodeが必要です".into());
+    }
+    let mut state = SceneWalkState {
+        animation_names: &animation_names,
+        node_budget: MAX_SCENE_NODES,
+    };
+    for node in root_nodes {
+        validate_scene_node(node, 1, &mut state)?;
+    }
+    Ok(animation_names)
+}
+
+fn validate_scene_motion_refs(
+    manifest: &CharacterModManifest,
+    animation_names: Option<&HashSet<String>>,
+) -> Result<(), String> {
+    let CharacterSource::Scene { motions, .. } = &manifest.source else {
+        return Ok(());
+    };
+    let animation_names = animation_names.ok_or("dom-svg sceneのanimationを検証できませんでした")?;
+    for (motion_name, motion) in motions {
+        for animation in motion.animations.iter().chain(&motion.pose_animation) {
+            if !animation_names.contains(animation) {
+                return Err(format!(
+                    "{motion_name}が参照するanimationがsceneにありません: {animation}"
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 fn asset_declarations(manifest: &CharacterModManifest) -> Vec<AssetDeclaration> {
     let mut declarations = Vec::new();
     if let Some(thumbnail) = &manifest.thumbnail {
@@ -1520,6 +2518,11 @@ fn asset_declarations(manifest: &CharacterModManifest) -> Vec<AssetDeclaration> 
             key: "model".into(),
             relative_path: file.clone(),
             role: AssetRole::Model,
+        }),
+        CharacterSource::Scene { file, .. } => declarations.push(AssetDeclaration {
+            key: "scene".into(),
+            relative_path: file.clone(),
+            role: AssetRole::Scene,
         }),
     }
     declarations.sort_by(|left, right| left.key.cmp(&right.key));
@@ -1605,6 +2608,7 @@ fn validate_asset_extension(path: &Path, role: AssetRole) -> Result<(), String> 
     let valid = match role {
         AssetRole::Thumbnail | AssetRole::Sprite => matches!(extension.as_str(), "png" | "webp"),
         AssetRole::Model => extension == "glb",
+        AssetRole::Scene => extension == "json",
     };
     if valid {
         Ok(())
@@ -1614,6 +2618,7 @@ fn validate_asset_extension(path: &Path, role: AssetRole) -> Result<(), String> 
                 "2D画像は.pngまたは.webpにしてください".into()
             }
             AssetRole::Model => "3Dモデルは単一.glbにしてください".into(),
+            AssetRole::Scene => "dom-svgのsceneは単一.jsonにしてください".into(),
         })
     }
 }
@@ -1640,6 +2645,7 @@ fn load_package(mod_dir: &Path) -> Result<LoadedPackage, String> {
     let mut seen_asset_paths = HashSet::new();
     let mut assets = HashMap::new();
     let mut model_animation_names = None;
+    let mut scene_animation_names = None;
     let mut sheet_bytes = None;
     let mut total_sprite_pixels = 0u64;
 
@@ -1656,6 +2662,7 @@ fn load_package(mod_dir: &Path) -> Result<LoadedPackage, String> {
             AssetRole::Thumbnail => MAX_THUMBNAIL_BYTES,
             AssetRole::Sprite => MAX_IMAGE_BYTES,
             AssetRole::Model => MAX_GLB_BYTES,
+            AssetRole::Scene => MAX_SCENE_BYTES,
         };
         let bytes = Arc::new(read_limited(&path, limit, &declaration.relative_path)?);
         total_bytes = total_bytes.saturating_add(bytes.len() as u64);
@@ -1679,6 +2686,7 @@ fn load_package(mod_dir: &Path) -> Result<LoadedPackage, String> {
                 }
             }
             AssetRole::Model => model_animation_names = Some(validate_glb(&bytes)?),
+            AssetRole::Scene => scene_animation_names = Some(validate_scene(&bytes)?),
         }
         if declaration.key == "sheet" {
             sheet_bytes = Some(bytes.clone());
@@ -1696,10 +2704,15 @@ fn load_package(mod_dir: &Path) -> Result<LoadedPackage, String> {
     }
     normalize_sheet_layout(&mut manifest, sheet_bytes.as_deref().map(Vec::as_slice))?;
     validate_model_motion_clips(&manifest, model_animation_names.as_ref())?;
+    validate_scene_motion_refs(&manifest, scene_animation_names.as_ref())?;
 
     let revision = format!("{:x}", hasher.finalize());
     Ok(LoadedPackage {
-        descriptor: CharacterModPackage { manifest, revision },
+        descriptor: CharacterModPackage {
+            manifest,
+            revision,
+            origin: CharacterModOrigin::User,
+        },
         assets,
     })
 }
@@ -1987,6 +3000,50 @@ fn scan_packages(root: &Path) -> Result<(Vec<LoadedPackage>, Vec<CharacterModIss
     Ok((loaded, issues))
 }
 
+/// 同梱MODとユーザーMODをまとめてスキャンする。
+/// 同じidが両方にある場合はユーザーMODを優先する（上書き導入を許す）。
+fn scan_all_packages(
+    builtin_root: Option<&Path>,
+    user_root: &Path,
+) -> Result<(Vec<LoadedPackage>, Vec<CharacterModIssue>), String> {
+    let (user_loaded, mut issues) = scan_packages(user_root)?;
+    let mut loaded = user_loaded;
+    if let Some(builtin_root) = builtin_root {
+        match scan_packages(builtin_root) {
+            Ok((builtin_loaded, builtin_issues)) => {
+                for issue in builtin_issues {
+                    issues.push(CharacterModIssue {
+                        folder: format!("{}（同梱）", issue.folder),
+                        message: issue.message,
+                    });
+                }
+                let user_ids: HashSet<String> = loaded
+                    .iter()
+                    .map(|package| package.descriptor.manifest.id.clone())
+                    .collect();
+                for mut package in builtin_loaded {
+                    if user_ids.contains(&package.descriptor.manifest.id) {
+                        continue;
+                    }
+                    package.descriptor.origin = CharacterModOrigin::Builtin;
+                    loaded.push(package);
+                }
+            }
+            Err(message) => issues.push(CharacterModIssue {
+                folder: "（同梱）".into(),
+                message,
+            }),
+        }
+    }
+    loaded.sort_by(|left, right| {
+        left.descriptor
+            .manifest
+            .name
+            .cmp(&right.descriptor.manifest.name)
+    });
+    Ok((loaded, issues))
+}
+
 fn read_registered_asset(asset: &RegisteredAsset) -> Result<Vec<u8>, String> {
     let bytes = read_limited(&asset.path, asset.byte_len, "MOD asset")?;
     if bytes.len() as u64 != asset.byte_len
@@ -2004,9 +3061,11 @@ pub async fn character_mod_list(
 ) -> Result<CharacterModScanResult, String> {
     let root = mods_root(&app)?;
     ensure_mod_root(&root)?;
-    let (loaded, issues) = tauri::async_runtime::spawn_blocking(move || scan_packages(&root))
-        .await
-        .map_err(|error| format!("MOD検出処理に失敗しました: {error}"))??;
+    let builtin_root = builtin_mods_root(&app);
+    let (loaded, issues) =
+        tauri::async_runtime::spawn_blocking(move || scan_all_packages(builtin_root.as_deref(), &root))
+            .await
+            .map_err(|error| format!("MOD検出処理に失敗しました: {error}"))??;
     registry.replace(&loaded)?;
     Ok(CharacterModScanResult {
         packages: loaded
@@ -2071,9 +3130,11 @@ pub async fn character_mod_install_archive(
         tauri::async_runtime::spawn_blocking(move || install_archive(&install_root, &archive_path))
             .await
             .map_err(|error| format!("MODの追加処理に失敗しました: {error}"))??;
-    let (loaded, issues) = tauri::async_runtime::spawn_blocking(move || scan_packages(&root))
-        .await
-        .map_err(|error| format!("MOD検出処理に失敗しました: {error}"))??;
+    let builtin_root = builtin_mods_root(&app);
+    let (loaded, issues) =
+        tauri::async_runtime::spawn_blocking(move || scan_all_packages(builtin_root.as_deref(), &root))
+            .await
+            .map_err(|error| format!("MOD検出処理に失敗しました: {error}"))??;
     registry.replace(&loaded)?;
     Ok(Some(CharacterModInstallResult {
         installed_id,
@@ -2254,7 +3315,7 @@ mod tests {
 
     #[test]
     fn bundled_examples_match_the_runtime_manifest() {
-        for example in [SPRITE_EXAMPLE, SEQUENCE_EXAMPLE, GLB_EXAMPLE] {
+        for example in [SPRITE_EXAMPLE, SEQUENCE_EXAMPLE, GLB_EXAMPLE, DOM_SVG_EXAMPLE] {
             let manifest: CharacterModManifest = serde_json::from_str(example).unwrap();
             validate_manifest(&manifest).unwrap();
         }
@@ -2313,5 +3374,602 @@ mod tests {
         });
         let (_, reachable) = validate_scene_forest(&valid).unwrap();
         assert_eq!(reachable.len(), 2);
+    }
+
+    fn minimal_valid_scene() -> Value {
+        serde_json::json!({
+            "sceneVersion": 1,
+            "viewBox": [340, 340],
+            "animations": {
+                "breath": {
+                    "durationMs": 2000,
+                    "easing": "ease-in-out",
+                    "iteration": "infinite",
+                    "keyframes": [
+                        { "at": 0, "transform": { "scale": 1.0 } },
+                        { "at": 50, "transform": { "scale": 1.03 } },
+                        { "at": 100, "transform": { "scale": 1.0 } }
+                    ]
+                }
+            },
+            "root": [
+                {
+                    "kind": "box",
+                    "id": "torso",
+                    "left": 10, "top": 10, "width": 80, "height": 80,
+                    "z": 10,
+                    "animation": "breath",
+                    "background": { "type": "solid", "color": "#ffcc00" },
+                    "borderRadius": "50%"
+                },
+                {
+                    "kind": "svg",
+                    "id": "head",
+                    "left": 0, "top": 0, "width": 100, "height": 100,
+                    "viewBox": [340, 340],
+                    "children": [
+                        {
+                            "kind": "path",
+                            "id": "face",
+                            "d": "M0 0 L10 10 Z",
+                            "fill": { "type": "solid", "color": "#ffffff" }
+                        }
+                    ]
+                }
+            ]
+        })
+    }
+
+    fn minimal_dom_svg_manifest(motions: HashMap<String, DomSvgMotion>) -> CharacterModManifest {
+        CharacterModManifest {
+            schema_version: 1,
+            id: "firemio.mio-svg".into(),
+            name: "ミオ（SVG）".into(),
+            version: "1.0.0".into(),
+            author: "firemio".into(),
+            description: String::new(),
+            license: None,
+            behavior_profile: "mio".into(),
+            renderer: CharacterModRenderer::DomSvg,
+            thumbnail: None,
+            source: CharacterSource::Scene {
+                file: "scene.json".into(),
+                motions,
+            },
+        }
+    }
+
+    fn idle_motion(animations: Vec<&str>) -> HashMap<String, DomSvgMotion> {
+        let mut motions = HashMap::new();
+        motions.insert(
+            "idle".to_string(),
+            DomSvgMotion {
+                pose: None,
+                pose_animation: None,
+                pose_origin: None,
+                animations: animations.into_iter().map(String::from).collect(),
+                expression: None,
+                r#loop: true,
+            },
+        );
+        motions
+    }
+
+    #[test]
+    fn accepts_a_minimal_dom_svg_scene() {
+        let bytes = serde_json::to_vec(&minimal_valid_scene()).unwrap();
+        let names = validate_scene(&bytes).unwrap();
+        assert!(names.contains("breath"));
+    }
+
+    #[test]
+    fn rejects_hostile_path_data() {
+        let mut value = minimal_valid_scene();
+        value["root"][1]["children"][0]["d"] = serde_json::json!("M0 0 url(javascript:alert(1))");
+        let bytes = serde_json::to_vec(&value).unwrap();
+        assert!(validate_scene(&bytes).is_err());
+    }
+
+    #[test]
+    fn rejects_url_in_color() {
+        let mut value = minimal_valid_scene();
+        value["root"][0]["background"] = serde_json::json!({ "type": "solid", "color": "url(#evil)" });
+        let bytes = serde_json::to_vec(&value).unwrap();
+        assert!(validate_scene(&bytes).is_err());
+    }
+
+    #[test]
+    fn rejects_too_many_nodes() {
+        let mut root = Vec::new();
+        for _ in 0..(MAX_SCENE_NODES + 1) {
+            root.push(serde_json::json!({ "kind": "box", "left": 0, "top": 0, "width": 1, "height": 1 }));
+        }
+        let scene = serde_json::json!({ "sceneVersion": 1, "viewBox": [100, 100], "root": root });
+        let bytes = serde_json::to_vec(&scene).unwrap();
+        assert!(validate_scene(&bytes).is_err());
+    }
+
+    #[test]
+    fn rejects_excessive_nesting() {
+        let mut node = serde_json::json!({ "kind": "box", "left": 0, "top": 0, "width": 1, "height": 1 });
+        for _ in 0..(MAX_SCENE_DEPTH + 2) {
+            node = serde_json::json!({ "kind": "group", "children": [node] });
+        }
+        let scene = serde_json::json!({ "sceneVersion": 1, "viewBox": [100, 100], "root": [node] });
+        let bytes = serde_json::to_vec(&scene).unwrap();
+        assert!(validate_scene(&bytes).is_err());
+    }
+
+    #[test]
+    fn rejects_unknown_node_kind() {
+        let scene = serde_json::json!({
+            "sceneVersion": 1,
+            "viewBox": [100, 100],
+            "root": [{ "kind": "image", "src": "https://evil.example/x.png" }]
+        });
+        let bytes = serde_json::to_vec(&scene).unwrap();
+        assert!(validate_scene(&bytes).is_err());
+    }
+
+    #[test]
+    fn rejects_unknown_keys() {
+        let mut value = minimal_valid_scene();
+        value["root"][0]["onClick"] = serde_json::json!("alert(1)");
+        let bytes = serde_json::to_vec(&value).unwrap();
+        assert!(validate_scene(&bytes).is_err());
+    }
+
+    #[test]
+    fn rejects_undefined_animation_reference() {
+        let mut value = minimal_valid_scene();
+        value["root"][0]["animation"] = serde_json::json!("does-not-exist");
+        let bytes = serde_json::to_vec(&value).unwrap();
+        assert!(validate_scene(&bytes).is_err());
+    }
+
+    #[test]
+    fn dom_svg_scene_requires_json_extension() {
+        assert!(validate_asset_extension(Path::new("scene.json"), AssetRole::Scene).is_ok());
+        assert!(validate_asset_extension(Path::new("scene.svg"), AssetRole::Scene).is_err());
+    }
+
+    #[test]
+    fn validates_colors() {
+        assert!(validate_color("#fff").is_ok());
+        assert!(validate_color("#ffccdd").is_ok());
+        assert!(validate_color("rgba(255, 0, 0, 0.5)").is_ok());
+        assert!(validate_color("url(#evil)").is_err());
+        assert!(validate_color("currentColor").is_err());
+        assert!(validate_color("javascript:alert(1)").is_err());
+    }
+
+    #[test]
+    fn validates_path_data_charset() {
+        assert!(validate_path_data("M0 0 L10 10 Z").is_ok());
+        assert!(validate_path_data("M0 0 url(evil)").is_err());
+        assert!(validate_path_data("L0 0").is_err());
+    }
+
+    #[test]
+    fn validates_border_radius_and_clip_path() {
+        assert!(validate_border_radius("50%").is_ok());
+        assert!(validate_border_radius("47% 47% 42% 42% / 36% 36% 62% 62%").is_ok());
+        // CSSと同じくゼロだけは単位なしで書ける
+        assert!(validate_border_radius("0 0 60% 60%").is_ok());
+        assert!(validate_border_radius("50px").is_err());
+        assert!(validate_border_radius("calc(50%)").is_err());
+        assert!(validate_clip_path("polygon(0% 0%, 100% 0%, 50% 100%)").is_ok());
+        assert!(validate_clip_path("polygon(0 0, 100% 0, 79% 45%)").is_ok());
+        assert!(validate_clip_path("polygon(0px 0px)").is_err());
+        assert!(validate_clip_path("inset(0 0 0 0)").is_err());
+    }
+
+    #[test]
+    fn validates_extended_paint_and_shadow_vocabulary() {
+        // transparentはグラデーションのフェードアウトに必須
+        assert!(validate_color("transparent").is_ok());
+        assert!(validate_color("rgba(255,253,250,.92)").is_ok());
+
+        let layered = serde_json::json!([
+            { "type": "radial", "shape": "ellipse", "cx": 50, "cy": -5,
+              "stops": [{ "color": "#aeabad", "at": 0 }, { "color": "transparent", "at": 48 }] },
+            { "type": "linear", "angle": 180,
+              "stops": [{ "color": "#fffdfa", "at": 0 }, { "color": "#e7ded9", "at": 100 }] }
+        ]);
+        assert!(validate_background(&layered).is_ok());
+        assert!(validate_background(&serde_json::json!({ "type": "solid", "color": "#fff" })).is_ok());
+
+        let too_many: Vec<Value> = (0..(MAX_BACKGROUND_LAYERS + 1))
+            .map(|_| serde_json::json!({ "type": "solid", "color": "#fff" }))
+            .collect();
+        assert!(validate_background(&Value::Array(too_many)).is_err());
+
+        let outline = serde_json::json!([
+            { "dx": 1, "dy": 0, "blur": 0, "color": "rgba(98,91,94,.34)" },
+            { "dx": -1, "dy": 0, "blur": 0, "color": "rgba(98,91,94,.34)" }
+        ]);
+        assert!(validate_shadow_list(&outline, "filter", false).is_ok());
+        // insetはbox-shadow専用。filterでは未知キーとして弾く
+        let inset = serde_json::json!([{ "dx": 0, "dy": -5, "blur": 8, "color": "#fff", "inset": true }]);
+        assert!(validate_shadow_list(&inset, "boxShadow", true).is_ok());
+        assert!(validate_shadow_list(&inset, "filter", false).is_err());
+
+        assert!(validate_border(&serde_json::json!({ "width": 2, "color": "#5b5355" }), "border").is_ok());
+        assert!(validate_border(&serde_json::json!({ "width": 2 }), "border").is_err());
+    }
+
+    #[test]
+    fn rejects_hostile_values_in_extended_vocabulary() {
+        let mut value = minimal_valid_scene();
+        value["root"][0]["filter"] =
+            serde_json::json!([{ "dx": 0, "dy": 0, "color": "url(javascript:alert(1))" }]);
+        assert!(validate_scene(&serde_json::to_vec(&value).unwrap()).is_err());
+
+        let mut value = minimal_valid_scene();
+        value["root"][0]["border"] = serde_json::json!({ "width": 2, "color": "expression(alert(1))" });
+        assert!(validate_scene(&serde_json::to_vec(&value).unwrap()).is_err());
+
+        // 背景レイヤー配列の中に混ざった不正paintも拒否する
+        let mut value = minimal_valid_scene();
+        value["root"][0]["background"] = serde_json::json!([
+            { "type": "solid", "color": "#fff" },
+            { "type": "solid", "color": "var(--leak)" }
+        ]);
+        assert!(validate_scene(&serde_json::to_vec(&value).unwrap()).is_err());
+
+        // box childrenもノード数上限を共有する
+        let mut value = minimal_valid_scene();
+        value["root"][0]["children"] = serde_json::json!([{ "kind": "script", "src": "evil.js" }]);
+        assert!(validate_scene(&serde_json::to_vec(&value).unwrap()).is_err());
+    }
+
+    #[test]
+    fn accepts_nested_boxes_and_stroke_options() {
+        let mut value = minimal_valid_scene();
+        value["root"][0]["overflowHidden"] = serde_json::json!(true);
+        value["root"][0]["children"] = serde_json::json!([
+            { "kind": "box", "left": 10, "top": 10, "width": 30, "height": 30,
+              "background": { "type": "solid", "color": "rgba(255,255,255,.66)" },
+              "borderBottom": { "width": 1, "color": "rgba(175,137,139,.26)" } }
+        ]);
+        value["root"][1]["children"][0]["strokeLinecap"] = serde_json::json!("round");
+        value["root"][1]["children"][0]["strokeLinejoin"] = serde_json::json!("round");
+        value["root"][1]["children"][0]["nonScalingStroke"] = serde_json::json!(true);
+        value["root"][1]["children"][0]["stroke"] =
+            serde_json::json!({ "type": "solid", "color": "rgba(98,91,94,.5)" });
+        assert!(validate_scene(&serde_json::to_vec(&value).unwrap()).is_ok());
+
+        let mut bad = value.clone();
+        bad["root"][1]["children"][0]["strokeLinecap"] = serde_json::json!("javascript:");
+        assert!(validate_scene(&serde_json::to_vec(&bad).unwrap()).is_err());
+    }
+
+    #[test]
+    fn validates_a_dom_svg_manifest() {
+        let manifest = minimal_dom_svg_manifest(idle_motion(vec!["breath"]));
+        assert!(validate_manifest(&manifest).is_ok());
+    }
+
+    #[test]
+    fn rejects_dom_svg_manifest_without_idle_motion() {
+        let manifest = minimal_dom_svg_manifest(HashMap::new());
+        assert!(validate_manifest(&manifest).is_err());
+    }
+
+    #[test]
+    fn rejects_mismatched_renderer_and_source() {
+        let mut manifest = minimal_dom_svg_manifest(idle_motion(vec!["breath"]));
+        manifest.source = CharacterSource::Model {
+            file: "model.glb".into(),
+            scale: None,
+            ground_offset: None,
+            rotation_y: None,
+            motions: HashMap::new(),
+        };
+        assert!(validate_manifest(&manifest).is_err());
+    }
+
+    #[test]
+    fn rejects_manifest_motion_referencing_missing_scene_animation() {
+        let manifest = minimal_dom_svg_manifest(idle_motion(vec!["does-not-exist"]));
+        let names: HashSet<String> = ["breath".to_string()].into_iter().collect();
+        assert!(validate_scene_motion_refs(&manifest, Some(&names)).is_err());
+    }
+
+    const DOM_SVG_SAMPLE_CHARACTER: &str = r#"{
+        "schemaVersion": 1,
+        "id": "firemio.dom-svg-sample",
+        "name": "DOM/SVGサンプル",
+        "version": "1.0.0",
+        "author": "firemio",
+        "description": "dom-svgレンダラーの仕組み検証用の簡易キャラクター",
+        "behaviorProfile": "mio",
+        "renderer": "dom-svg",
+        "source": {
+            "type": "scene",
+            "file": "scene.json",
+            "motions": {
+                "idle": { "animations": ["breath", "ear-left", "ear-right"], "loop": true },
+                "rest": {
+                    "pose": { "rotate": 3, "translateY": 3 },
+                    "expression": "sleepy",
+                    "animations": ["doze"],
+                    "loop": true
+                },
+                "celebrate": { "pose": { "scale": 1.05 }, "animations": ["hop"], "loop": true }
+            }
+        }
+    }"#;
+
+    const DOM_SVG_SAMPLE_SCENE: &str = r##"{
+        "sceneVersion": 1,
+        "viewBox": [200, 200],
+        "animations": {
+            "breath": {
+                "durationMs": 2200, "easing": "ease-in-out", "iteration": "infinite",
+                "keyframes": [
+                    { "at": 0, "transform": { "scale": 1 } },
+                    { "at": 50, "transform": { "scale": 1.03 } },
+                    { "at": 100, "transform": { "scale": 1 } }
+                ]
+            },
+            "ear-left": {
+                "durationMs": 2600, "easing": "ease-in-out", "iteration": "infinite",
+                "keyframes": [
+                    { "at": 0, "transform": { "rotate": -8 } },
+                    { "at": 50, "transform": { "rotate": -14 } },
+                    { "at": 100, "transform": { "rotate": -8 } }
+                ]
+            },
+            "ear-right": {
+                "durationMs": 2600, "easing": "ease-in-out", "iteration": "infinite", "delayMs": 300,
+                "keyframes": [
+                    { "at": 0, "transform": { "rotate": 8 } },
+                    { "at": 50, "transform": { "rotate": 14 } },
+                    { "at": 100, "transform": { "rotate": 8 } }
+                ]
+            },
+            "doze": {
+                "durationMs": 3200, "easing": "ease-in-out", "iteration": "infinite",
+                "keyframes": [
+                    { "at": 0, "transform": { "scale": 1 }, "opacity": 1 },
+                    { "at": 50, "transform": { "scale": 0.98 }, "opacity": 0.92 },
+                    { "at": 100, "transform": { "scale": 1 }, "opacity": 1 }
+                ]
+            },
+            "hop": {
+                "durationMs": 600, "easing": "ease-out", "iteration": 3,
+                "keyframes": [
+                    { "at": 0, "transform": { "translateY": 0 } },
+                    { "at": 50, "transform": { "translateY": -10 } },
+                    { "at": 100, "transform": { "translateY": 0 } }
+                ]
+            }
+        },
+        "root": [
+            {
+                "kind": "box", "id": "body",
+                "left": 20, "top": 38, "width": 60, "height": 56, "z": 0,
+                "animation": "breath", "transformOrigin": [50, 90],
+                "background": {
+                    "type": "radial", "shape": "ellipse", "cx": 50, "cy": 35,
+                    "stops": [{ "color": "#fff1da", "at": 0 }, { "color": "#ffcf8e", "at": 100 }]
+                },
+                "borderRadius": "50%"
+            },
+            {
+                "kind": "svg", "id": "head",
+                "left": 14, "top": 2, "width": 72, "height": 58, "z": 20,
+                "viewBox": [200, 160],
+                "children": [
+                    {
+                        "kind": "path", "id": "face",
+                        "d": "M100 8 C150 8 182 44 182 90 C182 132 144 156 100 156 C56 156 18 132 18 90 C18 44 50 8 100 8 Z",
+                        "fill": { "type": "solid", "color": "#fff4e2" },
+                        "stroke": { "type": "solid", "color": "#e3a15a" },
+                        "strokeWidth": 3
+                    },
+                    {
+                        "kind": "ellipse", "id": "eye-left-normal",
+                        "cx": 72, "cy": 82, "rx": 9, "ry": 12,
+                        "fill": { "type": "solid", "color": "#5b4636" },
+                        "visibleIn": ["normal", "happy"]
+                    },
+                    {
+                        "kind": "ellipse", "id": "eye-right-normal",
+                        "cx": 128, "cy": 82, "rx": 9, "ry": 12,
+                        "fill": { "type": "solid", "color": "#5b4636" },
+                        "visibleIn": ["normal", "happy"]
+                    },
+                    {
+                        "kind": "path", "id": "eye-left-sleepy",
+                        "d": "M62 84 Q72 92 82 84",
+                        "stroke": { "type": "solid", "color": "#5b4636" },
+                        "strokeWidth": 4,
+                        "visibleIn": ["sleepy"]
+                    },
+                    {
+                        "kind": "path", "id": "eye-right-sleepy",
+                        "d": "M118 84 Q128 92 138 84",
+                        "stroke": { "type": "solid", "color": "#5b4636" },
+                        "strokeWidth": 4,
+                        "visibleIn": ["sleepy"]
+                    },
+                    {
+                        "kind": "path", "id": "mouth",
+                        "d": "M85 118 Q100 128 115 118",
+                        "stroke": { "type": "solid", "color": "#c9784a" },
+                        "strokeWidth": 4
+                    },
+                    {
+                        "kind": "ellipse", "id": "cheek-left",
+                        "cx": 52, "cy": 104, "rx": 10, "ry": 7,
+                        "fill": { "type": "solid", "color": "#ffb7a6" },
+                        "opacity": 0.55
+                    },
+                    {
+                        "kind": "ellipse", "id": "cheek-right",
+                        "cx": 148, "cy": 104, "rx": 10, "ry": 7,
+                        "fill": { "type": "solid", "color": "#ffb7a6" },
+                        "opacity": 0.55
+                    }
+                ]
+            },
+            {
+                "kind": "svg", "id": "ear-left",
+                "left": 6, "top": -4, "width": 26, "height": 26, "z": 10,
+                "rotate": -8, "animation": "ear-left", "transformOrigin": [70, 90],
+                "viewBox": [100, 100],
+                "children": [
+                    {
+                        "kind": "ellipse", "cx": 50, "cy": 55, "rx": 38, "ry": 42,
+                        "fill": { "type": "solid", "color": "#ffcf8e" },
+                        "stroke": { "type": "solid", "color": "#e3a15a" },
+                        "strokeWidth": 3
+                    }
+                ]
+            },
+            {
+                "kind": "svg", "id": "ear-right",
+                "right": 6, "top": -4, "width": 26, "height": 26, "z": 10,
+                "rotate": 8, "animation": "ear-right", "transformOrigin": [30, 90],
+                "viewBox": [100, 100],
+                "children": [
+                    {
+                        "kind": "ellipse", "cx": 50, "cy": 55, "rx": 38, "ry": 42,
+                        "fill": { "type": "solid", "color": "#ffcf8e" },
+                        "stroke": { "type": "solid", "color": "#e3a15a" },
+                        "strokeWidth": 3
+                    }
+                ]
+            }
+        ]
+    }"##;
+
+    // リポジトリ同梱のミオMODは、実際にインストールされるのと同じ経路で検証する
+    const MIO_SVG_CHARACTER: &str = include_str!("../../../mods/mio-svg/character.json");
+    const MIO_SVG_SCENE: &str = include_str!("../../../mods/mio-svg/scene.json");
+
+    #[test]
+    fn bundled_mio_svg_mod_loads_through_the_install_pipeline() {
+        let dest = std::env::temp_dir().join(format!("miomail-mio-svg-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dest);
+        fs::create_dir_all(&dest).unwrap();
+        fs::write(dest.join(MANIFEST_NAME), MIO_SVG_CHARACTER).unwrap();
+        fs::write(dest.join("scene.json"), MIO_SVG_SCENE).unwrap();
+
+        let loaded = match load_package(&dest) {
+            Ok(loaded) => loaded,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&dest);
+                panic!("ミオMODが検証を通りませんでした: {error}");
+            }
+        };
+        assert_eq!(loaded.descriptor.manifest.id, "firemio.mio-svg");
+        assert_eq!(
+            loaded.descriptor.manifest.renderer,
+            CharacterModRenderer::DomSvg
+        );
+        // 全10モーションが定義され、参照するanimationがscene側に存在すること
+        let CharacterSource::Scene { motions, .. } = &loaded.descriptor.manifest.source else {
+            panic!("mio-svg must stay a dom-svg scene");
+        };
+        assert_eq!(motions.len(), ALLOWED_MOTIONS.len());
+        assert!(motions["rest"].expression.as_deref() == Some("sleepy"));
+
+        let _ = fs::remove_dir_all(&dest);
+    }
+
+    /// 実際にインストール済みのMODフォルダーを丸ごとスキャンする。
+    /// 環境依存なので既定では走らせない: `cargo test -- --ignored scans_the_installed`
+    #[test]
+    #[ignore]
+    fn scans_the_installed_character_mod_folder() {
+        let root = dirs_next_local_data().join("com.firemio.miomail/character-mods");
+        assert!(root.is_dir(), "MODフォルダーが見つかりません: {}", root.display());
+        let (loaded, issues) = scan_packages(&root).unwrap();
+        for issue in &issues {
+            println!("ISSUE  {}: {}", issue.folder, issue.message);
+        }
+        for package in &loaded {
+            let manifest = &package.descriptor.manifest;
+            println!(
+                "OK     {} ({:?}) v{} by {}",
+                manifest.id, manifest.renderer, manifest.version, manifest.author
+            );
+        }
+        assert!(issues.is_empty(), "読み込めないMODがあります");
+        assert!(
+            loaded
+                .iter()
+                .any(|package| package.descriptor.manifest.id == "firemio.mio-svg"),
+            "ミオMODがスキャン結果にありません"
+        );
+    }
+
+    fn dirs_next_local_data() -> PathBuf {
+        PathBuf::from(std::env::var("LOCALAPPDATA").expect("LOCALAPPDATA"))
+    }
+
+    /// 単一のMODフォルダーだけを検証する（MOD作成時の確認用）。
+    /// `MIOMAIL_MOD_DIR=<path> cargo test scan_one_mod_dir -- --ignored --exact --nocapture`
+    #[test]
+    #[ignore]
+    fn scan_one_mod_dir() {
+        let dir = PathBuf::from(std::env::var("MIOMAIL_MOD_DIR").expect("MIOMAIL_MOD_DIR"));
+        assert!(dir.is_dir(), "MODフォルダーが見つかりません: {}", dir.display());
+        match load_package(&dir) {
+            Ok(loaded) => {
+                let manifest = &loaded.descriptor.manifest;
+                println!(
+                    "OK     {} ({:?}) v{} by {}",
+                    manifest.id, manifest.renderer, manifest.version, manifest.author
+                );
+            }
+            Err(message) => panic!("MODを読み込めません: {message}"),
+        }
+    }
+
+    /// リポジトリ同梱の既定MOD（mods/）が全てバリデーションを通ることを保証する。
+    /// 同梱MODはこのスキャンと同じ経路でアプリに読み込まれる。
+    #[test]
+    fn bundled_default_mods_scan_cleanly() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../mods");
+        assert!(root.is_dir(), "同梱MODフォルダーが見つかりません: {}", root.display());
+        let (loaded, issues) = scan_packages(&root).unwrap();
+        for issue in &issues {
+            println!("ISSUE  {}: {}", issue.folder, issue.message);
+        }
+        assert!(issues.is_empty(), "読み込めない同梱MODがあります");
+        for expected in [
+            "firemio.makko-svg",
+            "firemio.mio-svg",
+            "firemio.posty-svg",
+            "firemio.saeta-svg",
+        ] {
+            assert!(
+                loaded
+                    .iter()
+                    .any(|package| package.descriptor.manifest.id == expected),
+                "同梱MOD {expected} がスキャン結果にありません"
+            );
+        }
+    }
+
+    #[test]
+    fn loads_a_real_dom_svg_package_end_to_end() {
+        let dest = std::env::temp_dir().join(format!("miomail-dom-svg-e2e-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dest);
+        fs::create_dir_all(&dest).unwrap();
+        fs::write(dest.join(MANIFEST_NAME), DOM_SVG_SAMPLE_CHARACTER).unwrap();
+        fs::write(dest.join("scene.json"), DOM_SVG_SAMPLE_SCENE).unwrap();
+
+        let loaded = load_package(&dest).unwrap();
+        assert_eq!(loaded.descriptor.manifest.renderer, CharacterModRenderer::DomSvg);
+        assert_eq!(loaded.descriptor.manifest.id, "firemio.dom-svg-sample");
+        assert!(loaded.assets.contains_key("scene"));
+        assert_eq!(loaded.descriptor.revision.len(), 64);
+
+        let _ = fs::remove_dir_all(&dest);
     }
 }

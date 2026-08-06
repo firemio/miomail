@@ -2,6 +2,8 @@
 
 MioMailのキャラクターMODは、コードを実行しないデータ専用パッケージです。1キャラクターにつき1フォルダーを作り、その直下へ`character.json`を置きます。
 
+既定の4キャラクター（マクコ・ミオ・ポスティ・サエタ）自体も、この仕組みで動くDOM/SVG MODとしてアプリに同梱されています（リポジトリの`mods/`フォルダー）。完成形の見本としてそのまま参照できます。同じ`id`のMODをユーザーフォルダーへ入れると同梱版より優先されるため、既定キャラクターの差し替えも可能です。
+
 ```text
 character-mods/
 └─ creator.fluffy-bear/
@@ -128,9 +130,50 @@ GLBにはメッシュ、マテリアル、埋め込みテクスチャ、ボー�
 Blenderでは各動作をAction/NLA Trackとして作成し、glTF 2.0の`GLB`形式へ書き出します。テクスチャはGLBへ埋め込み、カメラとライトは書き出さないでください。物理、ドライバー、制約のうちglTFへ直接移らない動きは、ボーンまたはシェイプキーのActionへベイクします。
 動かすモデルでは`idle`を必須とし、`clip`にはGLB内のAnimation Clip名を大文字小文字まで正確に指定します。読み込み時に全ての対応名を検証するため、名前の打ち間違いは設定画面へエラーとして表示されます。
 
+## DOM/SVG：手描きパーツ + CSSアニメーション
+
+生のHTML/CSS/SVGファイルは受け付けません。代わりに`scene.json`という**構造化JSON**でパーツと動きを記述し、アプリ側がその数値・enumだけからDOM/CSSを組み立てます。MODが書いた文字列がそのままマークアップやスタイルシートへ渡ることはありません。組み込みキャラクター（ミオなど）と同じ「体はdivの重なり、頭はSVG path」という描き方で、耳の揺れやまばたきまで再現できます。
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "creator.fluffy-bear-svg",
+  "name": "Fluffy Bear SVG",
+  "version": "1.0.0",
+  "author": "Creator",
+  "description": "手描きSVGパーツで組んだ配達くま",
+  "behaviorProfile": "makko",
+  "renderer": "dom-svg",
+  "thumbnail": "thumbnail.webp",
+  "source": {
+    "type": "scene",
+    "file": "assets/scene.json",
+    "motions": {
+      "idle": { "animations": ["breath", "ear-left", "ear-right"], "loop": true },
+      "rest": { "pose": { "rotate": 3, "translateY": 3 }, "expression": "sleepy", "animations": ["doze"], "loop": true }
+    }
+  }
+}
+```
+
+`assets/scene.json`は以下の固定語彙だけで木構造を作ります。
+
+- **node**（`root`直下、`group`と`box`の子）: `group`（入れ子コンテナ）、`box`（背景・角丸・枠線・クリップパスを持つdiv。子ノードを入れられます）、`svg`（内部に`shape`を持つSVGルート）
+- **shape**（`svg`ノードの中だけ）: `path`（`d`属性）、`ellipse`、`rect`、`shapeGroup`（`<g>`相当）
+- 位置は`left/right/top/bottom/width/height`（%）、変形は`rotate` / `rotateX` / `rotateY` / `translateX` / `translateY` / `scale` / `scaleX` / `scaleY`
+- 奥行きは`z`（0〜200）。値が大きいほど手前に出ます。`viewBox`の幅を基準にサイズ比例で伸縮するので、どの表示サイズでも同じ立体感になります。`scale`は子の`z`にも掛かります
+- 色は`{"type":"solid","color":"#rrggbb"}`のような構造化paint（`linear` / `radial`グラデーション、`transparent`も可）。`background`に配列を渡すとCSSと同じく先頭が最前面のレイヤーになります
+- 質感は`filter`（drop-shadowの並び。同じ色を上下左右1pxずつ重ねると輪郭線になります）、`boxShadow`、`border` / `borderBottom`で付けます
+- 表情差分は各パーツに`visibleIn: ["normal"]`のように出したい`expression`を列挙し、`character.json`側の`motions.*.expression`で切り替えます
+- ループ・単発アニメーションは`scene.json`の`animations`にキーフレームとして定義し、node/shapeから`animation: "名前"`で参照して、`character.json`側の`motions.*.animations`で動作ごとに有効・無効を切り替えます
+- キャラクター全体を動かす動作（うたた寝、跳ねる、見回すなど）は`motions.*.poseAnimation`に同じくanimation名を指定します。2Dの`frames`、3Dの`clip`にあたるものです
+
+制限: node/shape合計400個、ネスト12階層、animation定義32個、1animationあたりkeyframe24個、背景レイヤー4枚、影6個、グラデーションの色停止8個、path dataは12,000文字までかつSVGパスコマンドと数値のみ（`url()`・`#`参照・`javascript:`などはこの時点で構文として成立しません）。色は`#rgb`系・`rgb()/rgba()`・`transparent`のみで、`url()`・`var()`・named colorは使えません。scene.jsonは512 KiBまでです。
+完全な語彙は[scene.schema.json](./scene.schema.json)、コピー用の例は[examples/dom-svg.example.json](./examples/dom-svg.example.json)にあります。組み込みキャラクターの「ミオ」をこの形式で書き起こした実物が[mods/mio-svg](../../mods/mio-svg)にあるので、実際の組み立て方の見本にしてください。
+
 ## 安全性と上限
 
-- MOD内のHTML、JavaScript、CSS、shaderは実行しません。
+- MOD内のHTML、JavaScript、CSS、shaderは実行しません。dom-svgの`scene.json`も生マークアップではなく構造化JSONで、色・寸法・path dataなどの値だけを検証したうえでアプリが自前でDOM/CSSを組み立てます。
 - リモートURL、絶対パス、`..`、UNC、symlink/junctionによるフォルダー外参照を拒否します。
 - 3Dはテクスチャを埋め込んだ単一GLBだけです。外部`.bin`や外部画像は読みません。
 - manifestは64 KiB、thumbnailは512 KiBかつ512×512px、パッケージは48 MiB、各画像は4096×4096 / 16MP、GLBは32 MiBまでです。

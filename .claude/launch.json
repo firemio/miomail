@@ -8,6 +8,12 @@
       "port": 1420
     },
     {
+      "name": "miomail-dev-1425",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "1425"],
+      "port": 1425
+    },
+    {
       "name": "miomail-site",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "site:dev"],
