@@ -707,8 +707,37 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
   100% { transform: rotateY(360deg) translateY(0) scale(1); }
 }
 
+/*
+ * 疑似3Dの層は正面からしか成立しない。横を向く間だけ奥行きを潰さないと、
+ * 顔のパーツ(ミオなら口元z45・ひげz50・目z52・鼻z58)が頭の板から離れて
+ * 宙に浮き、お盆を前に持っているように見える。回り始めに潰して正面へ
+ * 戻るときに開くので、正面の立体感はそのまま残る。
+ * scaleZは親のtransformとして子のtranslateZに掛かるため、mascot-spin-onceとは
+ * 別の要素に載せる(同じ要素だとtransformを奪い合う)。0にすると行列が潰れる。
+ */
+.mascot-spin-flatten {
+  animation: mascot-spin-flatten 900ms both;
+}
+
+@keyframes mascot-spin-flatten {
+  0% {
+    transform: scaleZ(1);
+    animation-timing-function: cubic-bezier(.4, 0, .7, .4);
+  }
+  10% {
+    transform: scaleZ(.06);
+    animation-timing-function: linear;
+  }
+  86% {
+    transform: scaleZ(.06);
+    animation-timing-function: cubic-bezier(.3, .6, .4, 1);
+  }
+  100% { transform: scaleZ(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .mascot-spin-once {
+  .mascot-spin-once,
+  .mascot-spin-flatten {
     animation: none;
   }
 }

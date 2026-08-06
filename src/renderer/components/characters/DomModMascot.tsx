@@ -229,9 +229,11 @@ function renderNode(node: DomSvgNode, key: string, context: RenderContext): Reac
   }
 
   // アニメーションあり: 外側=配置とtranslateZ、内側=アニメーション + 見た目。
-  // 外側にoverflowを付けるとfilterの輪郭が切られるので、クリップは内側だけに掛ける
+  // 外側にoverflowを付けるとfilterの輪郭が切られるので、クリップは内側だけに掛ける。
+  // 外側にもpreserve-3dが必要: 無いと子のtranslateZ(疑似3D層)がここで平面化され、
+  // ポーズの3D回転時にzを持つ子だけのノード(例: マクコの耳)が頭から置き去りに見える
   return (
-    <div key={key} data-part={node.id} style={outerStyle}>
+    <div key={key} data-part={node.id} style={{ ...outerStyle, ...containerStyle }}>
       <div
         className={animationClass}
         style={{
@@ -357,7 +359,10 @@ export function DomModMascot({
   return (
     <div
       className={`character-mod-frame character-mod-float relative shrink-0 ${className}`}
-      style={{ width: size, height: size, perspective: size * 4, transformStyle: 'preserve-3d' }}
+      // 投影距離はsize比例(比率が変わると表示サイズごとに立体感がぶれる)。size*4だと
+      // 頭(z36)が約9%膨らんで胴を飲み込み、ひげ(z50)がシルエットの外まで張り出すため、
+      // 前後関係は保ったまま張り出しだけ半減するsize*6にしている
+      style={{ width: size, height: size, perspective: size * 6, transformStyle: 'preserve-3d' }}
       data-character-renderer="dom-svg"
       data-character-mod={manifest.id}
     >
@@ -366,25 +371,31 @@ export function DomModMascot({
         className={spinSignal > 0 ? 'mascot-spin-once' : ''}
         style={{ position: 'absolute', inset: 0, transformStyle: 'preserve-3d' }}
       >
+        {/* 横を向く間だけ奥行きを潰す層。回転と同じ要素には載せられない(transformの奪い合い) */}
         <div
-          className={
-            motionConfig?.poseAnimation
-              ? animationClassName(namespace, motionConfig.poseAnimation)
-              : undefined
-          }
-          style={{
-            position: 'absolute',
-            inset: 0,
-            transformStyle: 'preserve-3d',
-            // poseAnimationがある場合はCSSアニメーション側がtransformを持つ
-            transform: motionConfig?.poseAnimation ? undefined : transformToCss(motionConfig?.pose) ?? undefined,
-            transformOrigin: motionConfig?.poseOrigin
-              ? `${motionConfig.poseOrigin[0]}% ${motionConfig.poseOrigin[1]}%`
-              : undefined,
-            transition: motionConfig?.poseAnimation ? undefined : 'transform 220ms ease',
-          }}
+          className={spinSignal > 0 ? 'mascot-spin-flatten' : ''}
+          style={{ position: 'absolute', inset: 0, transformStyle: 'preserve-3d' }}
         >
-          {scene.root.map((node, index) => renderNode(node, `n${index}`, context))}
+          <div
+            className={
+              motionConfig?.poseAnimation
+                ? animationClassName(namespace, motionConfig.poseAnimation)
+                : undefined
+            }
+            style={{
+              position: 'absolute',
+              inset: 0,
+              transformStyle: 'preserve-3d',
+              // poseAnimationがある場合はCSSアニメーション側がtransformを持つ
+              transform: motionConfig?.poseAnimation ? undefined : transformToCss(motionConfig?.pose) ?? undefined,
+              transformOrigin: motionConfig?.poseOrigin
+                ? `${motionConfig.poseOrigin[0]}% ${motionConfig.poseOrigin[1]}%`
+                : undefined,
+              transition: motionConfig?.poseAnimation ? undefined : 'transform 220ms ease',
+            }}
+          >
+            {scene.root.map((node, index) => renderNode(node, `n${index}`, context))}
+          </div>
         </div>
       </div>
     </div>

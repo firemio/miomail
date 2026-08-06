@@ -1,16 +1,36 @@
 {
   "sceneVersion": 1,
-  "viewBox": [96, 96],
+  "viewBox": [
+    96,
+    96
+  ],
   "animations": {
     "ear-left": {
       "durationMs": 3000,
       "easing": "ease-in-out",
       "iteration": "infinite",
       "keyframes": [
-        { "at": 0, "transform": {} },
-        { "at": 30, "transform": { "rotate": -6, "translateY": -1 } },
-        { "at": 60, "transform": { "rotate": 3 } },
-        { "at": 100, "transform": {} }
+        {
+          "at": 0,
+          "transform": {}
+        },
+        {
+          "at": 30,
+          "transform": {
+            "rotate": -6,
+            "translateY": -1
+          }
+        },
+        {
+          "at": 60,
+          "transform": {
+            "rotate": 3
+          }
+        },
+        {
+          "at": 100,
+          "transform": {}
+        }
       ]
     },
     "ear-right": {
@@ -19,27 +39,97 @@
       "iteration": "infinite",
       "delayMs": 150,
       "keyframes": [
-        { "at": 0, "transform": {} },
-        { "at": 30, "transform": { "rotate": 6, "translateY": -1 } },
-        { "at": 60, "transform": { "rotate": -3 } },
-        { "at": 100, "transform": {} }
+        {
+          "at": 0,
+          "transform": {}
+        },
+        {
+          "at": 30,
+          "transform": {
+            "rotate": 6,
+            "translateY": -1
+          }
+        },
+        {
+          "at": 60,
+          "transform": {
+            "rotate": -3
+          }
+        },
+        {
+          "at": 100,
+          "transform": {}
+        }
       ]
     },
-
     "pose-look-around": {
       "durationMs": 7200,
       "easing": "ease-in-out",
       "iteration": "infinite",
       "keyframes": [
-        { "at": 0, "transform": { "rotateY": 0, "translateY": -2 } },
-        { "at": 8, "transform": { "rotateY": 0, "translateY": -2 } },
-        { "at": 24, "transform": { "rotateY": -45, "translateY": -2 } },
-        { "at": 36, "transform": { "rotateY": -45, "translateY": -2 } },
-        { "at": 50, "transform": { "rotateY": 0, "translateY": -2 } },
-        { "at": 58, "transform": { "rotateY": 0, "translateY": -2 } },
-        { "at": 74, "transform": { "rotateY": 45, "translateY": -2 } },
-        { "at": 86, "transform": { "rotateY": 45, "translateY": -2 } },
-        { "at": 100, "transform": { "rotateY": 0, "translateY": -2 } }
+        {
+          "at": 0,
+          "transform": {
+            "rotateY": 0,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 8,
+          "transform": {
+            "rotateY": 0,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 24,
+          "transform": {
+            "rotateY": -45,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 36,
+          "transform": {
+            "rotateY": -45,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 50,
+          "transform": {
+            "rotateY": 0,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 58,
+          "transform": {
+            "rotateY": 0,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 74,
+          "transform": {
+            "rotateY": 45,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 86,
+          "transform": {
+            "rotateY": 45,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 100,
+          "transform": {
+            "rotateY": 0,
+            "translateY": -2
+          }
+        }
       ]
     },
     "pose-soft-stretch": {
@@ -47,9 +137,33 @@
       "easing": "ease-in-out",
       "iteration": "infinite",
       "keyframes": [
-        { "at": 0, "transform": { "rotate": -2, "translateY": 1, "scaleX": 1.03, "scaleY": 0.97 } },
-        { "at": 45, "transform": { "rotate": 3, "translateY": -7, "scaleX": 0.96, "scaleY": 1.08 } },
-        { "at": 100, "transform": { "rotate": -2, "translateY": 1, "scaleX": 1.03, "scaleY": 0.97 } }
+        {
+          "at": 0,
+          "transform": {
+            "rotate": -2,
+            "translateY": 1,
+            "scaleX": 1.03,
+            "scaleY": 0.97
+          }
+        },
+        {
+          "at": 45,
+          "transform": {
+            "rotate": 3,
+            "translateY": -7,
+            "scaleX": 0.96,
+            "scaleY": 1.08
+          }
+        },
+        {
+          "at": 100,
+          "transform": {
+            "rotate": -2,
+            "translateY": 1,
+            "scaleX": 1.03,
+            "scaleY": 0.97
+          }
+        }
       ]
     },
     "pose-doze": {
@@ -57,9 +171,33 @@
       "easing": "ease-in-out",
       "iteration": "infinite",
       "keyframes": [
-        { "at": 0, "transform": { "rotate": 4, "translateY": 4, "scaleX": 1.06, "scaleY": 0.92 } },
-        { "at": 50, "transform": { "rotate": 3, "translateY": 5, "scaleX": 1.075, "scaleY": 0.9 } },
-        { "at": 100, "transform": { "rotate": 4, "translateY": 4, "scaleX": 1.06, "scaleY": 0.92 } }
+        {
+          "at": 0,
+          "transform": {
+            "rotate": 4,
+            "translateY": 4,
+            "scaleX": 1.06,
+            "scaleY": 0.92
+          }
+        },
+        {
+          "at": 50,
+          "transform": {
+            "rotate": 3,
+            "translateY": 5,
+            "scaleX": 1.075,
+            "scaleY": 0.9
+          }
+        },
+        {
+          "at": 100,
+          "transform": {
+            "rotate": 4,
+            "translateY": 4,
+            "scaleX": 1.06,
+            "scaleY": 0.92
+          }
+        }
       ]
     },
     "pose-peek": {
@@ -67,9 +205,31 @@
       "easing": "ease-in-out",
       "iteration": "infinite",
       "keyframes": [
-        { "at": 0, "transform": { "rotate": -7, "translateX": -3, "translateY": -2 } },
-        { "at": 50, "transform": { "rotate": 8, "translateX": 4, "translateY": -5, "scale": 1.03 } },
-        { "at": 100, "transform": { "rotate": -7, "translateX": -3, "translateY": -2 } }
+        {
+          "at": 0,
+          "transform": {
+            "rotate": -7,
+            "translateX": -3,
+            "translateY": -2
+          }
+        },
+        {
+          "at": 50,
+          "transform": {
+            "rotate": 8,
+            "translateX": 4,
+            "translateY": -5,
+            "scale": 1.03
+          }
+        },
+        {
+          "at": 100,
+          "transform": {
+            "rotate": -7,
+            "translateX": -3,
+            "translateY": -2
+          }
+        }
       ]
     },
     "pose-hop": {
@@ -77,10 +237,42 @@
       "easing": "ease-out",
       "iteration": "infinite",
       "keyframes": [
-        { "at": 0, "transform": { "translateY": 2, "rotate": -2, "scaleX": 1.03, "scaleY": 0.97 } },
-        { "at": 35, "transform": { "translateY": -10, "rotate": 4, "scaleX": 0.97, "scaleY": 1.05 } },
-        { "at": 58, "transform": { "translateY": 1, "rotate": -3, "scaleX": 1.06, "scaleY": 0.94 } },
-        { "at": 100, "transform": { "translateY": 2, "rotate": -2, "scaleX": 1.03, "scaleY": 0.97 } }
+        {
+          "at": 0,
+          "transform": {
+            "translateY": 2,
+            "rotate": -2,
+            "scaleX": 1.03,
+            "scaleY": 0.97
+          }
+        },
+        {
+          "at": 35,
+          "transform": {
+            "translateY": -10,
+            "rotate": 4,
+            "scaleX": 0.97,
+            "scaleY": 1.05
+          }
+        },
+        {
+          "at": 58,
+          "transform": {
+            "translateY": 1,
+            "rotate": -3,
+            "scaleX": 1.06,
+            "scaleY": 0.94
+          }
+        },
+        {
+          "at": 100,
+          "transform": {
+            "translateY": 2,
+            "rotate": -2,
+            "scaleX": 1.03,
+            "scaleY": 0.97
+          }
+        }
       ]
     }
   },
@@ -100,7 +292,10 @@
           "top": 5,
           "width": 21,
           "height": 20,
-          "transformOrigin": [50, 100],
+          "transformOrigin": [
+            50,
+            100
+          ],
           "animation": "ear-left",
           "children": [
             {
@@ -110,17 +305,30 @@
               "top": 0,
               "width": 100,
               "height": 100,
-              "z": 20,
+              "z": 0,
               "borderRadius": "50%",
               "background": {
                 "type": "linear",
                 "angle": 180,
                 "stops": [
-                  { "color": "#ffd9e6", "at": 0 },
-                  { "color": "#ffb3cd", "at": 100 }
+                  {
+                    "color": "#ffd9e6",
+                    "at": 0
+                  },
+                  {
+                    "color": "#ffb3cd",
+                    "at": 100
+                  }
                 ]
               },
-              "boxShadow": [{ "dx": 0, "dy": 8, "blur": 18, "color": "#ffe0eb" }]
+              "boxShadow": [
+                {
+                  "dx": 0,
+                  "dy": 8,
+                  "blur": 18,
+                  "color": "#ffe0eb"
+                }
+              ]
             },
             {
               "kind": "box",
@@ -129,11 +337,15 @@
               "top": 24,
               "width": 54,
               "height": 54,
-              "z": 24,
+              "z": 4,
               "borderRadius": "50%",
-              "background": { "type": "solid", "color": "#ffe0eb" }
+              "background": {
+                "type": "solid",
+                "color": "#ffe0eb"
+              }
             }
-          ]
+          ],
+          "z": 28
         },
         {
           "kind": "group",
@@ -142,7 +354,10 @@
           "top": 5,
           "width": 21,
           "height": 20,
-          "transformOrigin": [50, 100],
+          "transformOrigin": [
+            50,
+            100
+          ],
           "animation": "ear-right",
           "children": [
             {
@@ -152,17 +367,30 @@
               "top": 0,
               "width": 100,
               "height": 100,
-              "z": 20,
+              "z": 0,
               "borderRadius": "50%",
               "background": {
                 "type": "linear",
                 "angle": 180,
                 "stops": [
-                  { "color": "#ffd9e6", "at": 0 },
-                  { "color": "#ffb3cd", "at": 100 }
+                  {
+                    "color": "#ffd9e6",
+                    "at": 0
+                  },
+                  {
+                    "color": "#ffb3cd",
+                    "at": 100
+                  }
                 ]
               },
-              "boxShadow": [{ "dx": 0, "dy": 8, "blur": 18, "color": "#ffe0eb" }]
+              "boxShadow": [
+                {
+                  "dx": 0,
+                  "dy": 8,
+                  "blur": 18,
+                  "color": "#ffe0eb"
+                }
+              ]
             },
             {
               "kind": "box",
@@ -171,13 +399,16 @@
               "top": 24,
               "width": 54,
               "height": 54,
-              "z": 24,
+              "z": 4,
               "borderRadius": "50%",
-              "background": { "type": "solid", "color": "#ffe0eb" }
+              "background": {
+                "type": "solid",
+                "color": "#ffe0eb"
+              }
             }
-          ]
+          ],
+          "z": 28
         },
-
         {
           "kind": "box",
           "id": "head",
@@ -191,13 +422,25 @@
             "type": "linear",
             "angle": 180,
             "stops": [
-              { "color": "#ffd9e6", "at": 0 },
-              { "color": "#ffb3cd", "at": 100 }
+              {
+                "color": "#ffd9e6",
+                "at": 0
+              },
+              {
+                "color": "#ffb3cd",
+                "at": 100
+              }
             ]
           },
-          "boxShadow": [{ "dx": 0, "dy": 20, "blur": 38, "color": "#ffe0eb" }]
+          "boxShadow": [
+            {
+              "dx": 0,
+              "dy": 20,
+              "blur": 38,
+              "color": "#ffe0eb"
+            }
+          ]
         },
-
         {
           "kind": "box",
           "id": "arm-left",
@@ -208,7 +451,10 @@
           "z": 26,
           "rotate": 18,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffb3cd" }
+          "background": {
+            "type": "solid",
+            "color": "#ffb3cd"
+          }
         },
         {
           "kind": "box",
@@ -220,9 +466,11 @@
           "z": 26,
           "rotate": -18,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffb3cd" }
+          "background": {
+            "type": "solid",
+            "color": "#ffb3cd"
+          }
         },
-
         {
           "kind": "box",
           "id": "torso",
@@ -236,8 +484,14 @@
             "type": "linear",
             "angle": 180,
             "stops": [
-              { "color": "#ffd9e6", "at": 0 },
-              { "color": "#ffb3cd", "at": 100 }
+              {
+                "color": "#ffd9e6",
+                "at": 0
+              },
+              {
+                "color": "#ffb3cd",
+                "at": 100
+              }
             ]
           }
         },
@@ -250,7 +504,10 @@
           "height": 22,
           "z": 28,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffe0eb" }
+          "background": {
+            "type": "solid",
+            "color": "#ffe0eb"
+          }
         },
         {
           "kind": "box",
@@ -263,7 +520,10 @@
           "rotate": 45,
           "opacity": 0.5,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#f76a99" }
+          "background": {
+            "type": "solid",
+            "color": "#f76a99"
+          }
         },
         {
           "kind": "box",
@@ -276,9 +536,11 @@
           "rotate": -45,
           "opacity": 0.5,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#f76a99" }
+          "background": {
+            "type": "solid",
+            "color": "#f76a99"
+          }
         },
-
         {
           "kind": "box",
           "id": "foot-left",
@@ -288,7 +550,10 @@
           "height": 12,
           "z": 28,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffb3cd" }
+          "background": {
+            "type": "solid",
+            "color": "#ffb3cd"
+          }
         },
         {
           "kind": "box",
@@ -299,7 +564,10 @@
           "height": 12,
           "z": 28,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffb3cd" }
+          "background": {
+            "type": "solid",
+            "color": "#ffb3cd"
+          }
         },
         {
           "kind": "box",
@@ -310,7 +578,10 @@
           "height": 6.5,
           "z": 34,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffe0eb" }
+          "background": {
+            "type": "solid",
+            "color": "#ffe0eb"
+          }
         },
         {
           "kind": "box",
@@ -321,9 +592,11 @@
           "height": 6.5,
           "z": 34,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffe0eb" }
+          "background": {
+            "type": "solid",
+            "color": "#ffe0eb"
+          }
         },
-
         {
           "kind": "box",
           "id": "muzzle",
@@ -333,7 +606,10 @@
           "height": 15,
           "z": 42,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "rgba(255,255,255,.92)" }
+          "background": {
+            "type": "solid",
+            "color": "rgba(255,255,255,.92)"
+          }
         },
         {
           "kind": "box",
@@ -344,7 +620,10 @@
           "height": 5.5,
           "z": 48,
           "borderRadius": "50% 50% 60% 60%",
-          "background": { "type": "solid", "color": "#6b4249" }
+          "background": {
+            "type": "solid",
+            "color": "#6b4249"
+          }
         },
         {
           "kind": "box",
@@ -356,9 +635,11 @@
           "z": 48,
           "opacity": 0.85,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#6b4249" }
+          "background": {
+            "type": "solid",
+            "color": "#6b4249"
+          }
         },
-
         {
           "kind": "box",
           "id": "eye-left",
@@ -367,9 +648,16 @@
           "width": 8,
           "height": 8,
           "z": 46,
-          "visibleIn": ["normal", "happy", "sad"],
+          "visibleIn": [
+            "normal",
+            "happy",
+            "sad"
+          ],
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#6b4249" }
+          "background": {
+            "type": "solid",
+            "color": "#6b4249"
+          }
         },
         {
           "kind": "box",
@@ -380,9 +668,16 @@
           "height": 2.4,
           "z": 50,
           "opacity": 0.95,
-          "visibleIn": ["normal", "happy", "sad"],
+          "visibleIn": [
+            "normal",
+            "happy",
+            "sad"
+          ],
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffffff" }
+          "background": {
+            "type": "solid",
+            "color": "#ffffff"
+          }
         },
         {
           "kind": "box",
@@ -392,9 +687,16 @@
           "width": 8,
           "height": 8,
           "z": 46,
-          "visibleIn": ["normal", "happy", "sad"],
+          "visibleIn": [
+            "normal",
+            "happy",
+            "sad"
+          ],
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#6b4249" }
+          "background": {
+            "type": "solid",
+            "color": "#6b4249"
+          }
         },
         {
           "kind": "box",
@@ -405,11 +707,17 @@
           "height": 2.4,
           "z": 50,
           "opacity": 0.95,
-          "visibleIn": ["normal", "happy", "sad"],
+          "visibleIn": [
+            "normal",
+            "happy",
+            "sad"
+          ],
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ffffff" }
+          "background": {
+            "type": "solid",
+            "color": "#ffffff"
+          }
         },
-
         {
           "kind": "box",
           "id": "eyelid-left",
@@ -418,9 +726,14 @@
           "width": 8,
           "height": 2.4,
           "z": 46,
-          "visibleIn": ["sleepy"],
+          "visibleIn": [
+            "sleepy"
+          ],
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#6b4249" }
+          "background": {
+            "type": "solid",
+            "color": "#6b4249"
+          }
         },
         {
           "kind": "box",
@@ -430,11 +743,15 @@
           "width": 8,
           "height": 2.4,
           "z": 46,
-          "visibleIn": ["sleepy"],
+          "visibleIn": [
+            "sleepy"
+          ],
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#6b4249" }
+          "background": {
+            "type": "solid",
+            "color": "#6b4249"
+          }
         },
-
         {
           "kind": "box",
           "id": "mouth",
@@ -444,9 +761,11 @@
           "height": 4.5,
           "z": 48,
           "borderRadius": "0 0 50% 50%",
-          "borderBottom": { "width": 2.5, "color": "#6b4249" }
+          "borderBottom": {
+            "width": 2.5,
+            "color": "#6b4249"
+          }
         },
-
         {
           "kind": "box",
           "id": "cheek-left",
@@ -457,7 +776,10 @@
           "z": 40,
           "opacity": 0.6,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ff8fb3" }
+          "background": {
+            "type": "solid",
+            "color": "#ff8fb3"
+          }
         },
         {
           "kind": "box",
@@ -469,7 +791,10 @@
           "z": 40,
           "opacity": 0.6,
           "borderRadius": "50%",
-          "background": { "type": "solid", "color": "#ff8fb3" }
+          "background": {
+            "type": "solid",
+            "color": "#ff8fb3"
+          }
         }
       ]
     }
