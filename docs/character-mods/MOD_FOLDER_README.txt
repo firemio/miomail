@@ -19,6 +19,16 @@ MioMail Character MOD v1
 idle, look-around, alert, bounce, self-care, rest, inspect,
 celebrate, walk, deliver
 
+前後(重なり順)の決め方 ※DOM/SVGのscene.json
+- node(group / box / svg)の z (0〜200)。大きいほど手前
+- z を書かなければ 0 扱い
+- z が同じなら、後に書いたほうが手前
+- 入れ子の子の z は、親の z に足される
+- svg の中の図形(path / ellipse / rect)に z はない。
+  書いた順だけで重なる(後が手前)
+- z を離すほど手前へ大きく張り出す(擬似3Dの投影)。
+  顔まわりは数値を近づけると落ち着く
+
 同じフォルダーに自動生成される character.schema.json と
 *.example.json をコピーして作り始められます。
 

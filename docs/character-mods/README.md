@@ -2,7 +2,7 @@
 
 MioMailのキャラクターMODは、コードを実行しないデータ専用パッケージです。1キャラクターにつき1フォルダーを作り、その直下へ`character.json`を置きます。
 
-既定の4キャラクター（マクコ・ミオ・ポスティ・サエタ）自体も、この仕組みで動くMODとしてアプリに同梱されています（リポジトリの`mods/`フォルダー）。DOM/SVG版（`*-svg`）とGLB 3D版（`*-3d`、旧「ふわふわ3D」を移植したもの）の2形式があり、どちらも完成形の見本としてそのまま参照できます。同じ`id`のMODをユーザーフォルダーへ入れると同梱版より優先されるため、既定キャラクターの差し替えも可能です。3D版のGLBは`node scripts/export-3d-mods/export.mjs`で再生成できます。
+既定の4キャラクター（マクコ・ミオ・ポスティ・サエタ）自体も、この仕組みで動くMODとしてアプリに同梱されています（リポジトリの`mods/`フォルダー）。DOM/SVG版（`*-svg`）とGLB 3D版（`*-3d`。ミオとポスティは2D版の絵を立体化したもの）に加え、旧「ふわふわ3D」のポスティが`posty-simple-robo`（シンプルロボ）として残っており、計9体すべて完成形の見本としてそのまま参照できます。同じ`id`のMODをユーザーフォルダーへ入れると同梱版より優先されるため、既定キャラクターの差し替えも可能です。3D版のGLBは`node scripts/export-3d-mods/export.mjs`で再生成できます。
 
 ```text
 character-mods/
@@ -161,12 +161,27 @@ Blenderでは各動作をAction/NLA Trackとして作成し、glTF 2.0の`GLB`�
 - **node**（`root`直下、`group`と`box`の子）: `group`（入れ子コンテナ）、`box`（背景・角丸・枠線・クリップパスを持つdiv。子ノードを入れられます）、`svg`（内部に`shape`を持つSVGルート）
 - **shape**（`svg`ノードの中だけ）: `path`（`d`属性）、`ellipse`、`rect`、`shapeGroup`（`<g>`相当）
 - 位置は`left/right/top/bottom/width/height`（%）、変形は`rotate` / `rotateX` / `rotateY` / `translateX` / `translateY` / `scale` / `scaleX` / `scaleY`
-- 奥行きは`z`（0〜200）。値が大きいほど手前に出ます。`viewBox`の幅を基準にサイズ比例で伸縮するので、どの表示サイズでも同じ立体感になります。`scale`は子の`z`にも掛かります
+- 前後（重なり順）は`z`で決めます。詳しくは下の「前後（重なり順）の決め方」を参照してください
 - 色は`{"type":"solid","color":"#rrggbb"}`のような構造化paint（`linear` / `radial`グラデーション、`transparent`も可）。`background`に配列を渡すとCSSと同じく先頭が最前面のレイヤーになります
 - 質感は`filter`（drop-shadowの並び。同じ色を上下左右1pxずつ重ねると輪郭線になります）、`boxShadow`、`border` / `borderBottom`で付けます
 - 表情差分は各パーツに`visibleIn: ["normal"]`のように出したい`expression`を列挙し、`character.json`側の`motions.*.expression`で切り替えます
 - ループ・単発アニメーションは`scene.json`の`animations`にキーフレームとして定義し、node/shapeから`animation: "名前"`で参照して、`character.json`側の`motions.*.animations`で動作ごとに有効・無効を切り替えます
 - キャラクター全体を動かす動作（うたた寝、跳ねる、見回すなど）は`motions.*.poseAnimation`に同じくanimation名を指定します。2Dの`frames`、3Dの`clip`にあたるものです
+
+### 前後（重なり順）の決め方
+
+パーツの前後は`z`（0〜200、大きいほど手前）だけで決まります。`zIndex`にあたる別指定はありません。
+
+| 場面 | 前後の決まり方 |
+| --- | --- |
+| `group` / `box` / `svg`（node） | `z`が大きいほど手前 |
+| `z`が同じnode同士 | **後に書いたほうが手前**（`children`の並び順） |
+| `z`を書かなかったnode | `z: 0`扱い。親と同じ面に乗ります |
+| 入れ子のnode | 子の`z`は**親の`z`に足されます**（親`z:30`＋子`z:6`＝手前から36の位置） |
+| `svg`の中の`path` / `ellipse` / `rect` / `shapeGroup`（shape） | shapeに`z`はありません。**書いた順だけ**で重なります（後が手前）。前後を分けたいときはnodeの`svg`を分割してそれぞれに`z`を付けます |
+
+`z`は`viewBox`の幅を基準にサイズ比例で伸縮するので、どの表示サイズでも同じ立体感になります。`scale`は子の`z`にも掛かります。
+`z`の差が大きいほど、そのパーツは手前へ大きく張り出します（擬似3Dの投影のため、離すほど拡大して見えます）。顔まわりのパーツは数値を近づけると落ち着きます。
 
 制限: node/shape合計400個、ネスト12階層、animation定義32個、1animationあたりkeyframe24個、背景レイヤー4枚、影6個、グラデーションの色停止8個、path dataは12,000文字までかつSVGパスコマンドと数値のみ（`url()`・`#`参照・`javascript:`などはこの時点で構文として成立しません）。色は`#rgb`系・`rgb()/rgba()`・`transparent`のみで、`url()`・`var()`・named colorは使えません。scene.jsonは512 KiBまでです。
 完全な語彙は[scene.schema.json](./scene.schema.json)、コピー用の例は[examples/dom-svg.example.json](./examples/dom-svg.example.json)にあります。組み込みキャラクターの「ミオ」をこの形式で書き起こした実物が[mods/mio-svg](../../mods/mio-svg)にあるので、実際の組み立て方の見本にしてください。
