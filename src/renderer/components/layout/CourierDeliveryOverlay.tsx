@@ -175,7 +175,6 @@ export function CourierDeliveryOverlay({ onSentDeliveryChange }: CourierDelivery
         {/* てくてく歩く相棒 */}
         <div className="courier-walker">
           <div className="courier-walker-waddle">
-            <div className="courier-walker-shadow" />
             <MascotRenderer mascotId={walk.courierMascotId} bond={walkBond} care={careByMascot[walk.courierMascotId]} size={88} pose={7} motion="walk" />
             <div className="courier-walker-envelope">
               <div className="courier-envelope-inner">

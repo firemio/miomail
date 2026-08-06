@@ -1461,22 +1461,11 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
 }
 
 /*
- * 足元の影。基準は.courier-walker(120px)の中心ではなく、左端に置かれる
- * キャラクター(MascotRendererにsize=88を渡している)の中心。50%にすると
- * 中心が16px右へずれ、同じく50%基準の封筒の真下に潜り込んで、手紙の左右へ
- * はみ出した謎の影に見える。
+ * 配達演出に足元の接地影は置かない。キャラクターは.character-mod-frameの
+ * drop-shadowをシルエットに沿って常に持っており、普段うろついているとき
+ * (CompanionOverlay)も接地影は無い。演出のときだけ楕円が生えると、浮遊
+ * アニメーションとも普段の見た目とも噛み合わない。
  */
-.courier-walker-shadow {
-  position: absolute;
-  left: 44px; /* = MascotRendererに渡しているsize 88 の半分 */
-  bottom: -8px;
-  width: 76px;
-  height: 12px;
-  margin-left: -38px;
-  border-radius: 9999px;
-  background: rgba(120, 90, 90, 0.18);
-  filter: blur(2px);
-}
 
 /* 持っている封筒 */
 .courier-walker-envelope {
