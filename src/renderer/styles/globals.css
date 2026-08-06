@@ -1460,9 +1460,15 @@ body[data-theme='amber-command'] [class*='bg-[#d96f5d]'] {
   }
 }
 
+/*
+ * 足元の影。基準は.courier-walker(120px)の中心ではなく、左端に置かれる
+ * キャラクター(MascotRendererにsize=88を渡している)の中心。50%にすると
+ * 中心が16px右へずれ、同じく50%基準の封筒の真下に潜り込んで、手紙の左右へ
+ * はみ出した謎の影に見える。
+ */
 .courier-walker-shadow {
   position: absolute;
-  left: 50%;
+  left: 44px; /* = MascotRendererに渡しているsize 88 の半分 */
   bottom: -8px;
   width: 76px;
   height: 12px;
