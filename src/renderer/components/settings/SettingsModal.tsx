@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Code2, Cpu, Database, Download, FolderOpen, Mail, Palette, Plus, RefreshCw, Settings2, Sparkles, Star, TriangleAlert, X } from 'lucide-react'
-import { DEFAULT_MOD_ID_BY_MASCOT } from '../../characters/types'
+import { Code2, Cpu, Database, Download, FlaskConical, FolderOpen, Mail, Palette, Plus, RefreshCw, Settings2, Sparkles, Star, TriangleAlert, X } from 'lucide-react'
+import { DEFAULT_MOD_ID_BY_MASCOT, type CharacterModPackage } from '../../characters/types'
 import { mascotCatalog, type MascotId } from '../../data/mascots'
-import { MASCOT_IDLE_MOTION_DURATIONS, MASCOT_IDLE_MOTION_LABELS } from '../../data/mascotIdleMotions'
 import { themeCatalog } from '../../data/themes'
 import { api, isTauriRuntime } from '../../lib/ipc'
 import { getMascotPhaseLabel, MASCOT_GROWTH_STAGES, type MascotPhase, useMascotStore } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
 import { useCharacterStore } from '../../stores/characterStore'
+import { CharacterTestModal } from '../characters/CharacterTestModal'
 import { MascotRenderer } from '../characters/MascotRenderer'
 import { ModThumbnail } from '../characters/ModThumbnail'
 import { AccountManager } from '../account/AccountManager'
@@ -24,15 +24,12 @@ const sections = [
   { id: 'developer' as const, label: '開発者メニュー', icon: Code2, note: '成長一覧・動作デモ' },
 ]
 
-const growthPreviews = MASCOT_GROWTH_STAGES.map(({ phase, minBond }) => ({ phase, bond: minBond }))
-
 export function SettingsModal() {
   const [section, setSection] = useState<SettingsSection>('appearance')
   const [demoBusy, setDemoBusy] = useState<'receive' | 'send' | null>(null)
   const [debugMascotId, setDebugMascotId] = useState<MascotId>('makko')
   const [debugStartPhase, setDebugStartPhase] = useState<MascotPhase>('egg')
-  const [debugPoseIndex, setDebugPoseIndex] = useState(0)
-  const [idleAutoPlay, setIdleAutoPlay] = useState(false)
+  const [testPackage, setTestPackage] = useState<CharacterModPackage | null>(null)
   const { closeSettings, openImport, themeId, setTheme } = useUIStore()
   const { selectedMascotId, selectMascot, bondByMascot, careByMascot, debugSetPhase, debugEvolveFrom } = useMascotStore()
   const {
@@ -47,8 +44,6 @@ export function SettingsModal() {
     installArchive,
     openModsFolder,
   } = useCharacterStore()
-  const [debugIdlePhase, setDebugIdlePhase] = useState<MascotPhase>('courier')
-  const idlePreviewBond = MASCOT_GROWTH_STAGES.find(({ phase }) => phase === debugIdlePhase)?.minBond ?? 20
   const debugStartIndex = MASCOT_GROWTH_STAGES.findIndex(({ phase }) => phase === debugStartPhase)
   const debugNextStage = MASCOT_GROWTH_STAGES[debugStartIndex + 1]
 
@@ -59,19 +54,6 @@ export function SettingsModal() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [closeSettings])
-
-  useEffect(() => {
-    setDebugPoseIndex(0)
-    setIdleAutoPlay(false)
-  }, [debugMascotId])
-
-  useEffect(() => {
-    if (section !== 'developer' || !idleAutoPlay) return
-    const timer = window.setTimeout(() => {
-      setDebugPoseIndex((current) => (current + 1) % MASCOT_IDLE_MOTION_DURATIONS.length)
-    }, MASCOT_IDLE_MOTION_DURATIONS[debugPoseIndex])
-    return () => window.clearTimeout(timer)
-  }, [debugPoseIndex, idleAutoPlay, section])
 
   const openImporter = () => {
     closeSettings()
@@ -199,10 +181,18 @@ export function SettingsModal() {
                     {mascotCatalog.map((mascot) => {
                       const active = mascot.id === selectedMascotId
                         && (!selectedModId || selectedModId === DEFAULT_MOD_ID_BY_MASCOT[mascot.id])
+                      const defaultPackage = characterPackages.find((item) => item.manifest.id === DEFAULT_MOD_ID_BY_MASCOT[mascot.id])
+                        ?? characterPackages.find((item) => item.origin === 'builtin' && item.manifest.behaviorProfile === mascot.id)
+                        ?? null
                       return <button key={mascot.id} type="button" aria-pressed={active} onClick={() => { selectMascot(mascot.id); if (selectedModId) selectMod(null) }} className={`rounded-[24px] border p-4 text-left transition hover:-translate-y-0.5 ${active ? 'border-sumi-accent bg-sumi-accent/10 shadow-[0_16px_34px_rgba(255,138,160,0.16)]' : 'border-white/80 bg-white/72'}`}>
                         <div className="flex items-start justify-between"><MascotRenderer mascotId={mascot.id} bond={bondByMascot[mascot.id] ?? 0} care={careByMascot[mascot.id]} size={72} pose={0} forceDefaultMod /><span className="rounded-full bg-sumi-surface px-2 py-1 text-[10px] text-sumi-text-muted">{bondByMascot[mascot.id] ?? 0}pt</span></div>
                         <div className="mt-3 flex items-center justify-between"><span className="font-semibold text-sumi-text">{mascot.name}</span>{active && <span className="rounded-full bg-sumi-accent px-2 py-1 text-[10px] font-semibold text-white">選択中</span>}</div>
-                        <p className="mt-1 text-[11px] leading-5 text-sumi-text-muted">{mascot.subtitle}</p>
+                        <div className="mt-1 flex items-end justify-between gap-2">
+                          <p className="text-[11px] leading-5 text-sumi-text-muted">{mascot.subtitle}</p>
+                          {defaultPackage && (
+                            <span role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); setTestPackage(defaultPackage) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.stopPropagation(); event.preventDefault(); setTestPackage(defaultPackage) } }} className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-white/90 bg-white/85 px-2.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text" title="モーションと成長段階をテスト"><FlaskConical size={11} />テスト</span>
+                          )}
+                        </div>
                       </button>
                     })}
                     {characterPackages.filter((characterPackage) => !Object.values(DEFAULT_MOD_ID_BY_MASCOT).includes(characterPackage.manifest.id)).map((characterPackage) => {
@@ -215,7 +205,10 @@ export function SettingsModal() {
                             <span className="rounded-full bg-sumi-surface px-2 py-1 text-[10px] text-sumi-text-muted">{bondByMascot[manifest.behaviorProfile] ?? 0}pt</span>
                           </div>
                           <div className="mt-3 flex items-center justify-between gap-2"><span className="truncate font-semibold text-sumi-text">{manifest.name}</span>{active && <span className="shrink-0 rounded-full bg-sumi-accent px-2 py-1 text-[10px] font-semibold text-white">選択中</span>}</div>
-                          <p className="mt-1 truncate text-[11px] leading-5 text-sumi-text-muted">MOD・{manifest.renderer === 'gltf-3d' ? '3D' : manifest.renderer === 'dom-svg' ? 'SVG' : '2D'}・{manifest.author} v{manifest.version}</p>
+                          <div className="mt-1 flex items-end justify-between gap-2">
+                            <p className="truncate text-[11px] leading-5 text-sumi-text-muted">MOD・{manifest.renderer === 'gltf-3d' ? '3D' : manifest.renderer === 'dom-svg' ? 'SVG' : '2D'}・{manifest.author} v{manifest.version}</p>
+                            <span role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); setTestPackage(characterPackage) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.stopPropagation(); event.preventDefault(); setTestPackage(characterPackage) } }} className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-white/90 bg-white/85 px-2.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text" title="モーションと成長段階をテスト"><FlaskConical size={11} />テスト</span>
+                          </div>
                         </button>
                       )
                     })}
@@ -336,57 +329,12 @@ export function SettingsModal() {
                 <div className="mt-4 flex gap-2"><button disabled={demoBusy !== null} onClick={() => void runDemo('receive')} className="rounded-full border border-sumi-border bg-white/80 px-4 py-2.5 text-xs font-semibold text-sumi-text disabled:opacity-50">{demoBusy === 'receive' ? '受信中…' : 'デモ受信'}</button><button disabled={demoBusy !== null} onClick={() => void runDemo('send')} className="rounded-full border border-sumi-border bg-white/80 px-4 py-2.5 text-xs font-semibold text-sumi-text disabled:opacity-50">{demoBusy === 'send' ? '送信中…' : 'デモ送信'}</button></div>
               </section>
 
-              <section>
-                <div className="mb-4 flex items-end justify-between gap-4">
-                  <div><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">IDLE MOTION CATALOG</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">待機モーション一覧</h3><p className="mt-1 text-xs text-sumi-text-muted">選んだ成長段階の相棒を大きく表示し、8種類の待機モーションを確認します。</p></div>
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    <button type="button" aria-pressed={idleAutoPlay} onClick={() => setIdleAutoPlay((current) => !current)} className={`h-10 rounded-2xl px-4 text-[11px] font-semibold transition ${idleAutoPlay ? 'bg-sumi-accent text-white shadow-[0_8px_18px_rgba(255,111,145,0.2)]' : 'border border-white/90 bg-white/80 text-sumi-text-muted hover:text-sumi-text'}`}>{idleAutoPlay ? '連続再生を停止' : '全て順番に再生'}</button>
-                    <select value={debugMascotId} onChange={(event) => setDebugMascotId(event.target.value as MascotId)} className="h-10 min-w-[120px] rounded-2xl border border-white/90 bg-white/85 px-3 text-xs font-semibold text-sumi-text outline-none focus:border-sumi-accent/40">
-                      {mascotCatalog.map((mascot) => <option key={mascot.id} value={mascot.id}>{mascot.name}</option>)}
-                    </select>
-                    <select value={debugIdlePhase} onChange={(event) => setDebugIdlePhase(event.target.value as MascotPhase)} className="h-10 min-w-[130px] rounded-2xl border border-white/90 bg-white/85 px-3 text-xs font-semibold text-sumi-text outline-none focus:border-sumi-accent/40">
-                      {MASCOT_GROWTH_STAGES.map((stage) => <option key={stage.phase} value={stage.phase}>{getMascotPhaseLabel(stage.phase)}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-[minmax(250px,0.85fr)_minmax(0,1.15fr)] gap-4">
-                  <div className="relative flex min-h-[300px] flex-col items-center justify-center overflow-hidden rounded-[28px] border border-white/85 bg-white/72 p-5 shadow-[0_18px_46px_rgba(121,85,96,0.08)]">
-                    <div className="absolute left-4 top-4 rounded-full border border-white/90 bg-white/82 px-3 py-1.5 text-[9px] font-semibold tracking-[0.16em] text-sumi-text-muted">POSE {debugPoseIndex + 1} / 8</div>
-                    <MascotRenderer mascotId={debugMascotId} bond={idlePreviewBond} care={careByMascot[debugMascotId]} size={190} pose={debugPoseIndex} />
-                    <p className="mt-1 text-base font-semibold text-sumi-text">{MASCOT_IDLE_MOTION_LABELS[debugMascotId][debugPoseIndex]}</p>
-                    <p className="mt-1 text-[10px] text-sumi-text-muted">{mascotCatalog.find((mascot) => mascot.id === debugMascotId)?.name}・{getMascotPhaseLabel(debugIdlePhase)}</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    {MASCOT_IDLE_MOTION_LABELS[debugMascotId].map((label, poseIndex) => {
-                      const active = debugPoseIndex === poseIndex
-                      return (
-                        <button key={`${debugMascotId}-idle-${poseIndex}`} type="button" aria-pressed={active} onClick={() => { setDebugPoseIndex(poseIndex); setIdleAutoPlay(false) }} className={`group flex min-h-[68px] items-center gap-3 rounded-[20px] border px-3.5 py-3 text-left transition ${active ? 'border-sumi-accent/45 bg-white shadow-[0_12px_26px_rgba(255,111,145,0.12)]' : 'border-white/80 bg-white/62 hover:border-white hover:bg-white/82'}`}>
-                          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold transition ${active ? 'bg-sumi-accent text-white' : 'bg-sumi-surface text-sumi-text-muted group-hover:text-sumi-text'}`}>{poseIndex + 1}</span>
-                          <span><span className="block text-xs font-semibold text-sumi-text">{label}</span><span className="mt-1 block text-[9px] tracking-[0.12em] text-sumi-text-muted">POSE {poseIndex + 1}</span></span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <div className="mb-4"><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">GROWTH CATALOG</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">{mascotCatalog.find((mascot) => mascot.id === debugMascotId)?.name}・全成長段階</h3><p className="mt-1 text-xs text-sumi-text-muted">上のキャラクター選択と連動し、実際の成長境界値で5段階を表示します。</p></div>
-                <div className="grid grid-cols-5 gap-3">
-                  {growthPreviews.map(({ phase, bond }) => (
-                    <div key={`${debugMascotId}-${phase}`} className="rounded-[22px] border border-white/80 bg-white/70 p-3 text-center">
-                      <div className="flex h-[105px] items-center justify-center"><MascotRenderer mascotId={debugMascotId} bond={bond} care={careByMascot[debugMascotId]} size={96} pose={0} /></div>
-                      <p className="mt-2 text-xs font-semibold text-sumi-text">{mascotCatalog.find((mascot) => mascot.id === debugMascotId)?.name}</p>
-                      <p className="mt-1 text-[10px] text-sumi-text-muted">{getMascotPhaseLabel(phase)}</p>
-                      <span className="mt-2 inline-block rounded-full bg-sumi-surface px-2 py-1 text-[9px] text-sumi-text-muted">{bond}pt</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
             </div>}
           </div>
         </div>
       </section>
+
+      {testPackage && <CharacterTestModal characterPackage={testPackage} onClose={() => setTestPackage(null)} />}
     </div>
   )
 }
