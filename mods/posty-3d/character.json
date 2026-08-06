@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "firemio.posty-3d",
+  "name": "ポスティ（3D）",
+  "version": "1.0.0",
+  "author": "firemio",
+  "description": "ふわふわ3D(WebGL)のポスティをGLB MODとして再構成した同梱キャラクター",
+  "license": "MIT",
+  "behaviorProfile": "posty",
+  "renderer": "gltf-3d",
+  "thumbnail": "thumbnail.webp",
+  "source": {
+    "type": "model",
+    "file": "assets/character.glb",
+    "scale": 1,
+    "groundOffset": 0,
+    "rotationY": 0,
+    "motions": {
+      "idle": {
+        "clip": "idle"
+      },
+      "look-around": {
+        "clip": "look-around"
+      },
+      "alert": {
+        "clip": "alert"
+      },
+      "bounce": {
+        "clip": "bounce"
+      },
+      "self-care": {
+        "clip": "self-care"
+      },
+      "rest": {
+        "clip": "rest"
+      },
+      "inspect": {
+        "clip": "inspect"
+      },
+      "celebrate": {
+        "clip": "celebrate"
+      },
+      "walk": {
+        "clip": "idle"
+      },
+      "deliver": {
+        "clip": "bounce"
+      }
+    }
+  }
+}

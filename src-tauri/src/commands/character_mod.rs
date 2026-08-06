@@ -3946,6 +3946,10 @@ mod tests {
             "firemio.mio-svg",
             "firemio.posty-svg",
             "firemio.saeta-svg",
+            "firemio.makko-3d",
+            "firemio.mio-3d",
+            "firemio.posty-3d",
+            "firemio.saeta-3d",
         ] {
             assert!(
                 loaded
