@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid rgb(var(--sumi-text));
+  outline-offset: 3px;
+}
+
+form[role='search']:focus-within {
+  outline: 2px solid rgb(var(--sumi-accent-strong));
+  outline-offset: 2px;
+}
+
 :root {
   --sumi-bg: 255 248 244;
   --sumi-surface: 255 241 234;

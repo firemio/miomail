@@ -21,6 +21,7 @@ import {
 import { useMailStore } from '../../stores/mailStore'
 import { useMascotStore } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
+import { getFolderDisplayName } from '../../lib/folderDisplay'
 import { buildFolderTree, type FolderTreeNode } from '../../lib/folderTree'
 import type { Account, Folder } from '../../types'
 
@@ -33,25 +34,6 @@ function getFolderIcon(folder: Folder) {
   if (name.includes('junk') || name.includes('spam')) return <Archive size={14} />
   if (name.includes('star')) return <Star size={14} />
   return <FolderIcon size={14} />
-}
-
-function getFolderDisplayName(folder: Folder): string {
-  const map: Record<string, string> = {
-    inbox: '受信トレイ',
-    sent: '送信済み',
-    'sent messages': '送信済み',
-    'sent mail': '送信済み',
-    drafts: '下書き',
-    trash: 'ゴミ箱',
-    'deleted items': 'ゴミ箱',
-    junk: '迷惑メール',
-    'junk e-mail': '迷惑メール',
-    spam: '迷惑メール',
-    archive: 'アーカイブ',
-    starred: 'スター付き',
-  }
-  const key = (folder.name || folder.path).toLowerCase()
-  return map[key] || folder.name || folder.path
 }
 
 // Mirrors the backend's protected-folder rule (INBOX + sent/trash/junk/drafts).
@@ -171,6 +153,7 @@ export function Sidebar() {
         <button
           onClick={() => toggleNode(account.id, node, effectiveRoot)}
           aria-label={expanded ? '折りたたむ' : '展開する'}
+          aria-expanded={expanded}
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-sumi-text-muted/70 transition hover:bg-white/70 hover:text-sumi-text"
         >
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -263,6 +246,8 @@ export function Sidebar() {
           >
             {chevron}
             <button
+              aria-current={isActive ? 'page' : undefined}
+              title={`${getFolderDisplayName(folder)} · ${folder.total_count}件、未読${unread}件`}
               onClick={() => setCurrentFolder(folder)}
               className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2.5 text-left"
             >
@@ -271,7 +256,6 @@ export function Sidebar() {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs">{getFolderDisplayName(folder)}</div>
-                <div className="mt-0.5 text-[10px] text-sumi-text-muted/60">{folder.total_count}件</div>
               </div>
               {unread > 0 && (
                 <span className="flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-sumi-unread/25 px-1.5 text-[10px] font-semibold text-sumi-unread">
@@ -286,7 +270,7 @@ export function Sidebar() {
                   onClick={() => setMenuFolderId(menuFolderId === folder.id ? null : folder.id)}
                   aria-label="フォルダの操作"
                   className={`flex h-7 w-7 items-center justify-center rounded-lg text-sumi-text-muted transition hover:bg-white/70 hover:text-sumi-text ${
-                    menuFolderId === folder.id ? 'bg-white/70' : 'opacity-0 group-hover:opacity-100'
+                    menuFolderId === folder.id ? 'bg-white/70' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
                   }`}
                 >
                   <MoreHorizontal size={14} />
@@ -355,12 +339,7 @@ export function Sidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="px-5 pb-4 pt-5">
-          <p className="text-[11px] font-semibold tracking-[0.18em] text-sumi-text-muted">
-            DELIVERY ROUTES
-          </p>
-          <h2 className="mt-2 font-display text-2xl text-sumi-text">おたよりルート</h2>
-        </div>
+        <h2 className="px-5 pb-2 pt-5 text-xs font-semibold text-sumi-text-muted">メールボックス</h2>
 
         {error && (
           <div className="mx-3 mb-2 rounded-[16px] border border-red-400/30 bg-red-400/15 px-3 py-2 text-[10px] leading-4 text-red-400">
@@ -459,7 +438,7 @@ export function Sidebar() {
       <div className="border-t border-white/70 p-4">
         <button
           onClick={() => syncAllFolders()}
-          disabled={syncing}
+          disabled={syncing || accounts.length === 0}
           className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-sumi-surface text-xs font-semibold text-sumi-text transition hover:bg-sumi-surface-2 disabled:opacity-50"
         >
           <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />

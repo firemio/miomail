@@ -227,10 +227,7 @@ function ComposeEditor({
         <div className="flex min-w-0 items-center gap-3">
           {!docked && <GripVertical size={14} className="text-sumi-text-muted" />}
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold tracking-[0.18em] text-sumi-text-muted">
-              LETTER STUDIO
-            </p>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <span className="font-display text-2xl text-sumi-text">{getDraftTitle(draft)}</span>
               <span className="rounded-full bg-white/80 px-2.5 py-1 text-[10px] text-sumi-text-muted">
                 自動保存

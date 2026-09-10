@@ -18,8 +18,8 @@ const KIND_LABEL: Record<JobKind, string> = {
   sync: '同期',
   backfill: '過去メール取得',
   prefetch: '本文取得',
-  vectorize: 'ベクトル化',
-  model_download: 'モデルDL',
+  vectorize: '検索の準備',
+  model_download: '検索データ取得',
 }
 
 const KIND_ICON: Record<JobKind, typeof RefreshCw> = {
@@ -136,11 +136,7 @@ export function JobProgressBar() {
       <div className="rounded-2xl border border-sumi-border/60 bg-sumi-surface/80 px-3 py-1.5 backdrop-blur-sm">
         {/* 折りたたみ時・常時の1行表示 */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCollapsed((value) => !value)}
-            className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            aria-label={collapsed ? '進捗を展開' : '進捗を折りたたむ'}
-          >
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
             {hasVisibleJobs ? (
               <>
                 <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-sumi-accent" />
@@ -156,10 +152,10 @@ export function JobProgressBar() {
               <span className="truncate text-[11px] text-sumi-text-muted">
                 {latestInactive
                   ? `${KIND_LABEL[latestInactive.kind]}完了 — ${latestInactive.message}`
-                  : 'バックグラウンドジョブはありません'}
+                  : ''}
               </span>
             )}
-          </button>
+          </div>
 
           <SemanticBadge
             status={semantic}
@@ -170,13 +166,14 @@ export function JobProgressBar() {
             onRetry={enableSemantic}
           />
 
-          <button
+          {hasVisibleJobs && <button
             onClick={() => setCollapsed((value) => !value)}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sumi-text-muted transition hover:bg-sumi-surface-2 hover:text-sumi-text"
             aria-label={collapsed ? '進捗を展開' : '進捗を折りたたむ'}
+            aria-expanded={!collapsed}
           >
             {collapsed ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          </button>
+          </button>}
         </div>
 
         {/* 展開時のジョブ詳細 */}

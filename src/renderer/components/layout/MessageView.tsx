@@ -17,7 +17,6 @@ import {
   MailOpen,
   Paperclip,
   Reply,
-  Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
@@ -480,18 +479,8 @@ export function MessageView() {
         </button>
       </div>
 
-      <div className="shrink-0 border-b border-white/70 px-8 py-6">
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <div className="inline-flex rounded-full border border-white/70 bg-white/70 px-3 py-1 text-[11px] font-semibold tracking-[0.16em] text-sumi-text-muted">
-            OPENED LETTER
-          </div>
-          {!read && (
-            <div className="inline-flex items-center gap-1 rounded-full bg-sumi-unread/20 px-3 py-1 text-[10px] font-semibold text-sumi-unread">
-              <Sparkles size={12} />
-              未読
-            </div>
-          )}
-        </div>
+      <div className="shrink-0 border-b border-white/70 px-6 py-4">
+        {!read && <span className="mb-2 inline-block rounded-full bg-sumi-unread/20 px-3 py-1 text-xs text-sumi-text">未読</span>}
 
         <h2 className="mb-4 text-[28px] font-semibold leading-snug text-sumi-text">
           {currentMessage.subject || '(件名なし)'}

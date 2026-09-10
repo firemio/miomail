@@ -20,10 +20,7 @@ import { useMascotStore } from './stores/mascotStore'
 import { useCharacterStore } from './stores/characterStore'
 import { useUIStore } from './stores/uiStore'
 
-const isTauriRuntime =
-  typeof window !== 'undefined' &&
-  (Boolean((window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) ||
-    navigator.userAgent.includes('Tauri'))
+import { isTauriRuntime } from './lib/ipc'
 
 export default function App() {
   const { loadAccounts, currentMessage, handleIncomingMail, allFolders } = useMailStore()
