@@ -20,7 +20,10 @@ export function EggMascot({ mascotId, size = 96, spinSignal = 0, className = '' 
   return (
     <div
       className={`mascot-stage relative shrink-0 ${className}`}
-      style={{ width: size, height: size, perspective: size * 4, transformStyle: 'preserve-3d' }}
+      // 投影距離はDomModMascotと同じsize*6。下のscale3dでZ層の基準を96に揃えてあり、
+      // 卵のz域(28〜58)は同梱MODのz域と同じなので、比率も合わせないと孵化の前後で
+      // 立体感が変わる(size*4だと顔のパーツの張り出しが孵化後の約1.6倍になる)
+      style={{ width: size, height: size, perspective: size * 6, transformStyle: 'preserve-3d' }}
       data-character-renderer="egg"
     >
       <div
