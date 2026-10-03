@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
-import { invoke } from '@tauri-apps/api/core'
-import { api, isTauriRuntime } from '../../lib/ipc'
+import { api } from '../../lib/ipc'
+import { bindEmailLinks } from '../../lib/emailLinks'
 import {
   Download,
   FileArchive,
@@ -246,22 +246,6 @@ function detectRemoteImages(html: string): boolean {
   )
 }
 
-async function openExternalLink(url: string) {
-  if (!/^https?:\/\//i.test(url) && !/^mailto:/i.test(url)) {
-    return
-  }
-
-  if (isTauriRuntime) {
-    try {
-      await invoke('plugin:opener|open_url', { url })
-      return
-    } catch {
-      // fall through to window.open
-    }
-  }
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
-
 export function MessageView() {
   const { currentMessage, closeMessage, deleteMessage, markRead, accounts } = useMailStore()
   const { openCompose, themeId } = useUIStore()
@@ -269,29 +253,18 @@ export function MessageView() {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [showRemoteImages, setShowRemoteImages] = useState(false)
+  const [linkError, setLinkError] = useState<string | null>(null)
 
   useEffect(() => {
     setConfirmDelete(false)
     setShowRemoteImages(false)
+    setLinkError(null)
   }, [currentMessage?.id])
 
   const hasRemoteImages = useMemo(
     () => detectRemoteImages(currentMessage?.html_body || ''),
     [currentMessage]
   )
-
-  // Links inside the sandboxed iframe post a message; open them in the
-  // system browser instead of navigating the (blocked) iframe
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const data = event.data as { type?: string; href?: string } | null
-      if (data?.type === 'miomail:open-link' && typeof data.href === 'string') {
-        void openExternalLink(data.href)
-      }
-    }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [])
 
   const senderAccount = useMemo(() => {
     if (!currentMessage) {
@@ -330,7 +303,7 @@ export function MessageView() {
       <!DOCTYPE html>
       <html>
       <head>
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src ${imgSrc}; font-src data:;">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'none'; img-src ${imgSrc}; font-src data:; form-action 'none'; base-uri 'none';">
         <style>
           body {
             font-family: 'Yu Gothic UI', 'Meiryo', sans-serif;
@@ -354,15 +327,7 @@ export function MessageView() {
           td, th { padding: 4px 8px; border: 1px solid ${mailBorder}; }
         </style>
       </head>
-      <body>${sanitized}<script>
-        document.addEventListener('click', function (event) {
-          var anchor = event.target && event.target.closest ? event.target.closest('a') : null;
-          if (anchor && anchor.getAttribute('href')) {
-            event.preventDefault();
-            parent.postMessage({ type: 'miomail:open-link', href: anchor.getAttribute('href') }, '*');
-          }
-        });
-      </script></body>
+      <body>${sanitized}</body>
       </html>
     `
 
@@ -530,11 +495,20 @@ export function MessageView() {
         </div>
       )}
 
+      {linkError && (
+        <p role="alert" className="shrink-0 px-8 py-2 text-xs text-red-500">
+          リンクを開けませんでした: {linkError}
+        </p>
+      )}
       <div className="flex-1 overflow-hidden">
         <iframe
           ref={iframeRef}
+          onLoad={() => {
+            const doc = iframeRef.current?.contentDocument
+            if (doc) bindEmailLinks(doc, (error) => setLinkError(error instanceof Error ? error.message : String(error)))
+          }}
           className="h-full w-full border-0 bg-transparent"
-          sandbox="allow-scripts"
+          sandbox="allow-same-origin"
           title="Email content"
         />
       </div>
