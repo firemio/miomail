@@ -32,6 +32,8 @@ const { GLTFExporter } = await import('three/examples/jsm/exporters/GLTFExporter
 const { IDLE_MOTION_REST, sampleIdleMotion, buildCharacter } = await import('./legacy3d.mjs')
 const { buildMioFaithful } = await import('./mio2d3d.mjs')
 const { buildPostyFaithful } = await import('./posty2d3d.mjs')
+const { buildMakkoFaithful } = await import('./makko2d3d.mjs')
+const { buildSaetaFaithful } = await import('./saeta2d3d.mjs')
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 
@@ -45,7 +47,7 @@ const POSE_CLIPS = ['idle', 'look-around', 'alert', 'bounce', 'self-care', 'rest
 const EXTRA_MOTIONS = { walk: 'idle', deliver: 'bounce' }
 
 /**
- * 同梱3D MODの一覧。mio/postyは2D版(mods/*-svg)を忠実に立体化したv2、
+ * 同梱3D MODの一覧。既定4キャラは2D版(mods/*-svg)を立体化したv2、
  * 旧ふわふわ3Dのポスティは「シンプルロボ」として別MODで残す。
  */
 const EXPORTS = [
@@ -53,10 +55,10 @@ const EXPORTS = [
     folder: 'makko-3d',
     id: 'firemio.makko-3d',
     name: 'マクコ（3D）',
-    version: '1.0.0',
+    version: '2.0.0',
     mascotId: 'makko',
-    build: () => buildCharacter('makko'),
-    description: 'ふわふわ3D(WebGL)のマクコをGLB MODとして再構成した同梱キャラクター',
+    build: buildMakkoFaithful,
+    description: '2D版のマクコをそのまま立体化した同梱キャラクター',
   },
   {
     folder: 'mio-3d',
@@ -80,10 +82,10 @@ const EXPORTS = [
     folder: 'saeta-3d',
     id: 'firemio.saeta-3d',
     name: 'サエタ（3D）',
-    version: '1.0.0',
+    version: '2.0.0',
     mascotId: 'saeta',
-    build: () => buildCharacter('saeta'),
-    description: 'ふわふわ3D(WebGL)のサエタをGLB MODとして再構成した同梱キャラクター',
+    build: buildSaetaFaithful,
+    description: '2D版のサエタをそのまま立体化した同梱キャラクター',
   },
   {
     folder: 'posty-simple-robo',
@@ -350,7 +352,11 @@ function stripExtrasFromGlb(buffer) {
   return out.buffer.slice(out.byteOffset, out.byteOffset + out.length)
 }
 
-for (const entry of EXPORTS) {
+const requested = process.argv.slice(2)
+for (const folder of requested) {
+  if (!EXPORTS.some((entry) => entry.folder === folder)) throw new Error(`Unknown MOD: ${folder}`)
+}
+for (const entry of EXPORTS.filter((entry) => !requested.length || requested.includes(entry.folder))) {
   const mascotId = entry.mascotId
   const rig = entry.build()
   rig.root.position.y = 0.04 // 組み込みと同じ持ち上げ(rootLiftの基準)
