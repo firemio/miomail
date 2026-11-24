@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -30,13 +31,13 @@ function escapeHtml(str: string) {
 }
 
 function getDraftTitle(draft: ComposeDraft) {
-  if (draft.mode === 'reply') return '返信'
-  if (draft.mode === 'forward') return '転送'
-  return '新規メール'
+  if (draft.mode === 'reply') return t("返信")
+  if (draft.mode === 'forward') return t("転送")
+  return t("新規メール")
 }
 
 function shortenSubject(subject: string) {
-  if (!subject.trim()) return '件名なし'
+  if (!subject.trim()) return t("件名なし")
   return subject.length > 16 ? `${subject.slice(0, 16)}…` : subject
 }
 
@@ -50,6 +51,7 @@ function ComposeEditor({
   const {
     closeCompose,
     updateComposeDraft,
+    applySignature,
     toggleComposeLayout,
     openCompose,
     bringComposeToFront,
@@ -81,6 +83,16 @@ function ComposeEditor({
       updateComposeDraft(draft.id, { from: defaultSender, isDirty: false })
     }
   }, [defaultSender, draft.from, draft.id, updateComposeDraft])
+
+  // 差出人のアカウントに署名があれば本文へ自動で差し込み、差出人を切り替えた
+  // ときは入れ替える。アカウントが見つからないときは本文を触らない。
+  useEffect(() => {
+    const sender = draft.from || defaultSender
+    const account = accounts.find((item) => item.email === sender)
+    if (!account) return
+
+    applySignature(draft.id, account.signature ?? '')
+  }, [accounts, applySignature, defaultSender, draft.from, draft.id])
 
   useEffect(() => {
     setConfirmDiscard(false)
@@ -162,7 +174,7 @@ function ComposeEditor({
         from,
         to: draft.to.trim(),
         cc: draft.cc.trim() || undefined,
-        subject: draft.subject || '(件名なし)',
+        subject: draft.subject || t("(件名なし)"),
         html: `<div style="font-family:'Yu Gothic UI',sans-serif;font-size:14px;color:#52362f;">${escapeHtml(
           draft.body
         ).replace(/\n/g, '<br>')}</div>`,
@@ -173,7 +185,7 @@ function ComposeEditor({
           item.path ? { path: item.path } : { attachmentId: item.attachmentId }
         ),
       })
-      notifySentMail(draft.to.trim(), draft.subject || '(件名なし)')
+      notifySentMail(draft.to.trim(), draft.subject || t("(件名なし)"))
       gainBond(3)
       closeCompose(draft.id, true)
     } catch (error: unknown) {
@@ -230,8 +242,7 @@ function ComposeEditor({
             <div className="flex items-center gap-2">
               <span className="font-display text-2xl text-sumi-text">{getDraftTitle(draft)}</span>
               <span className="rounded-full bg-white/80 px-2.5 py-1 text-[10px] text-sumi-text-muted">
-                自動保存
-              </span>
+                {t("自動保存")}</span>
             </div>
           </div>
         </div>
@@ -248,12 +259,11 @@ function ComposeEditor({
               }
               data-testid="compose-add-draft"
               className="flex items-center justify-center rounded-full border border-white/70 bg-white/80 px-3 py-2 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/30 hover:text-sumi-text"
-              title="新しい下書きを追加"
+              title={t("新しい下書きを追加")}
             >
               <span className="inline-flex items-center gap-1.5">
                 <FilePlus2 size={12} />
-                追加
-              </span>
+                {t("追加")}</span>
             </button>
           )}
           <button
@@ -262,11 +272,11 @@ function ComposeEditor({
             className={`flex items-center justify-center rounded-full border border-white/70 bg-white/80 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/30 hover:text-sumi-text ${
               docked ? 'h-10 w-10' : 'px-3 py-2'
             }`}
-            title={docked ? 'ドッキング解除' : '右パネルに戻す'}
+            title={docked ? t("ドッキング解除") : t("右パネルに戻す")}
           >
             <span className="inline-flex items-center gap-1.5">
               {docked ? <PanelRight size={12} /> : <PanelRightClose size={12} />}
-              {!docked && '右パネルに戻す'}
+              {!docked && t("右パネルに戻す")}
             </span>
           </button>
           {!docked && (
@@ -274,7 +284,7 @@ function ComposeEditor({
               onClick={requestClose}
               data-testid={`compose-close-${draft.id}`}
               className="flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
-              title="下書きを閉じる"
+              title={t("下書きを閉じる")}
             >
               <X size={14} />
             </button>
@@ -284,22 +294,20 @@ function ComposeEditor({
 
       {confirmDiscard && (
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-100 bg-amber-50/90 px-5 py-3">
-          <p className="text-xs text-amber-900">保存済みの下書きを削除しますか？</p>
+          <p className="text-xs text-amber-900">{t("保存済みの下書きを削除しますか？")}</p>
           <div className="flex items-center gap-2">
             <button
               onClick={cancelDiscard}
               data-testid={`compose-cancel-discard-${draft.id}`}
               className="rounded-full border border-white/80 bg-white/85 px-3 py-1.5 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
             >
-              キャンセル
-            </button>
+              {t("キャンセル")}</button>
             <button
               onClick={discardAndClose}
               data-testid={`compose-confirm-discard-${draft.id}`}
               className="rounded-full bg-[#f58b76] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:brightness-95"
             >
-              下書きを削除
-            </button>
+              {t("下書きを削除")}</button>
           </div>
         </div>
       )}
@@ -309,8 +317,7 @@ function ComposeEditor({
           {accounts.length > 1 && (
             <div className="flex items-center gap-2">
               <label className="w-12 shrink-0 text-[11px] font-semibold text-sumi-text-muted">
-                差出人
-              </label>
+                {t("差出人")}</label>
               <select
                 value={draft.from || defaultSender}
                 onChange={(event) => updateComposeDraft(draft.id, { from: event.target.value })}
@@ -327,8 +334,7 @@ function ComposeEditor({
 
           <div className="flex items-center gap-2">
             <label className="w-12 shrink-0 text-[11px] font-semibold text-sumi-text-muted">
-              宛先
-            </label>
+              {t("宛先")}</label>
             <input
               type="text"
               value={draft.to}
@@ -362,13 +368,12 @@ function ComposeEditor({
 
           <div className="flex items-center gap-2">
             <label className="w-12 shrink-0 text-[11px] font-semibold text-sumi-text-muted">
-              件名
-            </label>
+              {t("件名")}</label>
             <input
               type="text"
               value={draft.subject}
               onChange={(event) => updateComposeDraft(draft.id, { subject: event.target.value })}
-              placeholder="件名を入力"
+              placeholder={t("件名を入力")}
               className="h-10 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
             />
           </div>
@@ -378,7 +383,7 @@ function ComposeEditor({
           <textarea
             value={draft.body}
             onChange={(event) => updateComposeDraft(draft.id, { body: event.target.value })}
-            placeholder="ここに本文を書いてください"
+            placeholder={t("ここに本文を書いてください")}
             className="h-full w-full resize-none bg-transparent px-5 py-5 text-sm leading-7 text-sumi-text placeholder-sumi-text-muted/50 focus:outline-none"
           />
         </div>
@@ -407,7 +412,7 @@ function ComposeEditor({
                   )}
                   <button
                     onClick={() => removeAttachment(item.id)}
-                    aria-label={`${item.name}を削除`}
+                    aria-label={t("{0}を削除", { "0": item.name })}
                     data-testid={`compose-remove-attachment-${item.id}`}
                     className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sumi-text-muted/70 transition hover:bg-sumi-accent/10 hover:text-sumi-accent"
                   >
@@ -423,8 +428,8 @@ function ComposeEditor({
                 }`}
               >
                 {attachmentsTooLarge
-                  ? `合計${formatFileSize(attachmentsTotalSize)}: 25MBを超えているため送信できません`
-                  : `合計${formatFileSize(attachmentsTotalSize)}: サイズが大きいため相手側で受信できない場合があります`}
+                  ? t("合計{0}: 25MBを超えているため送信できません", { "0": formatFileSize(attachmentsTotalSize) })
+                  : t("合計{0}: サイズが大きいため相手側で受信できない場合があります", { "0": formatFileSize(attachmentsTotalSize) })}
               </p>
             )}
           </div>
@@ -432,14 +437,13 @@ function ComposeEditor({
 
         {sendError && (
           <div className="flex shrink-0 items-start justify-between gap-3 border-t border-red-100 bg-red-50/90 px-5 py-2.5">
-            <p className="min-w-0 text-[11px] leading-5 text-red-500">送信に失敗しました: {sendError}</p>
+            <p className="min-w-0 text-[11px] leading-5 text-red-500">{t("送信に失敗しました:")}{sendError}</p>
             <button
               onClick={() => setSendError(null)}
-              aria-label="エラーを閉じる"
+              aria-label={t("エラーを閉じる")}
               className="shrink-0 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
             >
-              閉じる
-            </button>
+              {t("閉じる")}</button>
           </div>
         )}
 
@@ -450,18 +454,17 @@ function ComposeEditor({
               disabled={pickingFiles || sending}
               data-testid={`compose-attach-${draft.id}`}
               className="flex h-10 items-center gap-1.5 rounded-full border border-white/70 bg-white/75 px-3.5 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/30 hover:text-sumi-text disabled:opacity-50"
-              title="ファイルを添付"
+              title={t("ファイルを添付")}
             >
               <Paperclip size={12} />
-              {pickingFiles ? '選択中...' : '添付'}
+              {pickingFiles ? t("選択中...") : t("添付")}
             </button>
             <button
               onClick={requestClose}
               data-testid={`compose-cancel-${draft.id}`}
               className="rounded-full border border-white/70 bg-white/80 px-4 py-2 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text"
             >
-              キャンセル
-            </button>
+              {t("キャンセル")}</button>
           </div>
 
           <button
@@ -471,7 +474,7 @@ function ComposeEditor({
             className="flex h-11 items-center gap-1.5 rounded-full bg-sumi-accent px-5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
           >
             <SendHorizontal size={13} />
-            {sending ? '送信中...' : '送信'}
+            {sending ? t("送信中...") : t("送信")}
           </button>
         </div>
       </div>
@@ -545,7 +548,7 @@ export function ComposePanel() {
               ref={draftTabsRef}
               className="compose-draft-tabs flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-2 pt-1.5"
               role="tablist"
-              aria-label="下書き"
+              aria-label={t("下書き")}
               onScroll={() => setDiscardDraftId(null)}
             >
               {dockedDrafts.map((draft) => {
@@ -563,7 +566,7 @@ export function ComposePanel() {
                       onClick={() => setActiveDockedCompose(draft.id)}
                       role="tab"
                       aria-selected={active}
-                      title={draft.subject.trim() || '件名なし'}
+                      title={draft.subject.trim() || t("件名なし")}
                       className="min-w-0 flex-1 whitespace-nowrap text-left text-xs font-semibold focus:outline-none"
                     >
                       <span className="block overflow-hidden text-ellipsis">
@@ -577,8 +580,8 @@ export function ComposePanel() {
                           ? 'text-white/75 hover:bg-white/20 hover:text-white'
                           : 'text-sumi-text-muted/60 hover:bg-sumi-accent/10 hover:text-sumi-accent'
                       }`}
-                      aria-label={`${draft.subject.trim() || '件名なし'}を閉じる`}
-                      title="下書きを閉じる"
+                      aria-label={t("{0}を閉じる", { "0": draft.subject.trim() || t("件名なし") })}
+                      title={t("下書きを閉じる")}
                     >
                       <X size={12} strokeWidth={2.2} />
                     </button>
@@ -590,7 +593,7 @@ export function ComposePanel() {
               onClick={() => openCompose({ mode: 'new', fromAddress: defaultSender })}
               data-testid="compose-add-draft"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
-              title="下書きを追加"
+              title={t("下書きを追加")}
             >
               <FilePlus2 size={14} />
             </button>
@@ -610,25 +613,21 @@ export function ComposePanel() {
             >
               <span className="absolute -top-1.5 right-5 h-3 w-3 rotate-45 border-l border-t border-white/90 bg-[#fffaf7]" />
               <h2 id="discard-draft-title" className="text-sm font-semibold text-sumi-text">
-                下書きを削除しますか？
-              </h2>
+                {t("下書きを削除しますか？")}</h2>
               <p id="discard-draft-description" className="mt-1 text-[11px] leading-5 text-sumi-text-muted">
-                「{shortenSubject(discardDraft.subject)}」は自動保存データからも削除されます。
-              </p>
+                {t("「{subject}」は自動保存データからも削除されます。", { subject: shortenSubject(discardDraft.subject) })}</p>
               <div className="mt-3 flex justify-end gap-2">
                 <button
                   onClick={() => setDiscardDraftId(null)}
                   className="rounded-full px-3 py-2 text-[11px] font-semibold text-sumi-text-muted transition hover:bg-white hover:text-sumi-text"
                 >
-                  戻る
-                </button>
+                  {t("戻る")}</button>
                 <button
                   onClick={confirmTabDiscard}
                   autoFocus
                   className="rounded-full bg-[#e77865] px-3.5 py-2 text-[11px] font-semibold text-white shadow-[0_8px_18px_rgba(231,120,101,0.22)] transition hover:bg-[#d96f5d]"
                 >
-                  下書きを削除
-                </button>
+                  {t("下書きを削除")}</button>
               </div>
             </div>,
             document.body

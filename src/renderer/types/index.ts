@@ -8,6 +8,8 @@ export interface Account {
   smtp_host: string
   smtp_port: number
   smtp_tls: number
+  /** アカウントごとの署名(平文)。空文字 = 署名なし。 */
+  signature: string
   created_at: string
 }
 
@@ -22,6 +24,7 @@ export interface AccountInput {
   smtp_tls: boolean
   imap_password: string
   smtp_password: string
+  signature: string
 }
 
 export interface Folder {

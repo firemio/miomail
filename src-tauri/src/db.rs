@@ -300,6 +300,15 @@ fn migrate(conn: &Connection) -> Result<()> {
         )?;
     }
 
+    // v8: アカウントごとの署名(新規作成・返信・転送の本文に自動で差し込む平文)。
+    // 空文字 = 署名なし。
+    if !column_exists(conn, "accounts", "signature") {
+        conn.execute(
+            "ALTER TABLE accounts ADD COLUMN signature TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+
     // Backfill date_ts for legacy rows
     {
         let mut stmt = conn.prepare(
@@ -571,6 +580,47 @@ mod tests {
             )
             .unwrap();
         assert_eq!((done, updated_at), (5, 200));
+    }
+
+    #[test]
+    fn v8_adds_signature_column_to_existing_accounts() {
+        let dir = std::env::temp_dir().join(format!("miomail-signature-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("signature-migrate.db");
+        std::fs::remove_file(&path).ok();
+
+        // 署名カラムを持たない旧スキーマのアカウント
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL);
+                 INSERT INTO accounts (id, name, email) VALUES (1, 'test', 't@example.com');",
+            )
+            .unwrap();
+            assert!(!column_exists(&conn, "accounts", "signature"));
+        }
+
+        let conn = open_connection(&path).unwrap();
+        // 既存アカウントは「署名なし」として空文字で埋まる
+        let signature: String = conn
+            .query_row("SELECT signature FROM accounts WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(signature, "");
+
+        // 冪等: 2度目のマイグレーションでも保存済みの署名を壊さない
+        conn.execute(
+            "UPDATE accounts SET signature = ?1 WHERE id = 1",
+            ["株式会社テスト\n火宮"],
+        )
+        .unwrap();
+        migrate(&conn).unwrap();
+        let signature: String = conn
+            .query_row("SELECT signature FROM accounts WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(signature, "株式会社テスト\n火宮");
+
+        drop(conn);
+        std::fs::remove_file(&path).ok();
     }
 
     #[test]

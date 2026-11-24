@@ -43,6 +43,11 @@ export interface ComposeDraft {
   cc: string
   subject: string
   body: string
+  /**
+   * 本文に差し込んである署名の本体。差出人を切り替えたときに、この文字列を
+   * 探して新しい署名へ入れ替える(手で書いた本文は触らない)。
+   */
+  signature: string
   attachments: ComposeAttachment[]
   showCc: boolean
   isDirty: boolean
@@ -75,10 +80,11 @@ function loadComposeState(): PersistedComposeState {
               typeof draft.subject === 'string' &&
               typeof draft.body === 'string'
           )
-          // Drafts saved before attachment support lack the field
+          // Drafts saved before attachment / signature support lack the fields
           .map((draft) => ({
             ...draft,
             attachments: Array.isArray(draft.attachments) ? draft.attachments : [],
+            signature: typeof draft.signature === 'string' ? draft.signature : '',
           }))
       : []
     const activeDockedComposeId = drafts.some(
@@ -125,6 +131,7 @@ interface UIState {
   openCompose: (options?: OpenComposeOptions) => string
   closeCompose: (draftId: string, force?: boolean) => boolean
   updateComposeDraft: (draftId: string, patch: Partial<ComposeDraft>) => void
+  applySignature: (draftId: string, signature: string) => void
   setActiveDockedCompose: (draftId: string) => void
   toggleComposeLayout: (draftId: string) => void
   moveCompose: (draftId: string, position: { x: number; y: number }) => void
@@ -177,6 +184,35 @@ function normalizeSubject(prefix: 'Re:' | 'Fwd:', subject: string) {
   return `${prefix} ${base || '件名なし'}`
 }
 
+/**
+ * 署名は本文の先頭(引用や転送ヘッダーより上)に入れる。日本語のメールでは
+ * 返信の引用が末尾に来るため、末尾に付けると引用の下に埋もれてしまう。
+ */
+function insertSignature(body: string, signature: string) {
+  const sig = signature.replace(/\s+$/, '')
+  if (!sig) return body
+
+  const rest = body.replace(/^\n+/, '')
+  return rest ? `\n\n${sig}\n\n${rest}` : `\n\n${sig}`
+}
+
+/**
+ * 差出人を切り替えたときに、本文中の旧署名だけを新しい署名へ差し替える。
+ * 旧署名が見つからない(利用者が書き換え・削除した)ときは本文を触らない。
+ */
+function swapSignature(body: string, previous: string, next: string) {
+  const prev = previous.replace(/\s+$/, '')
+  const sig = next.replace(/\s+$/, '')
+  if (!prev) return insertSignature(body, sig)
+  if (!body.includes(prev)) return body
+  if (sig) return body.replace(prev, sig)
+
+  // 新しいアカウントに署名がないときは、差し込み時に付けた空行ごと取り除く
+  return body.includes(`\n\n${prev}\n\n`)
+    ? body.replace(`\n\n${prev}\n\n`, '\n\n')
+    : body.replace(`\n\n${prev}`, '')
+}
+
 function createDraft(options: OpenComposeOptions, index: number, zIndex: number): ComposeDraft {
   const mode = options.mode ?? 'new'
   const source = options.source
@@ -191,6 +227,7 @@ function createDraft(options: OpenComposeOptions, index: number, zIndex: number)
       cc: '',
       subject: normalizeSubject('Re:', source.subject),
       body: makeReplyBody(source),
+      signature: '',
       attachments: [],
       showCc: false,
       isDirty: false,
@@ -220,6 +257,7 @@ function createDraft(options: OpenComposeOptions, index: number, zIndex: number)
       cc: '',
       subject: normalizeSubject('Fwd:', source.subject),
       body: makeForwardBody(source),
+      signature: '',
       attachments: forwardedAttachments,
       showCc: false,
       isDirty: false,
@@ -238,6 +276,7 @@ function createDraft(options: OpenComposeOptions, index: number, zIndex: number)
     cc: '',
     subject: '',
     body: '',
+    signature: '',
     attachments: [],
     showCc: false,
     isDirty: false,
@@ -313,6 +352,23 @@ export const useUIStore = create<UIState>((set, get) => ({
               ...draft,
               ...patch,
               isDirty: patch.isDirty ?? true,
+            }
+          : draft
+      ),
+    })),
+
+  /**
+   * 差出人のアカウントの署名を本文へ反映する。下書きの編集済みフラグは
+   * 立てない(自動で入った署名だけの下書きを閉じるときに確認を出さない)。
+   */
+  applySignature: (draftId, signature) =>
+    set((state) => ({
+      composeDrafts: state.composeDrafts.map((draft) =>
+        draft.id === draftId && draft.signature !== signature
+          ? {
+              ...draft,
+              body: swapSignature(draft.body, draft.signature, signature),
+              signature,
             }
           : draft
       ),

@@ -219,6 +219,7 @@ function seedDb(): PreviewDb {
     smtp_host: 'preview.local',
     smtp_port: 465,
     smtp_tls: 1,
+    signature: '',
     created_at: new Date().toISOString(),
   }
 
@@ -529,6 +530,7 @@ export const mockApi = {
         smtp_host: data.smtp_host,
         smtp_port: data.smtp_port,
         smtp_tls: data.smtp_tls ? 1 : 0,
+        signature: data.signature,
         created_at: new Date().toISOString(),
       }
 
@@ -595,6 +597,7 @@ export const mockApi = {
               smtp_host: data.smtp_host,
               smtp_port: data.smtp_port,
               smtp_tls: data.smtp_tls ? 1 : 0,
+              signature: data.signature,
             }
           : account
       )

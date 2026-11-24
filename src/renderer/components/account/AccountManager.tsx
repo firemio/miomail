@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useState } from 'react'
 import { CheckCircle, ChevronLeft, Loader2, Plus, Trash2, X, XCircle } from 'lucide-react'
 import { api } from '../../lib/ipc'
@@ -105,6 +106,7 @@ const emptyForm: AccountInput = {
   smtp_tls: false,
   imap_password: '',
   smtp_password: '',
+  signature: '',
 }
 
 interface AccountManagerProps {
@@ -171,7 +173,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
       const result = await api.account.test(data)
       setTestResult(result)
     } catch (err: any) {
-      setError(`接続テストに失敗しました: ${err.message || err}`)
+      setError(t("接続テストに失敗しました: {0}", { "0": err.message || err }))
       setTestResult({ imap: false, smtp: false })
     } finally {
       setTesting(false)
@@ -193,7 +195,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
       resetForm()
       setView('list')
     } catch (err: any) {
-      setError(`保存に失敗しました: ${err.message || err}`)
+      setError(t("保存に失敗しました: {0}", { "0": err.message || err }))
     } finally {
       setSaving(false)
     }
@@ -211,6 +213,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
       smtp_tls: account.smtp_tls === 1,
       imap_password: '',
       smtp_password: '',
+      signature: account.signature ?? '',
     })
     setEditingId(account.id)
     setSamePassword(true)
@@ -225,7 +228,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
       await api.account.delete(id)
       await loadAccounts()
     } catch (err: any) {
-      setError(`削除に失敗しました: ${err.message || err}`)
+      setError(t("削除に失敗しました: {0}", { "0": err.message || err }))
     } finally {
       setDeleting(null)
     }
@@ -245,7 +248,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                 setView('list')
                 resetForm()
               }}
-              aria-label="一覧に戻る"
+              aria-label={t("一覧に戻る")}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
             >
               <ChevronLeft size={14} />
@@ -256,14 +259,14 @@ export function AccountManager({ onClose }: AccountManagerProps) {
               ACCOUNT ROUTER
             </p>
             <span className="mt-0.5 block font-display text-xl text-sumi-text">
-              {view === 'list' ? 'アカウント管理' : view === 'edit' ? 'アカウント編集' : '新規アカウント'}
+              {view === 'list' ? t("アカウント管理") : view === 'edit' ? t("アカウント編集") : t("新規アカウント")}
             </span>
           </div>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            aria-label="閉じる"
+            aria-label={t("閉じる")}
             className="flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
           >
             <X size={14} />
@@ -282,8 +285,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
           <div className="flex-1 overflow-y-auto">
             {accounts.length === 0 ? (
               <div className="flex h-32 items-center justify-center text-xs text-sumi-text-muted">
-                まだアカウントがありません
-              </div>
+                {t("まだアカウントがありません")}</div>
             ) : (
               accounts.map((account) => (
                 <div
@@ -303,7 +305,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                       className="ml-2 flex shrink-0 items-center gap-1.5 rounded-full border border-red-400/30 bg-red-400/20 px-2.5 py-1.5"
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <span className="text-[10px] font-semibold text-red-500">削除しますか？</span>
+                      <span className="text-[10px] font-semibold text-red-500">{t("削除しますか？")}</span>
                       <button
                         onClick={(event) => {
                           event.stopPropagation()
@@ -313,8 +315,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                         data-testid={`account-confirm-delete-${account.id}`}
                         className="rounded-full bg-red-400 px-2.5 py-1 text-[10px] font-semibold text-white transition hover:bg-red-500"
                       >
-                        削除
-                      </button>
+                        {t("削除")}</button>
                       <button
                         onClick={(event) => {
                           event.stopPropagation()
@@ -322,8 +323,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                         }}
                         className="rounded-full px-1.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
                       >
-                        やめる
-                      </button>
+                        {t("やめる")}</button>
                     </div>
                   ) : (
                     <button
@@ -355,8 +355,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
               className="flex h-11 items-center gap-1.5 rounded-full bg-sumi-accent px-5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong"
             >
               <Plus size={12} />
-              アカウントを追加
-            </button>
+              {t("アカウントを追加")}</button>
           </div>
         </>
       )}
@@ -365,7 +364,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
         <>
           <div className="flex-1 space-y-4 overflow-y-auto p-5">
             <div>
-              <label className="mb-1.5 block text-[11px] text-sumi-text-muted">プリセット</label>
+              <label className="mb-1.5 block text-[11px] text-sumi-text-muted">{t("プリセット")}</label>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(ACCOUNT_PRESETS).map(([key, preset]) => (
                   <button
@@ -373,29 +372,29 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                     onClick={() => applyPreset(key)}
                     className="h-9 rounded-full border border-white/80 bg-white/75 px-4 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/40 hover:text-sumi-text"
                   >
-                    {preset.label}
+                    {t(preset.label)}
                   </button>
                 ))}
               </div>
               {presetHint && (
                 <p className="mt-2 rounded-xl bg-sumi-surface/70 px-3 py-2 text-[11px] leading-5 text-sumi-text-muted">
-                  {presetHint}
+                  {t(presetHint)}
                 </p>
               )}
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-[11px] text-sumi-text-muted">表示名</label>
+                <label className="mb-1 block text-[11px] text-sumi-text-muted">{t("表示名")}</label>
                 <input
                   value={form.name}
                   onChange={(event) => update('name', event.target.value)}
-                  placeholder="会社 / 自分の名前"
+                  placeholder={t("会社 / 自分の名前")}
                   className="h-11 w-full rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] text-sumi-text-muted">メールアドレス</label>
+                <label className="mb-1 block text-[11px] text-sumi-text-muted">{t("メールアドレス")}</label>
                 <input
                   value={form.email}
                   onChange={(event) => update('email', event.target.value)}
@@ -404,12 +403,12 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-[11px] text-sumi-text-muted">パスワード</label>
+                <label className="mb-1 block text-[11px] text-sumi-text-muted">{t("パスワード")}</label>
                 <input
                   type="password"
                   value={form.imap_password}
                   onChange={(event) => update('imap_password', event.target.value)}
-                  placeholder={editingId ? '変更しない場合は空欄のまま' : ''}
+                  placeholder={editingId ? t("変更しない場合は空欄のまま") : ''}
                   className="h-11 w-full rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
                 />
               </div>
@@ -417,16 +416,14 @@ export function AccountManager({ onClose }: AccountManagerProps) {
 
             {looksLikeGmail && (
               <div className="rounded-[18px] border border-amber-200 bg-amber-50/80 px-4 py-3">
-                <p className="text-[11px] font-semibold text-amber-900">Gmailは通常のパスワードでは接続できません</p>
+                <p className="text-[11px] font-semibold text-amber-900">{t("Gmailは通常のパスワードでは接続できません")}</p>
                 <p className="mt-1 text-[10px] leading-4 text-amber-800/90">
-                  Googleアカウントで2段階認証を有効にし、「アプリパスワード」（16桁）を発行して、上のパスワード欄に入力してください。
-                  発行ページ: myaccount.google.com/apppasswords
-                </p>
+                  {t("Googleアカウントで2段階認証を有効にし、「アプリパスワード」（16桁）を発行して、上のパスワード欄に入力してください。 発行ページ: myaccount.google.com/apppasswords")}</p>
               </div>
             )}
 
             <div>
-              <label className="mb-1.5 block text-[11px] text-sumi-text-muted">IMAP 設定</label>
+              <label className="mb-1.5 block text-[11px] text-sumi-text-muted">{t("IMAP 設定")}</label>
               <div className="flex gap-2">
                 <input
                   value={form.imap_host}
@@ -453,7 +450,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-[11px] text-sumi-text-muted">SMTP 設定</label>
+              <label className="mb-1.5 block text-[11px] text-sumi-text-muted">{t("SMTP 設定")}</label>
               <div className="flex gap-2">
                 <input
                   value={form.smtp_host}
@@ -486,12 +483,11 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                 onChange={(event) => setSamePassword(event.target.checked)}
                 className="accent-sumi-accent"
               />
-              IMAP と SMTP で同じパスワードを使う
-            </label>
+              {t("IMAP と SMTP で同じパスワードを使う")}</label>
 
             {!samePassword && (
               <div>
-                <label className="mb-1 block text-[11px] text-sumi-text-muted">SMTP パスワード</label>
+                <label className="mb-1 block text-[11px] text-sumi-text-muted">{t("SMTP パスワード")}</label>
                 <input
                   type="password"
                   value={form.smtp_password}
@@ -500,6 +496,20 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                 />
               </div>
             )}
+
+            <div>
+              <label className="mb-1 block text-[11px] text-sumi-text-muted">{t("署名")}</label>
+              <textarea
+                value={form.signature}
+                onChange={(event) => update('signature', event.target.value)}
+                rows={5}
+                placeholder={t("会社名・部署・電話番号など、毎回入れたい内容")}
+                className="w-full resize-y rounded-2xl border border-white/80 bg-white/80 px-3 py-2.5 text-xs leading-6 text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
+              />
+              <p className="mt-1.5 text-[10px] leading-5 text-sumi-text-muted">
+                {t("新規作成・返信・転送の本文に自動で入ります。差出人を切り替えると、そのアカウントの署名に入れ替わります。")}
+              </p>
+            </div>
 
             {testResult && (
               <div className="flex gap-3 rounded-[22px] border border-white/75 bg-white/75 p-4">
@@ -530,15 +540,14 @@ export function AccountManager({ onClose }: AccountManagerProps) {
               className="flex h-11 items-center gap-1.5 rounded-full border border-white/80 bg-white/80 px-4 text-xs font-semibold text-sumi-text transition hover:border-sumi-accent/50 disabled:opacity-50"
             >
               {testing && <Loader2 size={12} className="animate-spin" />}
-              接続テスト
-            </button>
+              {t("接続テスト")}</button>
             <button
               onClick={() => void handleSave()}
               disabled={saving || (!editingId && !canTest)}
               className="flex h-11 items-center gap-1.5 rounded-full bg-sumi-accent px-5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong disabled:opacity-50"
             >
               {saving && <Loader2 size={12} className="animate-spin" />}
-              {editingId ? '更新' : '保存'}
+              {editingId ? t("更新") : t("保存")}
             </button>
           </div>
         </>

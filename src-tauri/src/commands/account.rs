@@ -16,6 +16,8 @@ pub struct Account {
     pub smtp_host: String,
     pub smtp_port: i64,
     pub smtp_tls: i64,
+    /// アカウントごとの署名(平文)。空文字 = 署名なし。
+    pub signature: String,
     pub created_at: String,
 }
 
@@ -31,13 +33,16 @@ pub struct AccountInput {
     pub smtp_tls: bool,
     pub imap_password: String,
     pub smtp_password: String,
+    /// 署名欄を持たない古い呼び出し元のために既定値を許す。
+    #[serde(default)]
+    pub signature: String,
 }
 
 #[tauri::command]
 pub fn account_list(db: State<'_, DbState>) -> Result<Vec<Account>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, name, email, imap_host, imap_port, imap_tls, smtp_host, smtp_port, smtp_tls, created_at FROM accounts ORDER BY created_at DESC")
+        .prepare("SELECT id, name, email, imap_host, imap_port, imap_tls, smtp_host, smtp_port, smtp_tls, signature, created_at FROM accounts ORDER BY created_at DESC")
         .map_err(|e| e.to_string())?;
 
     let accounts = stmt
@@ -52,7 +57,8 @@ pub fn account_list(db: State<'_, DbState>) -> Result<Vec<Account>, String> {
                 smtp_host: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
                 smtp_port: row.get::<_, Option<i64>>(7)?.unwrap_or(587),
                 smtp_tls: row.get::<_, Option<i64>>(8)?.unwrap_or(1),
-                created_at: row.get::<_, Option<String>>(9)?.unwrap_or_default(),
+                signature: row.get::<_, Option<String>>(9)?.unwrap_or_default(),
+                created_at: row.get::<_, Option<String>>(10)?.unwrap_or_default(),
             })
         })
         .map_err(|e| e.to_string())?
@@ -66,8 +72,8 @@ pub fn account_list(db: State<'_, DbState>) -> Result<Vec<Account>, String> {
 pub fn account_create(data: AccountInput, db: State<'_, DbState>) -> Result<Account, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO accounts (name, email, imap_host, imap_port, imap_tls, smtp_host, smtp_port, smtp_tls) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        rusqlite::params![data.name, data.email, data.imap_host, data.imap_port, if data.imap_tls { 1 } else { 0 }, data.smtp_host, data.smtp_port, if data.smtp_tls { 1 } else { 0 }],
+        "INSERT INTO accounts (name, email, imap_host, imap_port, imap_tls, smtp_host, smtp_port, smtp_tls, signature) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        rusqlite::params![data.name, data.email, data.imap_host, data.imap_port, if data.imap_tls { 1 } else { 0 }, data.smtp_host, data.smtp_port, if data.smtp_tls { 1 } else { 0 }, data.signature],
     ).map_err(|e| e.to_string())?;
 
     let id = conn.last_insert_rowid();
@@ -92,6 +98,7 @@ pub fn account_create(data: AccountInput, db: State<'_, DbState>) -> Result<Acco
         smtp_host: data.smtp_host,
         smtp_port: data.smtp_port,
         smtp_tls: if data.smtp_tls { 1 } else { 0 },
+        signature: data.signature,
         created_at: String::new(),
     })
 }
@@ -133,8 +140,8 @@ pub async fn account_test(data: AccountInput) -> Result<serde_json::Value, Strin
 pub fn account_update(id: i64, data: AccountInput, db: State<'_, DbState>) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE accounts SET name=?1, email=?2, imap_host=?3, imap_port=?4, imap_tls=?5, smtp_host=?6, smtp_port=?7, smtp_tls=?8 WHERE id=?9",
-        rusqlite::params![data.name, data.email, data.imap_host, data.imap_port, if data.imap_tls { 1 } else { 0 }, data.smtp_host, data.smtp_port, if data.smtp_tls { 1 } else { 0 }, id],
+        "UPDATE accounts SET name=?1, email=?2, imap_host=?3, imap_port=?4, imap_tls=?5, smtp_host=?6, smtp_port=?7, smtp_tls=?8, signature=?9 WHERE id=?10",
+        rusqlite::params![data.name, data.email, data.imap_host, data.imap_port, if data.imap_tls { 1 } else { 0 }, data.smtp_host, data.smtp_port, if data.smtp_tls { 1 } else { 0 }, data.signature, id],
     ).map_err(|e| e.to_string())?;
 
     if !data.imap_password.is_empty() {
