@@ -51,6 +51,7 @@ export function McpGuide() {
         <nav>
           <a href="./">トップ</a>
           <a href="./mods.html">MODガイド</a>
+          <a href="./muse.html">Museガイド</a>
           <a href={DOWNLOAD_URL}><Download size={13} /> ダウンロード</a>
         </nav>
       </header>

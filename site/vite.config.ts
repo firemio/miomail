@@ -29,7 +29,8 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         mods: resolve(__dirname, 'mods.html'),
-        mcp: resolve(__dirname, 'mcp.html')
+        mcp: resolve(__dirname, 'mcp.html'),
+        muse: resolve(__dirname, 'muse.html')
       }
     }
   }

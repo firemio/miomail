@@ -442,6 +442,7 @@ export function MioMailSite() {
         <div>
           <a href="/mods.html">MODガイド</a>
           <a href="./mcp.html">MCPガイド</a>
+          <a href="./muse.html">Museガイド</a>
           <a href="https://github.com/firemio/miomail">GitHub</a>
           <a href={RELEASE_PAGE_URL}>Releases</a>
           <span>v{version}</span>

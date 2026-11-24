@@ -26,14 +26,14 @@ sync / list_accounts / list_folders / list_messages / get_message / search_messa
 
 【重要】send_mail(即時送信)と delete_message(削除)は取り消せません。これらを実行する前には、必ず内容を提示して私の確認を取ってください。`
 
-export function CopyPromptButton() {
+export function CopyPromptButton({ prompt = AUTO_SETUP_PROMPT }: { prompt?: string }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(AUTO_SETUP_PROMPT)
+      await navigator.clipboard.writeText(prompt)
     } catch {
       const ta = document.createElement('textarea')
-      ta.value = AUTO_SETUP_PROMPT
+      ta.value = prompt
       document.body.appendChild(ta)
       ta.select()
       document.execCommand('copy')
