@@ -1,3 +1,4 @@
+import { t, dateLocale } from '../../lib/i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { api } from '../../lib/ipc'
@@ -82,13 +83,13 @@ function AttachmentChips({ attachments, messageId }: { attachments: Attachment[]
   const handleSave = (attachment: Attachment) =>
     run(attachment.id, async () => {
       const path = await api.attachment.save(attachment.id)
-      if (path) setSavedNote(`保存しました: ${path}`)
+      if (path) setSavedNote(t("保存しました: {0}", { "0": path }))
     })
 
   const handleSaveAll = () =>
     run('all', async () => {
       const dir = await api.attachment.saveAll(messageId)
-      if (dir) setSavedNote(`保存しました: ${dir}`)
+      if (dir) setSavedNote(t("保存しました: {0}", { "0": dir }))
     })
 
   if (attachments.length === 0) return null
@@ -98,8 +99,7 @@ function AttachmentChips({ attachments, messageId }: { attachments: Attachment[]
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-sumi-text-muted">
           <Paperclip size={12} />
-          添付ファイル {attachments.length}件
-        </span>
+          {t("添付ファイル")}{attachments.length}{t("件")}</span>
         {attachments.length >= 2 && (
           <button
             onClick={handleSaveAll}
@@ -108,7 +108,7 @@ function AttachmentChips({ attachments, messageId }: { attachments: Attachment[]
             className="inline-flex items-center gap-1 rounded-full border border-white/70 bg-white/70 px-2.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:opacity-50"
           >
             <FolderDown size={11} />
-            {busyId === 'all' ? '保存中...' : 'すべて保存'}
+            {busyId === 'all' ? t("保存中...") : t("すべて保存")}
           </button>
         )}
       </div>
@@ -125,7 +125,7 @@ function AttachmentChips({ attachments, messageId }: { attachments: Attachment[]
                 onClick={() => handleOpen(attachment)}
                 disabled={busyId !== null}
                 data-testid={`attachment-open-${attachment.id}`}
-                title={`${attachment.filename}を開く`}
+                title={t("{0}を開く", { "0": attachment.filename })}
                 className="flex min-w-0 items-center gap-2 text-left disabled:opacity-50"
               >
                 <Icon size={15} className="shrink-0 text-sumi-accent" />
@@ -135,8 +135,8 @@ function AttachmentChips({ attachments, messageId }: { attachments: Attachment[]
                   </span>
                   <span className="block text-[10px] text-sumi-text-muted">
                     {busyId === attachment.id
-                      ? '処理中...'
-                      : [size, attachment.is_inline ? 'インライン' : '']
+                      ? t("処理中...")
+                      : [size, attachment.is_inline ? t("インライン") : '']
                           .filter(Boolean)
                           .join(' · ')}
                   </span>
@@ -146,7 +146,7 @@ function AttachmentChips({ attachments, messageId }: { attachments: Attachment[]
                 onClick={() => handleSave(attachment)}
                 disabled={busyId !== null}
                 data-testid={`attachment-save-${attachment.id}`}
-                title="名前を付けて保存"
+                title={t("名前を付けて保存")}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sumi-text-muted transition hover:bg-sumi-accent/10 hover:text-sumi-accent disabled:opacity-50"
               >
                 <Download size={13} />
@@ -181,7 +181,7 @@ function escapeHtml(str: string) {
 function formatFullDate(dateStr: string) {
   if (!dateStr) return ''
 
-  return new Date(dateStr).toLocaleString('ja-JP', {
+  return new Date(dateStr).toLocaleString(dateLocale(), {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -380,31 +380,31 @@ export function MessageView() {
             onClick={handleReply}
               data-testid="message-reply-button"
             className="flex h-10 items-center gap-1.5 rounded-full border border-white/70 bg-white/70 px-4 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text"
-            title="返信"
+            title={t("返信")}
           >
             <Reply size={13} />
-            <span>返信</span>
+            <span>{t("返信")}</span>
           </button>
           <button
             onClick={handleForward}
               data-testid="message-forward-button"
             className="flex h-10 items-center gap-1.5 rounded-full border border-white/70 bg-white/70 px-4 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text"
-            title="転送"
+            title={t("転送")}
           >
             <Forward size={13} />
-            <span>転送</span>
+            <span>{t("転送")}</span>
           </button>
           <button
             onClick={() => markRead(currentMessage.id, !read)}
             className="flex h-10 items-center gap-1.5 rounded-full border border-white/70 bg-white/70 px-4 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text"
-            title={read ? '未読に戻す' : '既読にする'}
+            title={read ? t("未読に戻す") : t("既読にする")}
           >
             {read ? <Mail size={13} /> : <MailOpen size={13} />}
-            <span>{read ? '未読に戻す' : '既読にする'}</span>
+            <span>{read ? t("未読に戻す") : t("既読にする")}</span>
           </button>
           {confirmDelete ? (
             <div className="flex items-center gap-2 rounded-full border border-red-400/30 bg-red-400/20 px-3 py-1">
-              <span className="text-xs font-semibold text-red-500">ゴミ箱へ移動しますか？</span>
+              <span className="text-xs font-semibold text-red-500">{t("ゴミ箱へ移動しますか？")}</span>
               <button
                 onClick={() => {
                   setConfirmDelete(false)
@@ -413,24 +413,22 @@ export function MessageView() {
                 data-testid="message-confirm-delete"
                 className="rounded-full bg-red-400 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-500"
               >
-                移動する
-              </button>
+                {t("移動する")}</button>
               <button
                 onClick={() => setConfirmDelete(false)}
                 className="rounded-full px-2 py-1.5 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text"
               >
-                やめる
-              </button>
+                {t("やめる")}</button>
             </div>
           ) : (
             <button
               onClick={() => setConfirmDelete(true)}
               data-testid="message-delete-button"
               className="flex h-10 items-center gap-1.5 rounded-full border border-red-400/30 bg-red-400/15 px-4 text-xs font-semibold text-red-400 transition hover:bg-red-400/25"
-              title="ゴミ箱へ移動"
+              title={t("ゴミ箱へ移動")}
             >
               <Trash2 size={13} />
-              <span>削除</span>
+              <span>{t("削除")}</span>
             </button>
           )}
         </div>
@@ -438,27 +436,27 @@ export function MessageView() {
         <button
           onClick={closeMessage}
           className="flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/70 text-sumi-text-muted transition hover:text-sumi-text"
-          title="閉じる"
+          title={t("閉じる")}
         >
           <X size={14} />
         </button>
       </div>
 
       <div className="shrink-0 border-b border-white/70 px-6 py-4">
-        {!read && <span className="mb-2 inline-block rounded-full bg-sumi-unread/20 px-3 py-1 text-xs text-sumi-text">未読</span>}
+        {!read && <span className="mb-2 inline-block rounded-full bg-sumi-unread/20 px-3 py-1 text-xs text-sumi-text">{t("未読")}</span>}
 
         <h2 className="mb-4 text-[28px] font-semibold leading-snug text-sumi-text">
-          {currentMessage.subject || '(件名なし)'}
+          {currentMessage.subject || t("(件名なし)")}
         </h2>
 
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="min-w-0 space-y-2">
             <div className="text-xs">
-              <span className="text-sumi-text-muted">差出人: </span>
+              <span className="text-sumi-text-muted">{t("差出人:")}</span>
               <span className="break-all text-sumi-text">{currentMessage.from_address}</span>
             </div>
             <div className="text-xs">
-              <span className="text-sumi-text-muted">宛先: </span>
+              <span className="text-sumi-text-muted">{t("宛先:")}</span>
               <span className="break-all text-sumi-text">{currentMessage.to_addresses}</span>
             </div>
             {currentMessage.cc_addresses && (
@@ -483,15 +481,13 @@ export function MessageView() {
       {hasRemoteImages && !showRemoteImages && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-amber-100 bg-amber-50/80 px-8 py-2">
           <p className="text-[11px] leading-4 text-amber-800">
-            プライバシー保護のため、外部サーバーの画像を表示していません
-          </p>
+            {t("プライバシー保護のため、外部サーバーの画像を表示していません")}</p>
           <button
             onClick={() => setShowRemoteImages(true)}
             data-testid="show-remote-images"
             className="shrink-0 rounded-full border border-amber-200 bg-white/85 px-3 py-1 text-[11px] font-semibold text-amber-800 transition hover:bg-white"
           >
-            画像を表示
-          </button>
+            {t("画像を表示")}</button>
         </div>
       )}
 

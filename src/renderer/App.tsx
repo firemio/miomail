@@ -21,8 +21,11 @@ import { useCharacterStore } from './stores/characterStore'
 import { useUIStore } from './stores/uiStore'
 
 import { isTauriRuntime } from './lib/ipc'
+import { useLanguage } from './lib/i18n'
 
 export default function App() {
+  const language = useLanguage((state) => state.language)
+  useEffect(() => { document.documentElement.lang = language }, [language])
   const { loadAccounts, currentMessage, handleIncomingMail, allFolders } = useMailStore()
   const { pulseUnreadAttention, notifyIncomingMail, notifySentMail, gainBond } = useMascotStore()
   const {

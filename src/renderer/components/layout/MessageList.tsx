@@ -1,3 +1,4 @@
+import { t, dateLocale } from '../../lib/i18n'
 import { AlertTriangle, Paperclip, X } from 'lucide-react'
 import { getFolderDisplayName } from '../../lib/folderDisplay'
 import { useMailStore } from '../../stores/mailStore'
@@ -22,19 +23,19 @@ function formatDate(dateStr: string): string {
   const isToday = date.toDateString() === now.toDateString()
 
   if (isToday) {
-    return date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleTimeString(dateLocale(), { hour: '2-digit', minute: '2-digit' })
   }
 
   const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24))
   if (diffDays >= 0 && diffDays < 7) {
-    return date.toLocaleDateString('ja-JP', { weekday: 'short' })
+    return date.toLocaleDateString(dateLocale(), { weekday: 'short' })
   }
 
-  return date.toLocaleDateString('ja-JP', { year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined, month: 'short', day: 'numeric' })
+  return date.toLocaleDateString(dateLocale(), { year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined, month: 'short', day: 'numeric' })
 }
 
 function extractName(addr: string): string {
-  if (!addr) return '差出人不明'
+  if (!addr) return t("差出人不明")
   const match = addr.match(/^(.+?)\s*</)
   if (match && match[1].trim()) return match[1].trim()
   const emailMatch = addr.match(/<(.+?)>/)
@@ -73,10 +74,9 @@ export function MessageList() {
     return (
       <div className={`flex ${listWidthClass} items-center justify-center border-r border-white/70 bg-white/45 px-6 text-sumi-text-muted`}>
         <div className="text-center">
-          <p className="text-sm font-semibold text-sumi-text">フォルダを選んでください</p>
+          <p className="text-sm font-semibold text-sumi-text">{t("フォルダを選んでください")}</p>
           <p className="mt-2 text-xs text-sumi-text-muted">
-            左のサイドバーから受信トレイや送信済みを選べます。
-          </p>
+            {t("左のサイドバーから受信トレイや送信済みを選べます。")}</p>
         </div>
       </div>
     )
@@ -88,7 +88,7 @@ export function MessageList() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <span className="block truncate text-lg font-semibold text-sumi-text">
-              {searchMode ? '検索結果' : currentFolder ? getFolderDisplayName(currentFolder) : 'メール'}
+              {searchMode ? t("検索結果") : currentFolder ? getFolderDisplayName(currentFolder) : t("メール")}
             </span>
             {searchMode && <p className="mt-1 break-words text-xs text-sumi-text-muted">「{lastQuery || searchQuery}」</p>}
           </div>
@@ -98,11 +98,10 @@ export function MessageList() {
                 onClick={() => { setSearchQuery(''); void clearSearch() }}
                 className="rounded-full border border-white/75 bg-white/80 px-3 py-1.5 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
               >
-                検索を閉じる
-              </button>
+                {t("検索を閉じる")}</button>
             )}
             <span className="rounded-full bg-white/80 px-3 py-1 text-[10px] font-semibold text-sumi-text-muted">
-              {searching ? '検索中…' : `${messages.length}${hasMoreMessages ? '+' : ''}件`}
+              {searching ? t("検索中…") : t("{0}{1}件", { "0": messages.length, "1": hasMoreMessages ? '+' : '' })}
             </span>
           </div>
         </div>
@@ -113,19 +112,18 @@ export function MessageList() {
         <div className="mx-3 mt-3 flex shrink-0 items-start gap-2 rounded-[18px] border border-amber-200 bg-amber-50/90 px-3 py-2.5">
           <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold text-amber-900">同期に失敗しました</p>
+            <p className="text-[11px] font-semibold text-amber-900">{t("同期に失敗しました")}</p>
             <p className="mt-0.5 whitespace-pre-line break-words text-[10px] leading-4 text-amber-800/90">
               {syncError}
             </p>
             {/Password not found|パスワード/i.test(syncError) && (
               <p className="mt-1 text-[10px] leading-4 text-amber-800/90">
-                設定 → メールアカウント からアカウントを開き、パスワードを再入力して保存してください。
-              </p>
+                {t("設定 → メールアカウント からアカウントを開き、パスワードを再入力して保存してください。")}</p>
             )}
           </div>
           <button
             onClick={clearSyncError}
-            aria-label="エラーを閉じる"
+            aria-label={t("エラーを閉じる")}
             className="shrink-0 text-amber-600 transition hover:text-amber-800"
           >
             <X size={13} />
@@ -137,13 +135,13 @@ export function MessageList() {
         {searching || (loading && messages.length === 0) ? (
           <div role="status" className="flex h-32 items-center justify-center gap-2 text-xs text-sumi-text-muted">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-sumi-accent border-t-transparent" />
-            {searching ? '検索しています…' : '読み込んでいます…'}
+            {searching ? t("検索しています…") : t("読み込んでいます…")}
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-40 items-center justify-center px-6 text-center text-xs text-sumi-text-muted">
             {searchMode
-              ? '一致するメールは見つかりませんでした。語句を短くするか、別のキーワードで試してください。'
-              : 'このフォルダにはまだメールがありません。'}
+              ? t("一致するメールは見つかりませんでした。語句を短くするか、別のキーワードで試してください。")
+              : t("このフォルダにはまだメールがありません。")}
           </div>
         ) : (
           messages.map((message) => {
@@ -154,7 +152,7 @@ export function MessageList() {
               <button
                 key={message.id}
                 aria-current={isActive ? 'true' : undefined}
-                aria-label={`${unread ? '未読、' : ''}${extractName(message.from_address)}、${message.subject || '(件名なし)'}`}
+                aria-label={`${unread ? t("未読、") : ''}${extractName(message.from_address)}、${message.subject || t("(件名なし)")}`}
                 onClick={() => openMessage(message.id)}
                 className={`my-1 block w-full rounded-xl border px-4 py-3 text-left transition-colors ${
                   isActive
@@ -182,7 +180,7 @@ export function MessageList() {
                       unread ? 'text-sumi-text' : 'text-sumi-text-muted'
                     }`}
                   >
-                    {message.subject || '(件名なし)'}
+                    {message.subject || t("(件名なし)")}
                   </div>
                   {message.has_attachments > 0 && (
                     <span className="shrink-0 text-sumi-text-muted">
@@ -206,8 +204,7 @@ export function MessageList() {
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-sumi-accent border-t-transparent" />
             ) : (
               <button onClick={() => void loadMoreMessages()} className="rounded-full bg-white/70 px-4 py-1.5 font-semibold transition hover:text-sumi-text">
-                さらに読み込む
-              </button>
+                {t("さらに読み込む")}</button>
             )}
           </div>
         )}

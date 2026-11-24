@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useEffect, useState } from 'react'
 import { Download, X } from 'lucide-react'
 import { api, isTauriRuntime } from '../../lib/ipc'
@@ -59,14 +60,13 @@ export function UpdateBanner() {
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-sumi-text">
-            新しいバージョン v{latestVersion} が利用できます
-          </p>
+            {t("新しいバージョン v")}{latestVersion} {t("が利用できます")}</p>
           <p className="mt-0.5 text-[11px] text-sumi-text-muted">
             {installing
-              ? 'ダウンロード中… 完了すると自動で再起動します'
+              ? t("ダウンロード中… 完了すると自動で再起動します")
               : error
-                ? `更新に失敗しました: ${error}`
-                : '今すぐ更新すると、ダウンロード後に自動で再起動します。'}
+                ? t("更新に失敗しました: {0}", { "0": error })
+                : t("今すぐ更新すると、ダウンロード後に自動で再起動します。")}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -76,12 +76,12 @@ export function UpdateBanner() {
             className="flex h-9 items-center gap-1.5 rounded-full bg-sumi-accent px-4 text-xs font-semibold text-white transition hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Download size={13} />
-            {installing ? '更新中…' : '今すぐ更新'}
+            {installing ? t("更新中…") : t("今すぐ更新")}
           </button>
           <button
             onClick={() => setDismissed(true)}
             disabled={installing}
-            aria-label="後で更新する"
+            aria-label={t("後で更新する")}
             className="flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text disabled:opacity-50"
           >
             <X size={14} />

@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, Heart, Settings2, Sparkles } from 'lucide-react'
 import { getMascotMeta } from '../../data/mascots'
@@ -241,38 +242,38 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
       data-on-delivery="false"
     >
       {open && (
-        <section className={`glass-panel absolute w-[320px] rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_28px_80px_rgba(82,52,60,0.28)] backdrop-blur-2xl ${position.x > window.innerWidth - 450 ? 'right-[108px]' : 'left-[108px]'} ${position.y > window.innerHeight - 520 ? 'bottom-0' : 'top-0'}`} role="dialog" aria-label={`${mascot.name}の詳細`}>
+        <section className={`glass-panel absolute w-[320px] rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_28px_80px_rgba(82,52,60,0.28)] backdrop-blur-2xl ${position.x > window.innerWidth - 450 ? 'right-[108px]' : 'left-[108px]'} ${position.y > window.innerHeight - 520 ? 'bottom-0' : 'top-0'}`} role="dialog" aria-label={t("{0}の詳細", { "0": mascot.name })}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-semibold tracking-[0.2em] text-sumi-text-muted">COMPANION</p>
               <h2 className="mt-1 font-display text-2xl text-sumi-text">{mascot.name}</h2>
-              <p className="mt-1 text-[11px] text-sumi-text-muted">{mascot.subtitle}</p>
+              <p className="mt-1 text-[11px] text-sumi-text-muted">{t(mascot.subtitle)}</p>
             </div>
-            <button onClick={() => setOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted" aria-label="相棒の詳細を閉じる"><ChevronDown size={16} /></button>
+            <button onClick={() => setOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted" aria-label={t("相棒の詳細を閉じる")}><ChevronDown size={16} /></button>
           </div>
 
-          {summonEvent && <div className="mt-4 rounded-[18px] border border-sumi-accent/20 bg-sumi-accent/10 px-4 py-3"><div className="flex items-center gap-2 text-[10px] font-semibold text-sumi-accent"><Sparkles size={12} />お知らせ</div><p className="mt-1 text-[11px] leading-5 text-sumi-text">{summonEvent.message}</p></div>}
+          {summonEvent && <div className="mt-4 rounded-[18px] border border-sumi-accent/20 bg-sumi-accent/10 px-4 py-3"><div className="flex items-center gap-2 text-[10px] font-semibold text-sumi-accent"><Sparkles size={12} />{t("お知らせ")}</div><p className="mt-1 text-[11px] leading-5 text-sumi-text">{summonEvent.message}</p></div>}
 
           <div className="mt-4 flex items-center gap-4 rounded-[22px] bg-sumi-surface/70 p-4">
             <MascotRenderer mascotId={selectedMascotId} bond={bond} care={care} size={94} pose={0} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap gap-1.5"><span className="rounded-full bg-white/80 px-2.5 py-1 text-[10px] text-sumi-text-muted">{getMascotPhaseLabel(phase)}</span><span className="rounded-full bg-white/80 px-2.5 py-1 text-[10px] text-sumi-text-muted">{getMascotConditionLabel(condition.status)}</span></div>
-              <div className="mt-3 flex items-center justify-between text-[10px] text-sumi-text-muted"><span>成長</span><span>{progress.current} / {progress.nextGoal}pt</span></div>
+              <div className="mt-3 flex items-center justify-between text-[10px] text-sumi-text-muted"><span>{t("成長")}</span><span>{progress.current} / {progress.nextGoal}pt</span></div>
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/80"><div className="h-full rounded-full bg-sumi-accent" style={{ width: `${Math.max(8, progress.progress * 100)}%` }} /></div>
-              <p className="mt-2 text-[10px] text-sumi-text-muted">連続 {streakDays}日</p>
+              <p className="mt-2 text-[10px] text-sumi-text-muted">{t("連続")}{streakDays}{t("日")}</p>
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-2">
             {[
-              ['おなか', care.fullness],
-              ['ごきげん', care.mood],
-              ['げんき', care.energy],
-              ['みだしなみ', care.cleanliness],
+              [t("おなか"), care.fullness],
+              [t("ごきげん"), care.mood],
+              [t("げんき"), care.energy],
+              [t("みだしなみ"), care.cleanliness],
             ].map(([label, value]) => <div key={String(label)} className="rounded-[16px] border border-white/80 bg-white/68 px-3 py-2.5"><div className="flex items-center justify-between text-[10px] text-sumi-text-muted"><span>{label}</span><span>{value}%</span></div><div className="mt-1.5 h-1.5 rounded-full bg-sumi-surface"><div className="h-full rounded-full" style={{ width: `${value}%`, backgroundColor: mascot.accent }} /></div></div>)}
           </div>
 
-          <button onClick={() => { setOpen(false); openSettings() }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-sumi-border bg-white/75 py-2.5 text-xs font-semibold text-sumi-text transition hover:border-sumi-accent/40"><Settings2 size={14} />相棒・テーマ設定</button>
+          <button onClick={() => { setOpen(false); openSettings() }} className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-sumi-border bg-white/75 py-2.5 text-xs font-semibold text-sumi-text transition hover:border-sumi-accent/40"><Settings2 size={14} />{t("相棒・テーマ設定")}</button>
         </section>
       )}
 
@@ -289,7 +290,7 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
           }
         }}
         className="group relative flex h-[96px] w-[96px] touch-none cursor-grab items-center justify-center active:cursor-grabbing"
-        aria-label={open ? `${mascot.name}の詳細を閉じる` : `${mascot.name}の詳細を開く`}
+        aria-label={open ? t("{0}の詳細を閉じる", { "0": mascot.name }) : t("{0}の詳細を開く", { "0": mascot.name })}
       >
         <div className={wandering ? 'courier-walker-waddle' : ''}>
           <MascotRenderer mascotId={selectedMascotId} bond={bond} care={care} size={88} pose={pose} spinSignal={spinSignal} />

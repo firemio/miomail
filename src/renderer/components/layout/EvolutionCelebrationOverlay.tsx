@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useEffect, useRef } from 'react'
 import { Sparkles } from 'lucide-react'
 import { getMascotMeta } from '../../data/mascots'
@@ -151,8 +152,7 @@ export function EvolutionCelebrationOverlay() {
         </span>
         <p className="mt-4 text-[11px] font-bold tracking-[0.28em] text-[#c87932]">GROWTH!</p>
         <h2 className="mt-2 whitespace-nowrap font-display text-[clamp(30px,5vw,64px)] text-sumi-text drop-shadow-[0_4px_18px_rgba(255,255,255,.9)]">
-          {mascot.name} が成長しました！
-        </h2>
+          {t("{name} が成長しました！", { name: mascot.name })}</h2>
         <span className="mt-3 rounded-full border border-white/90 bg-white/85 px-5 py-2 text-sm font-semibold text-[#b86f31] shadow-[0_12px_30px_rgba(190,117,53,.16)] backdrop-blur-md">
           {getMascotPhaseLabel(evolutionEvent.phase)}
         </span>

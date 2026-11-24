@@ -1,3 +1,4 @@
+import { t, dateLocale } from '../../lib/i18n'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Archive,
@@ -21,7 +22,7 @@ import type { OutlookFolder, OutlookMessage } from '../../types'
 function formatDate(dateStr: string): string {
   if (!dateStr) return ''
   const date = new Date(dateStr)
-  return date.toLocaleDateString('ja-JP', {
+  return date.toLocaleDateString(dateLocale(), {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -30,7 +31,7 @@ function formatDate(dateStr: string): string {
 }
 
 function extractName(addr: string): string {
-  if (!addr) return '(差出人不明)'
+  if (!addr) return t("(差出人不明)")
   const match = addr.match(/^(.+?)\s*</)
   if (match && match[1].trim()) return match[1].trim()
   const emailMatch = addr.match(/<(.+?)>/)
@@ -48,12 +49,12 @@ function getOutlookFolderIcon(type: string) {
 
 function getFolderDisplayName(type: string, displayName: string) {
   const normalized = type.toLowerCase()
-  if (normalized.includes('inbox')) return '受信トレイ'
-  if (normalized.includes('sent')) return '送信済み'
-  if (normalized.includes('draft')) return '下書き'
-  if (normalized.includes('delete')) return '削除済み'
-  if (normalized.includes('junk')) return '迷惑メール'
-  if (normalized.includes('archive')) return 'アーカイブ'
+  if (normalized.includes('inbox')) return t("受信トレイ")
+  if (normalized.includes('sent')) return t("送信済み")
+  if (normalized.includes('draft')) return t("下書き")
+  if (normalized.includes('delete')) return t("削除済み")
+  if (normalized.includes('junk')) return t("迷惑メール")
+  if (normalized.includes('archive')) return t("アーカイブ")
   return displayName
 }
 
@@ -103,7 +104,7 @@ export function ImportDialog() {
       setOutlookFolders(useful)
     } catch (err: any) {
       setError(
-        `New Outlook のデータを読み込めませんでした。\nOutlook が起動中か確認してください。\n\n${err.message || err}`
+        t("New Outlook のデータを読み込めませんでした。\nOutlook が起動中か確認してください。\n\n{0}", { "0": err.message || err })
       )
     } finally {
       setLoading(false)
@@ -125,7 +126,7 @@ export function ImportDialog() {
         setTargetFolder(inbox ? inbox.folder.id : flatFolders[0].folder.id)
       }
     } catch (err: any) {
-      setError(`メッセージの読み込みに失敗しました: ${err.message || err}`)
+      setError(t("メッセージの読み込みに失敗しました: {0}", { "0": err.message || err }))
     } finally {
       setLoading(false)
     }
@@ -159,7 +160,7 @@ export function ImportDialog() {
 
       for (let index = 0; index < selected.length; index += 1) {
         const message = selected[index]
-        setImportProgress(`本文を読み込み中... ${index + 1}/${selected.length}`)
+        setImportProgress(t("本文を読み込み中... {0}/{1}", { "0": index + 1, "1": selected.length }))
         try {
           const body = await api.import.outlookBody(message.itemId)
           withBodies.push({
@@ -173,13 +174,13 @@ export function ImportDialog() {
         }
       }
 
-      setImportProgress('MioMail に保存中...')
+      setImportProgress(t("MioMail に保存中..."))
       const saveResult = await api.import.save(target.accountId, targetFolder, withBodies)
       setResult(saveResult)
       setStep('done')
       await refreshFolder(targetFolder)
     } catch (err: any) {
-      setError(`インポートに失敗しました: ${err.message || err}`)
+      setError(t("インポートに失敗しました: {0}", { "0": err.message || err }))
       setStep('messages')
     } finally {
       setImporting(false)
@@ -199,8 +200,7 @@ export function ImportDialog() {
                 MAIL IMPORTER
               </p>
               <span className="mt-1 block font-display text-2xl text-sumi-text">
-                New Outlook から取り込む
-              </span>
+                {t("New Outlook から取り込む")}</span>
             </div>
           </div>
           <button
@@ -222,20 +222,18 @@ export function ImportDialog() {
             {loading ? (
               <div className="flex flex-1 items-center justify-center gap-3 p-10">
                 <Loader2 size={16} className="animate-spin text-sumi-accent" />
-                <span className="text-xs text-sumi-text-muted">New Outlook のフォルダを読み込み中...</span>
+                <span className="text-xs text-sumi-text-muted">{t("New Outlook のフォルダを読み込み中...")}</span>
               </div>
             ) : outlookFolders.length === 0 && !error ? (
               <div className="flex flex-1 items-center justify-center p-10">
                 <p className="text-xs text-sumi-text-muted">
-                  インポート可能なフォルダが見つかりませんでした
-                </p>
+                  {t("インポート可能なフォルダが見つかりませんでした")}</p>
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto" style={{ maxHeight: '500px' }}>
                 <div className="border-b border-white/70 px-4 py-3">
                   <p className="text-[11px] text-sumi-text-muted">
-                    取り込みたい Outlook フォルダを選んでください
-                  </p>
+                    {t("取り込みたい Outlook フォルダを選んでください")}</p>
                 </div>
                 {outlookFolders.map((folder) => (
                   <button
@@ -252,8 +250,8 @@ export function ImportDialog() {
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-[11px] text-sumi-text-muted">
-                      <span>{folder.totalCount}件</span>
-                      {folder.unreadCount > 0 && <span className="text-sumi-unread">{folder.unreadCount}未読</span>}
+                      <span>{folder.totalCount}{t("件")}</span>
+                      {folder.unreadCount > 0 && <span className="text-sumi-unread">{folder.unreadCount}{t("未読")}</span>}
                     </div>
                   </button>
                 ))}
@@ -266,15 +264,14 @@ export function ImportDialog() {
           <>
             <div className="flex shrink-0 items-center gap-3 border-b border-white/70 px-4 py-3">
               <button onClick={() => setStep('folders')} className="text-[11px] text-sumi-accent hover:underline">
-                ← フォルダ選択に戻る
-              </button>
+                {t("← フォルダ選択に戻る")}</button>
               <span className="text-[11px] text-sumi-text-muted">
                 {selectedOutlookFolder?.displayName}
               </span>
             </div>
 
             <div className="flex shrink-0 items-center gap-3 border-b border-white/70 px-4 py-3">
-              <label className="shrink-0 text-[11px] text-sumi-text-muted">MioMail の保存先:</label>
+              <label className="shrink-0 text-[11px] text-sumi-text-muted">{t("MioMail の保存先:")}</label>
               <select
                 value={targetFolder}
                 onChange={(event) => setTargetFolder(Number(event.target.value))}
@@ -288,8 +285,7 @@ export function ImportDialog() {
                 ))}
               </select>
               <span className="text-[11px] text-sumi-text-muted">
-                {selectedCount}/{messages.length}件
-              </span>
+                {selectedCount}/{messages.length}{t("件")}</span>
             </div>
 
             <div className="shrink-0 border-b border-white/70 px-4 py-2">
@@ -299,19 +295,18 @@ export function ImportDialog() {
                 ) : (
                   <Square size={14} />
                 )}
-                すべて選択
-              </button>
+                {t("すべて選択")}</button>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto" style={{ maxHeight: '350px' }}>
               {loading ? (
                 <div className="flex h-32 items-center justify-center gap-2">
                   <Loader2 size={14} className="animate-spin text-sumi-accent" />
-                  <span className="text-xs text-sumi-text-muted">メッセージを読み込み中...</span>
+                  <span className="text-xs text-sumi-text-muted">{t("メッセージを読み込み中...")}</span>
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex h-32 items-center justify-center">
-                  <span className="text-xs text-sumi-text-muted">メッセージが見つかりません</span>
+                  <span className="text-xs text-sumi-text-muted">{t("メッセージが見つかりません")}</span>
                 </div>
               ) : (
                 messages.map((message, index) => (
@@ -342,7 +337,7 @@ export function ImportDialog() {
                         </span>
                       </div>
                       <div className={`truncate text-xs ${!message.isRead ? 'text-sumi-text' : 'text-sumi-text-muted'}`}>
-                        {message.subject || '(件名なし)'}
+                        {message.subject || t("(件名なし)")}
                       </div>
                       {message.preview && (
                         <div className="mt-0.5 truncate text-[11px] text-sumi-text-muted/50">
@@ -362,8 +357,7 @@ export function ImportDialog() {
                 className="flex h-11 items-center gap-1.5 rounded-full bg-sumi-accent px-5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong disabled:opacity-50"
               >
                 <Download size={12} />
-                {selectedCount}件をインポート
-              </button>
+                {selectedCount}{t("件をインポート")}</button>
             </div>
           </>
         )}
@@ -381,14 +375,13 @@ export function ImportDialog() {
               <Check size={28} className="text-green-400" />
             </div>
             <div className="space-y-1 text-center">
-              <p className="text-sm text-sumi-text">{result.imported}件のメールを取り込みました</p>
+              <p className="text-sm text-sumi-text">{result.imported}{t("件のメールを取り込みました")}</p>
             </div>
             <button
               onClick={closeImport}
               className="h-11 rounded-full bg-sumi-accent px-5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong"
             >
-              閉じる
-            </button>
+              {t("閉じる")}</button>
           </div>
         )}
       </div>

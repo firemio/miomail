@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useEffect, useState } from 'react'
 import { MailOpen, SendHorizontal, Sparkles, Star } from 'lucide-react'
 import { getMascotMeta } from '../../data/mascots'
@@ -40,11 +41,11 @@ function getEventIcon(reason: 'unread' | 'new-mail' | 'sent') {
 function getEventLabel(reason: 'unread' | 'new-mail' | 'sent') {
   switch (reason) {
     case 'sent':
-      return '送信演出'
+      return t("送信演出")
     case 'new-mail':
-      return '新着演出'
+      return t("新着演出")
     default:
-      return '未読アテンション'
+      return t("未読アテンション")
   }
 }
 
@@ -52,38 +53,38 @@ function getEventTone(mascotId: string, reason: 'unread' | 'new-mail' | 'sent') 
   if (reason === 'sent') {
     switch (mascotId) {
       case 'makko':
-        return 'きらきら速達'
+        return t("きらきら速達")
       case 'mio':
-        return 'しっぽ案内便'
+        return t("しっぽ案内便")
       case 'posty':
-        return 'ホログラム投函'
+        return t("ホログラム投函")
       default:
-        return '滑空エアメール'
+        return t("滑空エアメール")
     }
   }
 
   if (reason === 'new-mail') {
     switch (mascotId) {
       case 'makko':
-        return 'ぴょこん通知'
+        return t("ぴょこん通知")
       case 'mio':
-        return 'くるり案内'
+        return t("くるり案内")
       case 'posty':
-        return 'レーダー検知'
+        return t("レーダー検知")
       default:
-        return '旋回アラート'
+        return t("旋回アラート")
     }
   }
 
   switch (mascotId) {
     case 'makko':
-      return '耳ぴくアテンション'
+      return t("耳ぴくアテンション")
     case 'mio':
-      return 'しっぽ待機アテンション'
+      return t("しっぽ待機アテンション")
     case 'posty':
-      return '監視モード'
+      return t("監視モード")
     default:
-      return '上空見回り'
+      return t("上空見回り")
   }
 }
 
@@ -158,7 +159,7 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
             <h2 className={`mt-1 font-display leading-none text-sumi-text ${compact ? 'text-[24px]' : 'text-[28px]'}`}>
               {mascot.name}
             </h2>
-            <p className="mt-2 text-[11px] leading-5 text-sumi-text-muted">{mascot.subtitle}</p>
+            <p className="mt-2 text-[11px] leading-5 text-sumi-text-muted">{t(mascot.subtitle)}</p>
           </div>
           <div className="rounded-full bg-sumi-surface px-3 py-1 text-[10px] font-semibold text-sumi-text-muted">
             {bond}pt
@@ -279,7 +280,7 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
           <div
             className={`companion-stage ${mascotMotionClass} cursor-pointer`}
             onClick={() => setSpinCycle((cycle) => cycle + 1)}
-            title="クリックでくるっと回る"
+            title={t("クリックでくるっと回る")}
           >
             <MascotRenderer
               mascotId={selectedMascotId}
@@ -300,8 +301,7 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
             {getMascotConditionLabel(condition.status)}
           </span>
           <span className="rounded-full bg-white/85 px-3 py-1 text-[10px] font-semibold text-sumi-text-muted">
-            連続 {streakDays}日
-          </span>
+            {t("連続")}{streakDays}{t("日")}</span>
         </div>
 
         {summonEvent && (
@@ -323,17 +323,16 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
           <div className="companion-badge mt-3 rounded-[22px] border border-[#ffd8a8] bg-[linear-gradient(135deg,rgba(255,252,245,0.98),rgba(255,240,219,0.96))] px-4 py-3 shadow-[0_14px_30px_rgba(255,221,173,0.18)]">
             <div className="flex items-center gap-2 text-[11px] font-semibold text-[#d3822f]">
               <Star size={12} />
-              <span>成長演出</span>
+              <span>{t("成長演出")}</span>
             </div>
             <p className="mt-2 text-[11px] leading-6 text-sumi-text">
-              {mascot.name} が {getMascotPhaseLabel(evolutionEvent.phase)} に進化しました。
-            </p>
+              {t("{name} が {stage} に進化しました。", { name: mascot.name, stage: getMascotPhaseLabel(evolutionEvent.phase) })}</p>
           </div>
         )}
 
         <div className={`mt-4 rounded-[22px] bg-white/72 ${compact ? 'p-3' : 'p-4'}`}>
           <div className="flex items-center justify-between text-[11px] text-sumi-text-muted">
-            <span>成長ゲージ</span>
+            <span>{t("成長ゲージ")}</span>
             <span>{progress.current} / {progress.nextGoal}pt</span>
           </div>
           <div className="mt-2 h-2 rounded-full bg-sumi-surface">
@@ -348,7 +347,7 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
           <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-[10px] text-sumi-text-muted">
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span>おなか</span>
+                <span>{t("おなか")}</span>
                 <span>{care.fullness}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-white/90">
@@ -360,7 +359,7 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
             </div>
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span>ごきげん</span>
+                <span>{t("ごきげん")}</span>
                 <span>{care.mood}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-white/90">
@@ -372,7 +371,7 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
             </div>
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span>げんき</span>
+                <span>{t("げんき")}</span>
                 <span>{care.energy}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-white/90">
@@ -384,7 +383,7 @@ export function CourierCompanionDock({ compact = false }: { compact?: boolean })
             </div>
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span>みだしなみ</span>
+                <span>{t("みだしなみ")}</span>
                 <span>{care.cleanliness}%</span>
               </div>
               <div className="h-1.5 rounded-full bg-white/90">

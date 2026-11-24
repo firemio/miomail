@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useMemo, useState } from 'react'
 import {
   Archive,
@@ -152,7 +153,7 @@ export function Sidebar() {
       const chevron = hasChildren ? (
         <button
           onClick={() => toggleNode(account.id, node, effectiveRoot)}
-          aria-label={expanded ? '折りたたむ' : '展開する'}
+          aria-label={expanded ? t("折りたたむ") : t("展開する")}
           aria-expanded={expanded}
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-sumi-text-muted/70 transition hover:bg-white/70 hover:text-sumi-text"
         >
@@ -216,14 +217,14 @@ export function Sidebar() {
               <button
                 onClick={() => renameValue.trim() && void run(() => renameFolder(folder.id, renameValue.trim()))}
                 disabled={busy || !renameValue.trim()}
-                aria-label="名前変更を確定"
+                aria-label={t("名前変更を確定")}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sumi-accent text-white disabled:opacity-50"
               >
                 <Check size={13} />
               </button>
               <button
                 onClick={() => setRenameId(null)}
-                aria-label="キャンセル"
+                aria-label={t("キャンセル")}
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white/80 text-sumi-text-muted"
               >
                 <X size={13} />
@@ -247,7 +248,7 @@ export function Sidebar() {
             {chevron}
             <button
               aria-current={isActive ? 'page' : undefined}
-              title={`${getFolderDisplayName(folder)} · ${folder.total_count}件、未読${unread}件`}
+              title={t("{0} · {1}件、未読{2}件", { "0": getFolderDisplayName(folder), "1": folder.total_count, "2": unread })}
               onClick={() => setCurrentFolder(folder)}
               className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2.5 text-left"
             >
@@ -268,7 +269,7 @@ export function Sidebar() {
               <div className="relative shrink-0">
                 <button
                   onClick={() => setMenuFolderId(menuFolderId === folder.id ? null : folder.id)}
-                  aria-label="フォルダの操作"
+                  aria-label={t("フォルダの操作")}
                   className={`flex h-7 w-7 items-center justify-center rounded-lg text-sumi-text-muted transition hover:bg-white/70 hover:text-sumi-text ${
                     menuFolderId === folder.id ? 'bg-white/70' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
                   }`}
@@ -285,8 +286,7 @@ export function Sidebar() {
                       }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] text-sumi-text transition hover:bg-sumi-surface"
                     >
-                      <Pencil size={12} /> 名前を変更
-                    </button>
+                      <Pencil size={12} /> {t("名前を変更")}</button>
                     <button
                       onClick={() => {
                         setConfirmDeleteId(folder.id)
@@ -294,8 +294,7 @@ export function Sidebar() {
                       }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] text-red-400 transition hover:bg-red-400/15"
                     >
-                      <Trash2 size={12} /> 削除
-                    </button>
+                      <Trash2 size={12} /> {t("削除")}</button>
                   </div>
                 )}
               </div>
@@ -308,14 +307,12 @@ export function Sidebar() {
                   disabled={busy}
                   className="rounded-lg bg-red-400 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
                 >
-                  削除
-                </button>
+                  {t("削除")}</button>
                 <button
                   onClick={() => setConfirmDeleteId(null)}
                   className="rounded-lg px-1.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
                 >
-                  やめる
-                </button>
+                  {t("やめる")}</button>
               </div>
             )}
           </div>
@@ -334,12 +331,11 @@ export function Sidebar() {
           className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-sumi-accent text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:-translate-y-0.5 hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
         >
           <MailPlus size={16} />
-          新しいメールを書く
-        </button>
+          {t("新しいメールを書く")}</button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <h2 className="px-5 pb-2 pt-5 text-xs font-semibold text-sumi-text-muted">メールボックス</h2>
+        <h2 className="px-5 pb-2 pt-5 text-xs font-semibold text-sumi-text-muted">{t("メールボックス")}</h2>
 
         {error && (
           <div className="mx-3 mb-2 rounded-[16px] border border-red-400/30 bg-red-400/15 px-3 py-2 text-[10px] leading-4 text-red-400">
@@ -374,8 +370,8 @@ export function Sidebar() {
                     setCreatingForAccount(creatingForAccount === account.id ? null : account.id)
                     setCreateValue('')
                   }}
-                  title="新規フォルダ"
-                  aria-label="新規フォルダを作成"
+                  title={t("新規フォルダ")}
+                  aria-label={t("新規フォルダを作成")}
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white/70 text-sumi-text-muted transition hover:text-sumi-accent"
                 >
                   <FolderPlus size={14} />
@@ -390,7 +386,7 @@ export function Sidebar() {
                     autoFocus
                     value={createValue}
                     disabled={busy}
-                    placeholder="新しいフォルダ名"
+                    placeholder={t("新しいフォルダ名")}
                     onChange={(event) => setCreateValue(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && createValue.trim()) {
@@ -404,14 +400,14 @@ export function Sidebar() {
                   <button
                     onClick={() => createValue.trim() && void run(() => createFolder(account.id, createValue.trim()))}
                     disabled={busy || !createValue.trim()}
-                    aria-label="フォルダを作成"
+                    aria-label={t("フォルダを作成")}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sumi-accent text-white disabled:opacity-50"
                   >
                     <Check size={13} />
                   </button>
                   <button
                     onClick={() => setCreatingForAccount(null)}
-                    aria-label="キャンセル"
+                    aria-label={t("キャンセル")}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/70 bg-white/80 text-sumi-text-muted"
                   >
                     <X size={13} />
@@ -421,8 +417,7 @@ export function Sidebar() {
 
               {folders.length === 0 && creatingForAccount !== account.id && (
                 <div className="px-4 py-2 text-[11px] text-sumi-text-muted/50">
-                  フォルダがまだありません
-                </div>
+                  {t("フォルダがまだありません")}</div>
               )}
             </div>
           )
@@ -430,8 +425,7 @@ export function Sidebar() {
 
         {accounts.length === 0 && (
           <div className="flex h-20 items-center justify-center text-xs text-sumi-text-muted">
-            アカウントを追加してください
-          </div>
+            {t("アカウントを追加してください")}</div>
         )}
       </div>
 
@@ -442,7 +436,7 @@ export function Sidebar() {
           className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-sumi-surface text-xs font-semibold text-sumi-text transition hover:bg-sumi-surface-2 disabled:opacity-50"
         >
           <RefreshCw size={13} className={syncing ? 'animate-spin' : ''} />
-          {syncing ? '全体を更新中...' : '全アカウント同期'}
+          {syncing ? t("全体を更新中...") : t("全アカウント同期")}
         </button>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useEffect, useState } from 'react'
 import { RotateCw, X } from 'lucide-react'
 import type { CharacterModPackage, CharacterMotion } from '../../characters/types'
@@ -68,7 +69,7 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
       onMouseDown={(event) => event.stopPropagation()}
       role="dialog"
       aria-modal="true"
-      aria-label={`${manifest.name}のテスト`}
+      aria-label={t("{0}のテスト", { "0": manifest.name })}
     >
       <div
         className="flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[28px] border border-white/85 bg-[linear-gradient(160deg,#fffdfb,#fff3ee)] shadow-[0_30px_80px_rgba(90,55,70,0.3)]"
@@ -81,13 +82,13 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
               {manifest.name}
               <span className="rounded-full bg-sumi-surface px-2 py-0.5 text-[10px] font-semibold text-sumi-text-muted">{rendererLabel(manifest.renderer)}</span>
             </h3>
-            <p className="mt-0.5 truncate text-[11px] text-sumi-text-muted">{manifest.author} v{manifest.version}・仕草: {mascot.name}</p>
+            <p className="mt-0.5 truncate text-[11px] text-sumi-text-muted">{manifest.author} v{manifest.version}{t("・仕草:")}{mascot.name}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/90 bg-white/85 text-sumi-text-muted transition hover:text-sumi-text"
-            aria-label="テストを閉じる"
+            aria-label={t("テストを閉じる")}
           >
             <X size={16} />
           </button>
@@ -97,7 +98,7 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
           <div
             className="relative flex min-h-[340px] cursor-pointer flex-col items-center justify-center rounded-[24px] border border-white/85 bg-white/72 p-5 shadow-[0_18px_46px_rgba(121,85,96,0.08)]"
             onClick={() => setSpinSignal((cycle) => cycle + 1)}
-            title="クリックでくるっと回る"
+            title={t("クリックでくるっと回る")}
           >
             <MascotModView
               characterPackage={characterPackage}
@@ -107,12 +108,12 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
               motion={motion}
               spinSignal={spinSignal}
             />
-            <p className="pointer-events-none absolute bottom-4 text-[10px] text-sumi-text-muted">クリックでくるっと回る</p>
+            <p className="pointer-events-none absolute bottom-4 text-[10px] text-sumi-text-muted">{t("クリックでくるっと回る")}</p>
           </div>
 
           <div className="space-y-5">
             <section>
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-sumi-text-muted">モーション</p>
+              <p className="text-[10px] font-semibold tracking-[0.14em] text-sumi-text-muted">{t("モーション")}</p>
               <div className="mt-2 grid grid-cols-2 gap-2">
                 {motionItems.map((item) => {
                   const active = motion === item.motion
@@ -124,7 +125,7 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
                       onClick={() => setMotion(item.motion)}
                       className={`flex items-center justify-between rounded-[16px] border px-3 py-2.5 text-left transition ${active ? 'border-sumi-accent/45 bg-white shadow-[0_10px_22px_rgba(255,111,145,0.12)]' : 'border-white/80 bg-white/62 hover:bg-white/85'}`}
                     >
-                      <span className="text-xs font-semibold text-sumi-text">{item.label}</span>
+                      <span className="text-xs font-semibold text-sumi-text">{t(item.label)}</span>
                       <span className="text-[9px] tracking-[0.1em] text-sumi-text-muted">{item.motion}</span>
                     </button>
                   )
@@ -134,7 +135,7 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
 
             <section>
               <div className="flex items-end justify-between">
-                <p className="text-[10px] font-semibold tracking-[0.14em] text-sumi-text-muted">成長段階</p>
+                <p className="text-[10px] font-semibold tracking-[0.14em] text-sumi-text-muted">{t("成長段階")}</p>
                 <p className="text-[11px] font-semibold text-sumi-text">{getMascotPhaseLabel(phase)}・{bond}pt</p>
               </div>
               <input
@@ -158,12 +159,12 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
                   </button>
                 ))}
               </div>
-              <p className="mt-1.5 text-[10px] leading-4 text-sumi-text-muted">孵化前はたまごで表示されます(ポスティはロボの姿のまま)。実際のアプリ挙動と同じです。</p>
+              <p className="mt-1.5 text-[10px] leading-4 text-sumi-text-muted">{t("孵化前はたまごで表示されます(ポスティはロボの姿のまま)。実際のアプリ挙動と同じです。")}</p>
             </section>
 
             <section className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-[10px] font-semibold tracking-[0.14em] text-sumi-text-muted">表示サイズ</p>
+                <p className="text-[10px] font-semibold tracking-[0.14em] text-sumi-text-muted">{t("表示サイズ")}</p>
                 <div className="mt-2 flex gap-1.5">
                   {SIZE_OPTIONS.map((option) => (
                     <button
@@ -183,8 +184,7 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
                 onClick={() => setSpinSignal((cycle) => cycle + 1)}
                 className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/90 bg-white/85 px-4 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
               >
-                <RotateCw size={13} />くるっと回す
-              </button>
+                <RotateCw size={13} />{t("くるっと回す")}</button>
             </section>
           </div>
         </div>

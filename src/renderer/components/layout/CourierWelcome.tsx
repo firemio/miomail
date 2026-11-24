@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { Mail } from 'lucide-react'
 
 /**
@@ -13,10 +14,9 @@ export function CourierWelcome() {
           <Mail size={26} strokeWidth={1.6} />
         </div>
         <div>
-          <p className="font-display text-lg text-sumi-text">おたよりを選んでください</p>
+          <p className="font-display text-lg text-sumi-text">{t("おたよりを選んでください")}</p>
           <p className="mt-1 text-xs leading-6 text-sumi-text-muted">
-            左の一覧からメールを選ぶと、ここに開きます。
-          </p>
+            {t("左の一覧からメールを選ぶと、ここに開きます。")}</p>
         </div>
       </div>
     </div>

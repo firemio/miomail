@@ -1,3 +1,4 @@
+import { t } from '../lib/i18n'
 import { create } from 'zustand'
 import { MASCOT_IDS, type MascotId } from '../data/mascots'
 
@@ -488,10 +489,7 @@ export const useMascotStore = create<MascotStore>((set) => ({
           at: Date.now(),
           reason: 'unread',
             intensity: unreadCount >= 5 ? 'burst' : 'soft',
-          message:
-            unreadCount >= 5
-              ? `未読が ${unreadCount} 通たまってるよ。そろそろのぞいてみる？`
-              : `未読が ${unreadCount} 通あるよ。ちょっと見に行ってみる？`,
+          message: t('未読が {count} 通あるよ。', { count: unreadCount }),
         },
       }
     }),
@@ -502,7 +500,7 @@ export const useMascotStore = create<MascotStore>((set) => ({
         at: Date.now(),
         reason: 'new-mail',
           intensity: 'burst',
-        message: `${from || '新しい差出人'} から「${subject || '件名なし'}」が届いたよ。`,
+        message: t('{from} から「{subject}」が届いたよ。', { from: from || t('差出人不明'), subject: subject || t('件名なし') }),
       },
     })),
 
@@ -512,7 +510,7 @@ export const useMascotStore = create<MascotStore>((set) => ({
         at: Date.now(),
         reason: 'sent',
           intensity: 'launch',
-        message: `${to || '宛先未設定'} に「${subject || '件名なし'}」を送ったよ。`,
+        message: t('{to} に「{subject}」を送ったよ。', { to: to || t('宛先未設定'), subject: subject || t('件名なし') }),
       },
     })),
 
@@ -598,26 +596,26 @@ export function getMascotCondition(care: MascotCareStats) {
 export function getMascotConditionLabel(condition: MascotCondition) {
   switch (condition) {
     case 'great':
-      return 'ごきげん'
+      return t("ごきげん")
     case 'good':
-      return 'いい感じ'
+      return t("いい感じ")
     case 'watch':
-      return 'そろそろお世話'
+      return t("そろそろお世話")
     default:
-      return '要お世話'
+      return t("要お世話")
   }
 }
 
 export function getMascotNeedLabel(need: MascotNeed) {
   switch (need) {
     case 'fullness':
-      return 'おなか'
+      return t("おなか")
     case 'mood':
-      return 'ごきげん'
+      return t("ごきげん")
     case 'energy':
-      return 'げんき'
+      return t("げんき")
     default:
-      return 'みだしなみ'
+      return t("みだしなみ")
   }
 }
 
@@ -630,33 +628,33 @@ export function getMascotPhase(bond: number): MascotPhase {
 export function getMascotPhaseLabel(phase: MascotPhase) {
   switch (phase) {
     case 'star':
-      return 'きらきら期'
+      return t("きらきら期")
     case 'partner':
-      return '相棒期'
+      return t("相棒期")
     case 'courier':
-      return '配達デビュー期'
+      return t("配達デビュー期")
     case 'hatchling':
-      return 'ぴよぴよ期'
+      return t("ぴよぴよ期")
     default:
-      return 'たまご期'
+      return t("たまご期")
   }
 }
 
 export function getMascotStatusHint(care: MascotCareStats) {
   const condition = getMascotCondition(care)
   if (condition.lowestValue >= 72) {
-    return 'すっかりごきげん。メールの相棒として絶好調です。'
+    return t("すっかりごきげん。メールの相棒として絶好調です。")
   }
 
   switch (condition.lowestNeed) {
     case 'fullness':
-      return 'おなかがすいてきたみたい。おやつをあげると元気になります。'
+      return t("おなかがすいてきたみたい。おやつをあげると元気になります。")
     case 'mood':
-      return 'ちょっとさびしそう。あそんであげると笑顔が戻ります。'
+      return t("ちょっとさびしそう。あそんであげると笑顔が戻ります。")
     case 'energy':
-      return '少し眠たそうです。ひとやすみで回復させてあげましょう。'
+      return t("少し眠たそうです。ひとやすみで回復させてあげましょう。")
     default:
-      return '配達でくたびれ気味。おふろでさっぱりさせてあげると安心です。'
+      return t("配達でくたびれ気味。おふろでさっぱりさせてあげると安心です。")
   }
 }
 

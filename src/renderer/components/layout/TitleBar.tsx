@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useEffect, useMemo, useState } from 'react'
 import { Minus, Search, Settings, Sparkles, Square, X } from 'lucide-react'
 import logoImage from '../../assets/miomail-logo.png'
@@ -47,19 +48,19 @@ export function TitleBar() {
 
       <div className="mx-2 flex min-w-0 flex-1 justify-center">
         <form role="search" onSubmit={(event) => { event.preventDefault(); void searchMessages(searchQuery) }} className="no-drag glass-panel flex h-10 w-full max-w-xl items-center gap-3 rounded-full px-4">
-          <button type="submit" aria-label="メールを検索" title="検索" className="shrink-0 text-sumi-accent"><Search size={16} /></button>
+          <button type="submit" aria-label={t("メールを検索")} title={t("検索")} className="shrink-0 text-sumi-accent"><Search size={16} /></button>
           {semanticSearchActive && (
             <span
               className="flex shrink-0 items-center gap-1 rounded-full bg-sumi-accent/15 px-2 py-0.5 text-[10px] font-semibold text-sumi-accent"
-              title="意味検索で探しています"
+              title={t("意味検索で探しています")}
             >
               <Sparkles size={11} /> AI
             </span>
           )}
           <input
             type="text"
-            aria-label="メールを検索"
-            placeholder="メールを検索"
+            aria-label={t("メールを検索")}
+            placeholder={t("メールを検索")}
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
@@ -68,7 +69,7 @@ export function TitleBar() {
             }}
             className="min-w-0 w-full bg-transparent text-sm text-sumi-text placeholder:text-sumi-text-muted focus:outline-none"
           />
-          {searchQuery && <button type="button" aria-label="検索をクリア" title="検索をクリア" onClick={() => { setSearchQuery(''); void clearSearch() }} className="shrink-0 text-sumi-text-muted"><X size={14} /></button>}
+          {searchQuery && <button type="button" aria-label={t("検索をクリア")} title={t("検索をクリア")} onClick={() => { setSearchQuery(''); void clearSearch() }} className="shrink-0 text-sumi-text-muted"><X size={14} /></button>}
         </form>
       </div>
 
@@ -84,22 +85,22 @@ export function TitleBar() {
           data-testid="settings-button"
           onClick={openSettings}
           className="no-drag flex h-9 w-9 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted shadow-[0_10px_25px_rgba(255,255,255,0.65)] transition hover:-translate-y-0.5 hover:text-sumi-text"
-          title="設定"
-          aria-label="設定を開く"
+          title={t("設定")}
+          aria-label={t("設定を開く")}
         >
           <Settings size={16} />
         </button>
 
         <button
           onClick={() => api.app.minimize()}
-          aria-label="最小化"
+          aria-label={t("最小化")}
           className="no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text"
         >
           <Minus size={14} />
         </button>
         <button
           onClick={() => api.app.maximize()}
-          aria-label={isMaximized ? '元のサイズに戻す' : '最大化'}
+          aria-label={isMaximized ? t("元のサイズに戻す") : t("最大化")}
           className={`no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text ${
             isMaximized ? 'text-sumi-accent' : ''
           }`}
@@ -108,7 +109,7 @@ export function TitleBar() {
         </button>
         <button
           onClick={() => api.app.close()}
-          aria-label="閉じる"
+          aria-label={t("閉じる")}
           className="no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
         >
           <X size={14} />

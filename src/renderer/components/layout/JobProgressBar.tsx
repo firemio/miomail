@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ChevronDown,
@@ -141,8 +142,7 @@ export function JobProgressBar() {
               <>
                 <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-sumi-accent" />
                 <span className="truncate text-[11px] text-sumi-text">
-                  {KIND_LABEL[activeJobs[0].kind]}中
-                  {activeJobs.length > 1 ? ` ほか${activeJobs.length - 1}件` : ''}
+                  {t(KIND_LABEL[activeJobs[0].kind])}{t("中")}{activeJobs.length > 1 ? t(" ほか{0}件", { "0": activeJobs.length - 1 }) : ''}
                   {formatPercent(activeJobs[0]) ? ` (${formatPercent(activeJobs[0])})` : ''}
                   {' — '}
                   {activeJobs[0].message}
@@ -151,7 +151,7 @@ export function JobProgressBar() {
             ) : (
               <span className="truncate text-[11px] text-sumi-text-muted">
                 {latestInactive
-                  ? `${KIND_LABEL[latestInactive.kind]}完了 — ${latestInactive.message}`
+                  ? t("{0}完了 — {1}", { "0": t(KIND_LABEL[latestInactive.kind]), "1": latestInactive.message })
                   : ''}
               </span>
             )}
@@ -169,7 +169,7 @@ export function JobProgressBar() {
           {hasVisibleJobs && <button
             onClick={() => setCollapsed((value) => !value)}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sumi-text-muted transition hover:bg-sumi-surface-2 hover:text-sumi-text"
-            aria-label={collapsed ? '進捗を展開' : '進捗を折りたたむ'}
+            aria-label={collapsed ? t("進捗を展開") : t("進捗を折りたたむ")}
             aria-expanded={!collapsed}
           >
             {collapsed ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -186,7 +186,7 @@ export function JobProgressBar() {
                 <div key={job.kind} className="flex items-center gap-2">
                   <Icon size={12} className="shrink-0 text-sumi-accent" />
                   <span className="w-24 shrink-0 text-[11px] font-medium text-sumi-text">
-                    {KIND_LABEL[job.kind]}
+                    {t(KIND_LABEL[job.kind])}
                   </span>
                   <div className="min-w-0 flex-1">{renderProgressTrack(job)}</div>
                   <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-sumi-text-muted">
@@ -230,8 +230,7 @@ function SemanticBadge({
     return (
       <span className="flex shrink-0 items-center gap-1 rounded-full border border-sumi-accent/40 bg-sumi-accent/10 px-2.5 py-0.5 text-[10px] font-medium text-sumi-accent-strong">
         <Sparkles size={11} />
-        意味検索 ON
-      </span>
+        {t("意味検索 ON")}</span>
     )
   }
 
@@ -243,7 +242,7 @@ function SemanticBadge({
     return (
       <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-sumi-border/60 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] text-sumi-text-muted">
         <Download size={11} className="animate-pulse text-sumi-accent" />
-        検索モデル取得中{percent !== null ? ` ${percent}%` : '…'}
+        {t("検索モデル取得中")}{percent !== null ? ` ${percent}%` : '…'}
       </span>
     )
   }
@@ -255,7 +254,7 @@ function SemanticBadge({
           className="max-w-56 truncate text-[10px] text-red-700/80"
           title={status.error ?? enableError ?? undefined}
         >
-          意味検索の準備に失敗しました{status.error ? `: ${status.error}` : ''}
+          {t("意味検索の準備に失敗しました")}{status.error ? `: ${status.error}` : ''}
         </span>
         <button
           onClick={onRetry}
@@ -263,8 +262,7 @@ function SemanticBadge({
           className="flex items-center gap-1 rounded-full border border-sumi-border/70 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-sumi-text transition hover:bg-sumi-border/40 disabled:opacity-50"
         >
           <RotateCw size={10} />
-          リトライ
-        </button>
+          {t("リトライ")}</button>
       </span>
     )
   }
@@ -275,19 +273,15 @@ function SemanticBadge({
       {showConsent && (
         <span className="absolute bottom-full right-0 z-10 mb-2 block w-72 rounded-2xl border border-sumi-border/70 bg-sumi-surface p-3 shadow-lg">
           <span className="block text-[11px] leading-relaxed text-sumi-text">
-            キーワードが一致しなくても意味の近さでメールを探せる「意味検索」を有効にします。
-            検索用の小さなモデル(約{status.model_size_mb} MB)を一度だけダウンロードします。
-          </span>
+            {t("意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。", { size: status.model_size_mb })}</span>
           <span className="mt-1 block text-[10px] leading-relaxed text-sumi-text-muted">
-            メール本文が外部サーバーに送信されることはありません。処理はすべてこのPC上で行われます。
-          </span>
+            {t("メール本文が外部サーバーに送信されることはありません。処理はすべてこのPC上で行われます。")}</span>
           <span className="mt-2 flex justify-end gap-1.5">
             <button
               onClick={() => setShowConsent(false)}
               className="rounded-full px-2.5 py-1 text-[10px] text-sumi-text-muted transition hover:text-sumi-text"
             >
-              キャンセル
-            </button>
+              {t("キャンセル")}</button>
             <button
               onClick={() => {
                 setShowConsent(false)
@@ -296,7 +290,7 @@ function SemanticBadge({
               disabled={enabling}
               className="rounded-full bg-sumi-accent px-3 py-1 text-[10px] font-semibold text-white transition hover:bg-sumi-accent-strong disabled:opacity-50"
             >
-              {enabling ? '開始中…' : '有効にする'}
+              {enabling ? t("開始中…") : t("有効にする")}
             </button>
           </span>
         </span>
@@ -312,7 +306,7 @@ function SemanticBadge({
         className="flex items-center gap-1 rounded-full border border-sumi-border/70 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-sumi-text transition hover:bg-sumi-border/40 disabled:opacity-50"
       >
         <Sparkles size={11} className="text-sumi-accent" />
-        意味検索を有効にする(約{status.model_size_mb} MB)
+        {t("意味検索を有効にする（約{size} MB）", { size: status.model_size_mb })}
       </button>
     </span>
   )

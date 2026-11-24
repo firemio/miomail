@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import type { ThemePalette } from '../../data/themes'
 
 /**
@@ -29,8 +30,7 @@ export function ThemePreview({ palette }: { palette: ThemePalette }) {
       {/* title bar */}
       <div className="flex items-center gap-1.5 px-2 py-1.5" style={{ borderBottom: `1px solid ${palette.border}` }}>
         <span className="rounded-full px-2 py-0.5 text-[7px] font-bold" style={{ background: palette.accent, color: palette.bg }}>
-          作成
-        </span>
+          {t("作成")}</span>
         <div className="h-1.5 flex-1 rounded-full" style={{ background: palette.surface2 }} />
         <span className="h-2 w-2 rounded-full" style={{ background: palette.surface2 }} />
       </div>

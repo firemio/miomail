@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import type { Folder } from '../types'
 
 export function getFolderDisplayName(folder: Folder): string {
@@ -15,7 +16,9 @@ export function getFolderDisplayName(folder: Folder): string {
     archive: 'アーカイブ',
     starred: 'スター付き',
   }
-  const key = (folder.name || folder.path).toLowerCase()
-  return map[key] || folder.name || folder.path
+  // Server paths identify standard folders even when the cached display name
+  // was localized by an importer. Never translate an arbitrary custom name.
+  const label = map[folder.path.toLowerCase()] || map[folder.name.toLowerCase()]
+  return label ? t(label) : folder.name || folder.path
 }
 

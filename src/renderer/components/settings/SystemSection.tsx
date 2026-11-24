@@ -1,3 +1,4 @@
+import { t } from '../../lib/i18n'
 import { useCallback, useEffect, useState } from 'react'
 import { CircleCheck, Cpu, Download, MonitorCog, RefreshCw, SearchCheck, TriangleAlert } from 'lucide-react'
 import { api, isTauriRuntime } from '../../lib/ipc'
@@ -112,7 +113,7 @@ export function SystemSection() {
     return (
       <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[28px] border border-white/80 bg-white/58">
         <RefreshCw size={22} className="animate-spin text-sumi-accent" />
-        <p className="mt-3 text-xs text-sumi-text-muted">動作環境を確認しています…</p>
+        <p className="mt-3 text-xs text-sumi-text-muted">{t("動作環境を確認しています…")}</p>
       </div>
     )
   }
@@ -121,7 +122,7 @@ export function SystemSection() {
     return (
       <div className="flex min-h-[260px] flex-col items-center justify-center rounded-[28px] border border-white/80 bg-white/58 p-6 text-center">
         <TriangleAlert size={22} className="text-[#a9554a]" />
-        <p className="mt-3 text-sm font-semibold text-sumi-text">動作環境を取得できませんでした</p>
+        <p className="mt-3 text-sm font-semibold text-sumi-text">{t("動作環境を取得できませんでした")}</p>
         <p className="mt-1 max-w-[420px] text-[11px] leading-5 text-sumi-text-muted">{state.message}</p>
         <button
           type="button"
@@ -129,8 +130,7 @@ export function SystemSection() {
           className="mt-4 inline-flex items-center gap-2 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white"
         >
           <RefreshCw size={13} />
-          再試行
-        </button>
+          {t("再試行")}</button>
       </div>
     )
   }
@@ -139,7 +139,7 @@ export function SystemSection() {
   const semantic = SEMANTIC_STATES[info.semantic.state]
   const environmentRows = [
     { label: 'OS', value: info.os },
-    { label: 'アーキテクチャ', value: info.arch },
+    { label: t("アーキテクチャ"), value: info.arch },
     { label: 'CPU', value: info.cpu_name },
   ]
 
@@ -152,8 +152,8 @@ export function SystemSection() {
               <MonitorCog size={16} className="text-sumi-accent" />
               <p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">ENVIRONMENT</p>
             </div>
-            <h3 className="mt-2 text-lg font-semibold text-sumi-text">動作環境</h3>
-            <p className="mt-1 text-xs leading-5 text-sumi-text-muted">このMioMailが動いている環境の基本情報です。</p>
+            <h3 className="mt-2 text-lg font-semibold text-sumi-text">{t("動作環境")}</h3>
+            <p className="mt-1 text-xs leading-5 text-sumi-text-muted">{t("このMioMailが動いている環境の基本情報です。")}</p>
           </div>
           <button
             type="button"
@@ -161,31 +161,29 @@ export function SystemSection() {
             className="inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border border-white/90 bg-white/82 px-3 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
           >
             <RefreshCw size={14} />
-            再取得
-          </button>
+            {t("再取得")}</button>
         </div>
         <dl className="mt-5 divide-y divide-sumi-border/50 rounded-[20px] border border-white/85 bg-white/60">
           {/* アプリバージョン行にアップデートの確認・実行を統合 */}
           <div className="px-4 py-3">
             <div className="flex items-center justify-between gap-4">
-              <dt className="text-[11px] font-semibold text-sumi-text-muted">アプリバージョン</dt>
+              <dt className="text-[11px] font-semibold text-sumi-text-muted">{t("アプリバージョン")}</dt>
               <dd className="flex min-w-0 items-center gap-2">
                 <span className="text-xs font-semibold text-sumi-text">v{info.app_version}</span>
                 {updateState.phase === 'latest' && (
-                  <span className="rounded-full border border-[#5f9d7a]/30 bg-[#5f9d7a]/15 px-2 py-0.5 text-[10px] font-semibold text-[#3f7a5c]">最新です</span>
+                  <span className="rounded-full border border-[#5f9d7a]/30 bg-[#5f9d7a]/15 px-2 py-0.5 text-[10px] font-semibold text-[#3f7a5c]">{t("最新です")}</span>
                 )}
                 {updateState.phase === 'available' && (
-                  <span className="rounded-full border border-sumi-accent/40 bg-sumi-accent/10 px-2 py-0.5 text-[10px] font-semibold text-sumi-accent">v{updateState.version}が利用可能</span>
+                  <span className="rounded-full border border-sumi-accent/40 bg-sumi-accent/10 px-2 py-0.5 text-[10px] font-semibold text-sumi-accent">v{updateState.version}{t("が利用可能")}</span>
                 )}
                 {updateState.phase === 'available' ? (
                   <button
                     type="button"
                     onClick={installUpdate}
-                    title="ダウンロード後に自動で再起動します"
+                    title={t("ダウンロード後に自動で再起動します")}
                     className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-3.5 text-[11px] font-semibold text-white"
                   >
-                    今すぐ更新
-                  </button>
+                    {t("今すぐ更新")}</button>
                 ) : updateState.phase === 'installing' ? (
                   <button
                     type="button"
@@ -193,33 +191,31 @@ export function SystemSection() {
                     className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-3.5 text-[11px] font-semibold text-white opacity-60"
                   >
                     <RefreshCw size={12} className="animate-spin" />
-                    更新中…
-                  </button>
+                    {t("更新中…")}</button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => void checkForUpdates()}
                     disabled={updateState.phase === 'checking' || !isTauriRuntime}
-                    title="起動時にも自動で確認されます"
+                    title={t("起動時にも自動で確認されます")}
                     className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/90 bg-white/82 px-3.5 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {updateState.phase === 'checking' ? (
                       <>
                         <RefreshCw size={12} className="animate-spin" />
-                        確認中…
-                      </>
+                        {t("確認中…")}</>
                     ) : (
-                      '更新を確認'
+                      t("更新を確認")
                     )}
                   </button>
                 )}
               </dd>
             </div>
             {updateState.phase === 'installing' && (
-              <p className="mt-2 text-[11px] leading-5 text-sumi-text-muted">ダウンロード中… 完了すると自動で再起動します。</p>
+              <p className="mt-2 text-[11px] leading-5 text-sumi-text-muted">{t("ダウンロード中… 完了すると自動で再起動します。")}</p>
             )}
             {updateState.phase === 'error' && (
-              <p className="mt-2 text-[11px] leading-5 text-[#a9554a]">更新の確認に失敗しました: {updateState.message}</p>
+              <p className="mt-2 text-[11px] leading-5 text-[#a9554a]">{t("更新の確認に失敗しました:")}{updateState.message}</p>
             )}
           </div>
           {environmentRows.map((row) => (
@@ -238,10 +234,9 @@ export function SystemSection() {
               <Cpu size={16} className="text-sumi-accent" />
               <p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">ACCELERATORS</p>
             </div>
-            <h3 className="mt-2 text-lg font-semibold text-sumi-text">アクセラレータ</h3>
+            <h3 className="mt-2 text-lg font-semibold text-sumi-text">{t("アクセラレータ")}</h3>
             <p className="mt-1 text-xs leading-5 text-sumi-text-muted">
-              NPU・GPUなど、AI処理を速くするハードウェアの検出状況です。
-            </p>
+              {t("NPU・GPUなど、AI処理を速くするハードウェアの検出状況です。")}</p>
           </div>
         </div>
         {info.runtime ? (
@@ -249,7 +244,7 @@ export function SystemSection() {
             <div className="flex items-start justify-between gap-4">
               <p className="text-sm font-semibold text-sumi-text">Windows ML</p>
               <span className="shrink-0 text-[11px] font-semibold text-sumi-text-muted">
-                {info.runtime.version ? `v${info.runtime.version}` : 'バージョン不明'}
+                {info.runtime.version ? `v${info.runtime.version}` : t("バージョン不明")}
               </span>
             </div>
             <p className="mt-1 break-all text-[11px] leading-5 text-sumi-text-muted">{info.runtime.path}</p>
@@ -258,8 +253,7 @@ export function SystemSection() {
           <div className="mt-5 rounded-[20px] border border-white/85 bg-white/60 px-4 py-3.5">
             <p className="text-sm font-semibold text-sumi-text">Windows ML</p>
             <p className="mt-1 text-[11px] leading-5 text-sumi-text-muted">
-              onnxruntime.dll を解決できませんでした。
-            </p>
+              {t("onnxruntime.dll を解決できませんでした。")}</p>
           </div>
         )}
         <ul className="mt-2.5 space-y-2.5">
@@ -284,7 +278,7 @@ export function SystemSection() {
                   )}
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${badge.className}`}>
-                  {badge.label}
+                  {t(badge.label)}
                 </span>
               </li>
             )
@@ -299,21 +293,20 @@ export function SystemSection() {
               <SearchCheck size={16} className="text-sumi-accent" />
               <p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">SEMANTIC SEARCH</p>
             </div>
-            <h3 className="mt-2 text-lg font-semibold text-sumi-text">意味検索</h3>
+            <h3 className="mt-2 text-lg font-semibold text-sumi-text">{t("意味検索")}</h3>
             <p className="mt-1 text-xs leading-5 text-sumi-text-muted">
-              キーワードが一致しなくても、意味の近いメールを探せる機能です。仕組みはこのPCの中だけで動くベクトル検索です。
-            </p>
+              {t("キーワードが一致しなくても、意味の近いメールを探せる機能です。仕組みはこのPCの中だけで動くベクトル検索です。")}</p>
           </div>
           <span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-semibold ${semantic.className}`}>
             {info.semantic.state === 'downloading' && <Download size={11} className="mr-1 inline-block" />}
             {info.semantic.state === 'ready' && <CircleCheck size={11} className="mr-1 inline-block" />}
-            {semantic.label}
+            {t(semantic.label)}
           </span>
         </div>
         <p className="mt-4 rounded-[18px] border border-white/85 bg-sumi-surface/65 px-4 py-3 text-[11px] leading-5 text-sumi-text-muted">
-          {semantic.note}
+          {t(semantic.note)}
           {info.semantic.state !== 'ready' && info.semantic.model_size_mb > 0 && (
-            <> モデルサイズ: 約{info.semantic.model_size_mb}MB。</>
+            <> {t("モデルサイズ: 約")}{info.semantic.model_size_mb}MB。</>
           )}
         </p>
         {info.semantic.state === 'error' && info.semantic.error && (
