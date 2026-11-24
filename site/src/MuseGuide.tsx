@@ -162,9 +162,10 @@ export function MuseGuide() {
         </div>
 
         <div className="site-docs-cta">
-          <a className="site-button site-button--ghost" href="./">
-            <ArrowLeft size={16} /> トップへ戻る
+          <a className="site-button site-button--primary" href={LINUX_DEB_URL}>
+            <Download size={18} /> Linux版(.deb)をダウンロード
           </a>
+          <a className="site-text-link" href="./"><ArrowLeft size={15} /> トップへ戻る</a>
         </div>
       </main>
 

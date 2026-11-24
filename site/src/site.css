@@ -294,6 +294,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .site-cta h2 span { color: var(--site-pink-dark); }
 .site-button--dark { color: #fff; background: var(--site-ink); box-shadow: 6px 7px 0 #fff; }
 .site-button--dark:hover { transform: translate(3px, 3px); box-shadow: 3px 4px 0 #fff; }
+.site-cta__linux { margin-top: 20px; }
 .site-cta__aside { position: absolute; right: 8%; bottom: 18%; font-family: 'Kaisei Decol', serif; font-size: 16px; transform: rotate(-8deg); }
 
 .site-footer { display: grid; grid-template-columns: auto 1fr auto; gap: 36px; align-items: center; padding: 35px max(5vw, calc((100vw - 1220px) / 2)); border-top: 2px solid var(--site-ink); background: #fffaf5; font-size: 11px; }

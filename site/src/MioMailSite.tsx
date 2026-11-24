@@ -199,6 +199,7 @@ export function MioMailSite() {
           <a href="#companion" onClick={() => setMenuOpen(false)}>相棒について</a>
           <a href="#mcp" onClick={() => setMenuOpen(false)}>AIエージェントとつながる</a>
           <a href="#security" onClick={() => setMenuOpen(false)}>安心設計</a>
+          <a href="./muse.html">Linux版</a>
           <a className="site-nav__download" href={DOWNLOAD_URL}>
             ダウンロード <ArrowRight size={14} />
           </a>
@@ -220,7 +221,7 @@ export function MioMailSite() {
           <div className="site-hero__texture" aria-hidden="true" />
           <div className="site-hero__copy">
             <div className="site-eyebrow site-intro-1">
-              <Sparkles size={15} /> Windowsのための、やさしいメールアプリ
+              <Sparkles size={15} /> WindowsとLinuxのための、やさしいメールアプリ
             </div>
             <h1 className="site-hero__brandmark site-intro-2">
               <img src={titleBanner} alt="MioMail" draggable={false} />
@@ -236,12 +237,15 @@ export function MioMailSite() {
               <a className="site-button site-button--primary" href={DOWNLOAD_URL}>
                 <Download size={18} /> Windows版をダウンロード
               </a>
+              <a className="site-text-link" href="./muse.html">
+                Linux版について <ArrowRight size={16} />
+              </a>
               <a className="site-text-link" href="#features">
                 もっと見る <ArrowDown size={16} />
               </a>
             </div>
             <p className="site-hero__note site-intro-4">
-              無料・広告なし ／ Windows 10・11対応 ／ 最新版 <strong>v{version}</strong>
+              無料・広告なし ／ Windows 10・11 ＆ Linux 対応 ／ 最新版 <strong>v{version}</strong>
             </p>
           </div>
 
@@ -429,6 +433,9 @@ export function MioMailSite() {
           <h2>今日から、受信箱に<br /><span>小さな相棒</span>を。</h2>
           <a className="site-button site-button--dark" href={DOWNLOAD_URL}>
             MioMailをはじめる <ArrowRight size={18} />
+          </a>
+          <a className="site-text-link site-cta__linux" href="./muse.html">
+            Linux(Ubuntu)で使う <ArrowRight size={16} />
           </a>
           <span className="site-cta__aside">See you in your inbox!</span>
         </section>
