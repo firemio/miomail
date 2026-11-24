@@ -21,6 +21,7 @@ import { useCharacterStore } from './stores/characterStore'
 import { useUIStore } from './stores/uiStore'
 
 import { isTauriRuntime } from './lib/ipc'
+import { useIsNarrowLayout } from './lib/useNarrowLayout'
 import { useLanguage } from './lib/i18n'
 
 export default function App() {
@@ -34,9 +35,16 @@ export default function App() {
     showSettings,
     openAccountSetup,
     composeDrafts,
+    narrowPane,
+    setNarrowPane,
     themeId,
   } = useUIStore()
   const hasComposeDraft = composeDrafts.length > 0
+  const narrow = useIsNarrowLayout()
+  // 狭い画面では作成パネルが画面を占有する(他のペインは隠す)
+  const narrowComposeTakesOver = narrow && hasComposeDraft
+  const currentFolderId = useMailStore((state) => state.currentFolder?.id)
+  const currentMessageId = currentMessage?.id
   const { refreshMods } = useCharacterStore()
   const [sentDelivery, setSentDelivery] = useState<SentDeliveryHandoff | null>(null)
   const activeThemeId = themeId
@@ -113,6 +121,16 @@ export default function App() {
     return () => window.removeEventListener('miomail:demo', listener as EventListener)
   }, [gainBond, handleIncomingMail, notifyIncomingMail, notifySentMail])
 
+  // 1カラム表示のとき、フォルダや本文を選んだらその先のペインへ進める。
+  // 本文を閉じた(currentMessage が null になった)ときは一覧へ戻る。
+  useEffect(() => {
+    setNarrowPane(currentMessageId ? 'message' : 'list')
+  }, [currentMessageId, setNarrowPane])
+
+  useEffect(() => {
+    if (currentFolderId) setNarrowPane('list')
+  }, [currentFolderId, setNarrowPane])
+
   useEffect(() => {
     const unreadCount = Array.from(allFolders.values()).reduce(
       (sum, folders) => sum + folders.reduce((folderSum, folder) => folderSum + (folder.unread_count || 0), 0),
@@ -132,23 +150,45 @@ export default function App() {
 
         <TitleBar />
 
-        <div className="flex flex-1 overflow-hidden px-3 pb-3">
-          <div className="theme-main-frame flex min-w-0 flex-1 overflow-hidden gap-3 rounded-[32px] border p-3">
-            <Sidebar />
-
-            <div className="theme-content-frame flex min-w-0 flex-1 overflow-hidden rounded-[28px] border">
-              <MessageList />
-              <div className="flex min-w-0 flex-1 overflow-hidden">
-                {hasComposeDraft ? (
-                  currentMessage ? <MessageView /> : <div className="theme-message-empty flex-1" />
-                ) : currentMessage ? (
-                  <MessageView />
-                ) : (
-                  <CourierWelcome />
-                )}
+        <div className={`flex flex-1 overflow-hidden ${narrow ? 'px-2 pb-2' : 'px-3 pb-3'}`}>
+          <div
+            className={`theme-main-frame flex min-w-0 flex-1 overflow-hidden rounded-[32px] border ${
+              narrow ? 'p-2' : 'gap-3 p-3'
+            }`}
+          >
+            {narrow ? (
+              // 1カラム: フォルダ / 一覧 / 本文 のうち1つだけ出す。
+              // 作成中は作成パネルが画面を占有する。
+              <div className="theme-content-frame flex min-w-0 flex-1 overflow-hidden rounded-[28px] border">
+                {!narrowComposeTakesOver &&
+                  (narrowPane === 'folders' ? (
+                    <Sidebar />
+                  ) : narrowPane === 'message' && currentMessage ? (
+                    <MessageView />
+                  ) : (
+                    <MessageList />
+                  ))}
+                <ComposePanel />
               </div>
-              <ComposePanel />
-            </div>
+            ) : (
+              <>
+                <Sidebar />
+
+                <div className="theme-content-frame flex min-w-0 flex-1 overflow-hidden rounded-[28px] border">
+                  <MessageList />
+                  <div className="flex min-w-0 flex-1 overflow-hidden">
+                    {hasComposeDraft ? (
+                      currentMessage ? <MessageView /> : <div className="theme-message-empty flex-1" />
+                    ) : currentMessage ? (
+                      <MessageView />
+                    ) : (
+                      <CourierWelcome />
+                    )}
+                  </div>
+                  <ComposePanel />
+                </div>
+              </>
+            )}
           </div>
         </div>
 

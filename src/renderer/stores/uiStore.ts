@@ -3,6 +3,8 @@ import { type ThemeId } from '../data/themes'
 import { loadThemeId, persistThemeId } from '../lib/theme'
 
 export type ComposeMode = 'new' | 'reply' | 'forward'
+/** 狭い画面で表示しているペイン(フォルダ → 一覧 → 本文 の順に進む)。 */
+export type NarrowPane = 'folders' | 'list' | 'message'
 export type ComposeLayout = 'docked' | 'floating'
 
 export interface ComposeSourceAttachment {
@@ -124,6 +126,7 @@ interface UIState {
   themeId: ThemeId
   composeDrafts: ComposeDraft[]
   activeDockedComposeId: string | null
+  narrowPane: NarrowPane
   zCounter: number
   openSettings: () => void
   closeSettings: () => void
@@ -132,6 +135,7 @@ interface UIState {
   closeCompose: (draftId: string, force?: boolean) => boolean
   updateComposeDraft: (draftId: string, patch: Partial<ComposeDraft>) => void
   applySignature: (draftId: string, signature: string) => void
+  setNarrowPane: (pane: NarrowPane) => void
   setActiveDockedCompose: (draftId: string) => void
   toggleComposeLayout: (draftId: string) => void
   moveCompose: (draftId: string, position: { x: number; y: number }) => void
@@ -296,6 +300,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   themeId: loadThemeId(),
   composeDrafts: initialComposeState.drafts,
   activeDockedComposeId: initialComposeState.activeDockedComposeId,
+  narrowPane: 'list',
   zCounter: initialZCounter,
 
   openSettings: () => set({ showSettings: true }),
@@ -373,6 +378,8 @@ export const useUIStore = create<UIState>((set, get) => ({
           : draft
       ),
     })),
+
+  setNarrowPane: (pane) => set({ narrowPane: pane }),
 
   setActiveDockedCompose: (draftId) => set({ activeDockedComposeId: draftId }),
 

@@ -15,6 +15,7 @@ import { useUIStore } from '../../stores/uiStore'
 import { clampCompanionPosition, getCompanionTravelRule, loadCompanionPosition, randomCompanionPosition, saveCompanionPosition, type CompanionPosition } from '../../lib/companionPosition'
 import type { SentDeliveryHandoff } from './CourierDeliveryOverlay'
 import { MascotRenderer } from '../characters/MascotRenderer'
+import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
 
 interface CompanionOverlayProps {
   sentDelivery: SentDeliveryHandoff | null
@@ -36,7 +37,8 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
   const wanderingRef = useRef(false)
   const poseActiveRef = useRef(false)
   const wanderEndTimerRef = useRef<number | null>(null)
-  const { openSettings } = useUIStore()
+  const { openSettings, composeDrafts } = useUIStore()
+  const narrow = useIsNarrowLayout()
   const {
     selectedMascotId,
     bondByMascot,
@@ -220,6 +222,9 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
   }
 
   if (onDelivery) return null
+  // 1カラム表示では相棒が右下の送信ボタンに重なってしまうため、
+  // メールを書いている間だけ姿を消す(画面を広げれば戻ってくる)
+  if (narrow && composeDrafts.length > 0) return null
 
   const movementClass = wandering
     ? 'transition-[left,top]'

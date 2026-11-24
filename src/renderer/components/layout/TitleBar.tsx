@@ -7,10 +7,12 @@ import { api } from '../../lib/ipc'
 import { useMailStore } from '../../stores/mailStore'
 import { useMascotStore } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
+import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
 
 export function TitleBar() {
+  const narrow = useIsNarrowLayout()
   const [isMaximized, setIsMaximized] = useState(false)
-  const { openSettings, searchQuery, setSearchQuery } = useUIStore()
+  const { openSettings, searchQuery, setSearchQuery, setNarrowPane } = useUIStore()
   const { searchMessages, semanticSearchActive, clearSearch } = useMailStore()
   const {
     selectedMascotId,
@@ -34,20 +36,26 @@ export function TitleBar() {
   }, [dismissSummonEvent, summonEvent])
 
   return (
-    <div className="drag-region flex h-[56px] shrink-0 items-center justify-between gap-4 px-5">
-      <div className="flex items-center gap-3">
-        <div className="px-1">
-          <img
-            src={logoImage}
-            alt="MioMail"
-            draggable={false}
-            className="h-10 w-auto select-none drop-shadow-[0_2px_6px_rgba(180,150,170,0.35)]"
-          />
+    <div
+      className={`drag-region flex h-[56px] shrink-0 items-center justify-between ${
+        narrow ? 'gap-1.5 px-2' : 'gap-4 px-5'
+      }`}
+    >
+      {!narrow && (
+        <div className="flex items-center gap-3">
+          <div className="px-1">
+            <img
+              src={logoImage}
+              alt="MioMail"
+              draggable={false}
+              className="h-10 w-auto select-none drop-shadow-[0_2px_6px_rgba(180,150,170,0.35)]"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="mx-2 flex min-w-0 flex-1 justify-center">
-        <form role="search" onSubmit={(event) => { event.preventDefault(); void searchMessages(searchQuery) }} className="no-drag glass-panel flex h-10 w-full max-w-xl items-center gap-3 rounded-full px-4">
+      <div className={`flex min-w-0 flex-1 justify-center ${narrow ? '' : 'mx-2'}`}>
+        <form role="search" onSubmit={(event) => { event.preventDefault(); setNarrowPane('list'); void searchMessages(searchQuery) }} className="no-drag glass-panel flex h-10 w-full max-w-xl items-center gap-3 rounded-full px-4">
           <button type="submit" aria-label={t("メールを検索")} title={t("検索")} className="shrink-0 text-sumi-accent"><Search size={16} /></button>
           {semanticSearchActive && (
             <span
@@ -73,7 +81,7 @@ export function TitleBar() {
         </form>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className={`flex items-center ${narrow ? 'gap-1' : 'gap-2'}`}>
         {summonEvent && (
           <div className="hidden max-w-[320px] rounded-[22px] border border-white/75 bg-white/85 px-4 py-1.5 text-[11px] leading-5 text-sumi-text-muted shadow-[0_18px_45px_rgba(255,210,210,0.35)] xl:block">
             <span className="font-semibold text-sumi-text">{selectedMascot.name}</span>

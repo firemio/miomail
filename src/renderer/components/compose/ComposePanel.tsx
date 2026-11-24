@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../lib/ipc'
 import { formatFileSize } from '../../lib/format'
+import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
 import { useMailStore } from '../../stores/mailStore'
 import { useMascotStore } from '../../stores/mascotStore'
 import { type ComposeDraft, useUIStore } from '../../stores/uiStore'
@@ -48,6 +49,7 @@ function ComposeEditor({
   draft: ComposeDraft
   docked: boolean
 }) {
+  const narrow = useIsNarrowLayout()
   const {
     closeCompose,
     updateComposeDraft,
@@ -266,6 +268,7 @@ function ComposeEditor({
                 {t("追加")}</span>
             </button>
           )}
+          {!narrow && (
           <button
             onClick={() => toggleComposeLayout(draft.id)}
             data-testid={`compose-toggle-layout-${draft.id}`}
@@ -279,6 +282,7 @@ function ComposeEditor({
               {!docked && t("右パネルに戻す")}
             </span>
           </button>
+          )}
           {!docked && (
             <button
               onClick={requestClose}
@@ -483,6 +487,7 @@ function ComposeEditor({
 }
 
 export function ComposePanel() {
+  const narrow = useIsNarrowLayout()
   const {
     composeDrafts,
     activeDockedComposeId,
@@ -495,8 +500,13 @@ export function ComposePanel() {
   const [discardDraftId, setDiscardDraftId] = useState<string | null>(null)
   const [discardPopoverPosition, setDiscardPopoverPosition] = useState({ top: 0, left: 0 })
 
-  const dockedDrafts = composeDrafts.filter((draft) => draft.layout === 'docked')
-  const floatingDrafts = composeDrafts.filter((draft) => draft.layout === 'floating')
+  // 狭い画面にフロート窓は収まらないので、すべて右パネル(全幅)として扱う
+  const dockedDrafts = narrow
+    ? composeDrafts
+    : composeDrafts.filter((draft) => draft.layout === 'docked')
+  const floatingDrafts = narrow
+    ? []
+    : composeDrafts.filter((draft) => draft.layout === 'floating')
 
   const defaultSender = currentFolder
     ? accounts.find((account) => account.id === currentFolder.account_id)?.email
@@ -542,7 +552,11 @@ export function ComposePanel() {
   return (
     <>
       {activeDockedDraft && (
-        <div className="relative flex h-full w-[440px] min-w-[400px] flex-col border-l border-white/80 bg-[linear-gradient(180deg,rgba(255,252,249,0.985)_0%,rgba(255,245,239,0.975)_100%)] backdrop-blur-md">
+        <div
+          className={`relative flex h-full flex-col bg-[linear-gradient(180deg,rgba(255,252,249,0.985)_0%,rgba(255,245,239,0.975)_100%)] backdrop-blur-md ${
+            narrow ? 'w-full min-w-0 flex-1' : 'w-[440px] min-w-[400px] border-l border-white/80'
+          }`}
+        >
           <div className="flex h-14 shrink-0 items-center gap-2 border-b border-white/70 px-3">
             <div
               ref={draftTabsRef}

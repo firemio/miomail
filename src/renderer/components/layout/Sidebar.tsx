@@ -23,6 +23,7 @@ import { useMailStore } from '../../stores/mailStore'
 import { useMascotStore } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
 import { getFolderDisplayName } from '../../lib/folderDisplay'
+import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
 import { buildFolderTree, type FolderTreeNode } from '../../lib/folderTree'
 import type { Account, Folder } from '../../types'
 
@@ -66,6 +67,7 @@ function isDefaultExpanded(node: FolderTreeNode, rootSegment: string): boolean {
 }
 
 export function Sidebar() {
+  const narrow = useIsNarrowLayout()
   const {
     accounts,
     allFolders,
@@ -77,7 +79,13 @@ export function Sidebar() {
     renameFolder,
     deleteFolder,
   } = useMailStore()
-  const { openCompose } = useUIStore()
+  const { openCompose, setNarrowPane } = useUIStore()
+
+  // 1カラム表示では、同じフォルダを選び直したときもメール一覧へ進む
+  const openFolder = (folder: Folder) => {
+    setCurrentFolder(folder)
+    setNarrowPane('list')
+  }
   const { gainBond } = useMascotStore()
 
   // Compose from the account whose folder is open (falls back to the first account)
@@ -249,7 +257,7 @@ export function Sidebar() {
             <button
               aria-current={isActive ? 'page' : undefined}
               title={t("{0} · {1}件、未読{2}件", { "0": getFolderDisplayName(folder), "1": folder.total_count, "2": unread })}
-              onClick={() => setCurrentFolder(folder)}
+              onClick={() => openFolder(folder)}
               className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2.5 text-left"
             >
               <span className={`shrink-0 ${isActive ? 'text-sumi-accent' : 'text-sumi-text-muted group-hover:text-sumi-text'}`}>
@@ -322,7 +330,13 @@ export function Sidebar() {
     })
 
   return (
-    <div className="glass-panel flex h-full w-[260px] min-w-[260px] flex-col rounded-[28px] border border-white/75">
+    <div
+      className={`glass-panel flex h-full flex-col ${
+        narrow
+          ? 'min-w-0 flex-1 rounded-none border-0'
+          : 'w-[260px] min-w-[260px] rounded-[28px] border border-white/75'
+      }`}
+    >
       <div className="shrink-0 px-4 pt-4">
         <button
           onClick={handleCompose}

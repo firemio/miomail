@@ -1,4 +1,5 @@
 import type { MascotId } from '../data/mascots'
+import { isNarrowViewport } from './useNarrowLayout'
 
 export interface CompanionPosition {
   x: number
@@ -8,13 +9,24 @@ export interface CompanionPosition {
 const STORAGE_KEY = 'miomail-companion-position'
 const MARGIN = 28
 const SIZE = 96
-
-export function clampCompanionPosition(position: CompanionPosition): CompanionPosition {
+/**
+ * 相棒が入れる範囲。1カラム表示(スマホ幅)では画面が狭く、どこにいても本文に
+ * かぶってしまうため、読み書きの邪魔にならない右下へ固定する。
+ */
+function companionBounds() {
   const width = typeof window === 'undefined' ? 1440 : window.innerWidth
   const height = typeof window === 'undefined' ? 900 : window.innerHeight
+  const maxX = Math.max(MARGIN, width - SIZE - MARGIN)
+  const maxY = Math.max(92, height - SIZE - MARGIN)
+  const narrow = isNarrowViewport()
+  return { width, height, minX: narrow ? maxX : MARGIN, maxX, minY: narrow ? maxY : 92, maxY }
+}
+
+export function clampCompanionPosition(position: CompanionPosition): CompanionPosition {
+  const { minX, maxX, minY, maxY } = companionBounds()
   return {
-    x: Math.max(MARGIN, Math.min(width - SIZE - MARGIN, position.x)),
-    y: Math.max(92, Math.min(height - SIZE - MARGIN, position.y)),
+    x: Math.max(minX, Math.min(maxX, position.x)),
+    y: Math.max(minY, Math.min(maxY, position.y)),
   }
 }
 
@@ -33,13 +45,12 @@ export function saveCompanionPosition(position: CompanionPosition) {
 }
 
 export function randomCompanionPosition(seed = Date.now()): CompanionPosition {
-  const width = typeof window === 'undefined' ? 1440 : window.innerWidth
-  const height = typeof window === 'undefined' ? 900 : window.innerHeight
+  const { minX, maxX, minY, maxY } = companionBounds()
   const randomA = Math.abs(Math.sin(seed * 12.9898) * 43758.5453) % 1
   const randomB = Math.abs(Math.sin((seed + 17) * 78.233) * 19341.137) % 1
   return clampCompanionPosition({
-    x: MARGIN + randomA * (width - SIZE - MARGIN * 2),
-    y: 110 + randomB * (height - SIZE - 110 - MARGIN),
+    x: minX + randomA * Math.max(0, maxX - minX),
+    y: minY + randomB * Math.max(0, maxY - minY),
   })
 }
 

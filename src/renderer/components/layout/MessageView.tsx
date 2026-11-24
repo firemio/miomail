@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify'
 import { api } from '../../lib/ipc'
 import { bindEmailLinks } from '../../lib/emailLinks'
 import {
+  ChevronLeft,
   Download,
   FileArchive,
   FileAudio,
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react'
 import type { Attachment } from '../../types'
 import { formatFileSize } from '../../lib/format'
+import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
 import { useMailStore } from '../../stores/mailStore'
 import { useMascotStore } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -247,6 +249,7 @@ function detectRemoteImages(html: string): boolean {
 }
 
 export function MessageView() {
+  const narrow = useIsNarrowLayout()
   const { currentMessage, closeMessage, deleteMessage, markRead, accounts } = useMailStore()
   const { openCompose, themeId } = useUIStore()
   const { gainBond } = useMascotStore()
@@ -376,6 +379,16 @@ export function MessageView() {
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white/35">
       <div className="flex shrink-0 items-center justify-between border-b border-white/70 px-6 py-4">
         <div className="flex flex-wrap items-center gap-2">
+          {narrow && (
+            <button
+              onClick={closeMessage}
+              aria-label={t("メール一覧へ戻る")}
+              title={t("メール一覧へ戻る")}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/70 text-sumi-text-muted transition hover:text-sumi-text"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          )}
           <button
             onClick={handleReply}
               data-testid="message-reply-button"

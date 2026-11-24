@@ -191,7 +191,7 @@ export function ImportDialog() {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={closeImport} />
 
-      <div className="relative flex max-h-[80vh] w-[680px] flex-col overflow-hidden rounded-[32px] border border-white/75 bg-[linear-gradient(180deg,#fffdfb_0%,#fff6f1_100%)] shadow-[0_30px_80px_rgba(181,132,112,0.24)]">
+      <div className="relative flex max-h-[80vh] w-[min(680px,94vw)] flex-col overflow-hidden rounded-[32px] border border-white/75 bg-[linear-gradient(180deg,#fffdfb_0%,#fff6f1_100%)] shadow-[0_30px_80px_rgba(181,132,112,0.24)]">
         <div className="flex h-[76px] shrink-0 items-center justify-between border-b border-white/70 px-5">
           <div className="flex items-center gap-2">
             <Download size={14} className="text-sumi-accent" />

@@ -1,6 +1,7 @@
 import { t, dateLocale } from '../../lib/i18n'
-import { AlertTriangle, Paperclip, X } from 'lucide-react'
+import { AlertTriangle, ChevronLeft, MailPlus, Paperclip, X } from 'lucide-react'
 import { getFolderDisplayName } from '../../lib/folderDisplay'
+import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
 import { useMailStore } from '../../stores/mailStore'
 import { useUIStore } from '../../stores/uiStore'
 import type { Message } from '../../types'
@@ -43,8 +44,10 @@ function extractName(addr: string): string {
 }
 
 export function MessageList() {
-  const { composeDrafts, searchQuery, setSearchQuery } = useUIStore()
+  const narrow = useIsNarrowLayout()
+  const { composeDrafts, searchQuery, setSearchQuery, setNarrowPane, openCompose } = useUIStore()
   const {
+    accounts,
     messages,
     currentMessage,
     openMessage,
@@ -68,25 +71,58 @@ export function MessageList() {
     }
   }
   const hasDockedCompose = composeDrafts.some((draft) => draft.layout === 'docked')
-  const listWidthClass = hasDockedCompose ? 'w-[330px] min-w-[296px]' : 'w-[380px] min-w-[320px]'
+  const listWidthClass = narrow
+    ? 'w-full min-w-0 flex-1'
+    : hasDockedCompose
+      ? 'w-[330px] min-w-[296px]'
+      : 'w-[380px] min-w-[320px]'
+  const listBorderClass = narrow ? '' : 'border-r border-white/70'
+
+  // 1カラム表示ではサイドバーが隠れるので、一覧から直接メールを書けるようにする
+  const handleCompose = () => {
+    const sender = currentFolder
+      ? accounts.find((account) => account.id === currentFolder.account_id)
+      : accounts[0]
+    openCompose({ mode: 'new', fromAddress: sender?.email })
+  }
 
   if (!currentFolder && !searchMode) {
     return (
-      <div className={`flex ${listWidthClass} items-center justify-center border-r border-white/70 bg-white/45 px-6 text-sumi-text-muted`}>
+      <div className={`flex ${listWidthClass} ${listBorderClass} items-center justify-center bg-white/45 px-6 text-sumi-text-muted`}>
         <div className="text-center">
           <p className="text-sm font-semibold text-sumi-text">{t("フォルダを選んでください")}</p>
+          {narrow ? (
+            // 1カラム表示ではサイドバーが見えないので、行き先を用意する
+            <button
+              onClick={() => setNarrowPane('folders')}
+              className="mt-3 rounded-full bg-sumi-accent px-4 py-2 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong"
+            >
+              {t("フォルダ")}
+            </button>
+          ) : (
           <p className="mt-2 text-xs text-sumi-text-muted">
             {t("左のサイドバーから受信トレイや送信済みを選べます。")}</p>
+          )}
         </div>
       </div>
     )
   }
 
   return (
-    <div className={`flex h-full ${listWidthClass} flex-col border-r border-white/70 bg-white/45`}>
+    <div className={`flex h-full ${listWidthClass} ${listBorderClass} flex-col bg-white/45`}>
       <div className="shrink-0 border-b border-white/75 px-5 py-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          {narrow && (
+            <button
+              onClick={() => setNarrowPane('folders')}
+              aria-label={t("フォルダ一覧へ戻る")}
+              title={t("フォルダ")}
+              className="-ml-1 mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/75 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          )}
+          <div className="min-w-0 flex-1">
             <span className="block truncate text-lg font-semibold text-sumi-text">
               {searchMode ? t("検索結果") : currentFolder ? getFolderDisplayName(currentFolder) : t("メール")}
             </span>
@@ -96,13 +132,29 @@ export function MessageList() {
             {searchMode && (
               <button
                 onClick={() => { setSearchQuery(''); void clearSearch() }}
-                className="rounded-full border border-white/75 bg-white/80 px-3 py-1.5 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
+                aria-label={t("検索を閉じる")}
+                title={t("検索を閉じる")}
+                className={`rounded-full border border-white/75 bg-white/80 font-semibold text-sumi-text-muted transition hover:text-sumi-text ${
+                  narrow
+                    ? 'flex h-9 w-9 shrink-0 items-center justify-center'
+                    : 'px-3 py-1.5 text-[10px]'
+                }`}
               >
-                {t("検索を閉じる")}</button>
+                {narrow ? <X size={14} /> : t("検索を閉じる")}</button>
             )}
             <span className="rounded-full bg-white/80 px-3 py-1 text-[10px] font-semibold text-sumi-text-muted">
               {searching ? t("検索中…") : t("{0}{1}件", { "0": messages.length, "1": hasMoreMessages ? '+' : '' })}
             </span>
+            {narrow && !searchMode && (
+              <button
+                onClick={handleCompose}
+                aria-label={t("新しいメールを書く")}
+                title={t("新しいメールを書く")}
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-sumi-accent text-white shadow-[0_10px_22px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong"
+              >
+                <MailPlus size={16} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -153,7 +205,10 @@ export function MessageList() {
                 key={message.id}
                 aria-current={isActive ? 'true' : undefined}
                 aria-label={`${unread ? t("未読、") : ''}${extractName(message.from_address)}、${message.subject || t("(件名なし)")}`}
-                onClick={() => openMessage(message.id)}
+                onClick={() => {
+                  void openMessage(message.id)
+                  setNarrowPane('message')
+                }}
                 className={`my-1 block w-full rounded-xl border px-4 py-3 text-left transition-colors ${
                   isActive
                     ? 'border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(255,235,227,0.92))] shadow-[0_18px_35px_rgba(255,191,160,0.18)]'
