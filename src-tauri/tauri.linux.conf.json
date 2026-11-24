@@ -1,7 +1,7 @@
 {
   "bundle": {
     "targets": ["deb", "appimage"],
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "linux": {
       "deb": {
         "depends": [

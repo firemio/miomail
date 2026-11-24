@@ -25,6 +25,8 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+# 資格情報の退避先(credential_file.rs)の暗号化。AEAD で改ざんも検出する
+chacha20poly1305 = "0.10"
 tokio = { version = "1", features = ["full"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 async-imap = "0.10"
@@ -69,17 +71,12 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
 
-# Linux は保存先が2種類あるので両方入れ、credentials.rs で使い分ける。
-#   sync-secret-service: GNOME キーリング等。再起動後も残るが、常駐と D-Bus が要る
-#   linux-native:        カーネルキーリング(keyutils)。常駐も D-Bus も不要で必ず
-#                        動くが、保存は再起動まで
-#   crypto-rust:         secret-service との通信を暗号化(純Rust。OpenSSL 不要)
+# Linux は secret-service(GNOME キーリング等)のみ。常駐と D-Bus が要るので
+# 使えない環境があり、そのときは credential_file.rs の暗号化ファイルへ退避する。
+# カーネルキーリング(keyutils)は再起動で消えるため使わない。
+#   crypto-rust: secret-service との通信を暗号化(純Rust。OpenSSL 不要)
 [target.'cfg(target_os = "linux")'.dependencies]
-keyring = { version = "3", features = [
-    "sync-secret-service",
-    "linux-native",
-    "crypto-rust",
-] }
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
 
 [features]
 default = []

@@ -1,5 +1,6 @@
 pub mod backfill;
 pub mod commands;
+pub mod credential_file;
 pub mod credentials;
 pub mod db;
 pub mod embed;

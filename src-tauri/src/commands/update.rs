@@ -10,8 +10,27 @@ pub struct UpdateStatus {
     pub notes: Option<String>,
 }
 
+/// Linux で自動更新が使えるのは AppImage で動かしているときだけ。
+/// deb で入れた場合は apt の管理下なので、アプリから置き換えない。
+#[cfg(target_os = "linux")]
+fn ensure_updatable() -> Result<(), String> {
+    if std::env::var_os("APPIMAGE").is_none() {
+        return Err(
+            "自動更新は AppImage 版のみ対応しています。deb で入れた場合は、新しい deb を入れ直してください。"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn ensure_updatable() -> Result<(), String> {
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn update_check(app: AppHandle) -> Result<UpdateStatus, String> {
+    ensure_updatable()?;
     let current_version = app.package_info().version.to_string();
 
     let updater = app.updater().map_err(|e| e.to_string())?;
@@ -39,6 +58,7 @@ pub async fn update_check(app: AppHandle) -> Result<UpdateStatus, String> {
 /// Download and install the latest update, then restart the app.
 #[tauri::command]
 pub async fn update_install(app: AppHandle) -> Result<(), String> {
+    ensure_updatable()?;
     let updater = app.updater().map_err(|e| e.to_string())?;
     let update = updater
         .check()

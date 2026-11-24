@@ -8,27 +8,22 @@ fn primary_entry(key: &str) -> std::result::Result<keyring::Entry, String> {
     keyring::Entry::new(SERVICE, key).map_err(|e| e.to_string())
 }
 
-/// Linux だけの退避先: カーネルキーリング(keyutils)。
+/// Linux だけの退避先: 暗号化したファイル([`crate::credential_file`])。
 ///
-/// 既定の secret-service は常駐デーモンと D-Bus セッションが要るため、画面の
-/// 無い仮想マシンでは使えないことがある。keyutils はカーネル内蔵で常駐も
-/// D-Bus も不要なので必ず動くが、keyring クレートが UntilReboot と宣言して
-/// いるとおり再起動で消える。そこで「残るほう」を主、「必ず動くほう」を
-/// 退避先にして両方へ書き、読むときはどちらかにあれば使う。
-/// 消えていた場合は、同期時に「パスワードを再入力してください」と案内される。
+/// secret-service は常駐デーモンと D-Bus セッションが要るので、画面の無い
+/// 仮想マシンでは使えないことがある。カーネルキーリング(keyutils)も動くが
+/// 再起動で消えるため、頻繁に再起動する Muse の仮想マシンでは、同期のたびに
+/// パスワードの再入力が要ることになる。そこでディスクへ置く。
+///
+/// 既定の保存先に入れられたときは、ここには書かない(ディスクに置くほうが
+/// 弱いため)。古い値が残っていたら消す。
 #[cfg(target_os = "linux")]
-fn fallback_entry(key: &str) -> Option<keyring::Entry> {
-    match keyring::keyutils::KeyutilsCredential::new_with_target(None, SERVICE, key) {
-        Ok(cred) => Some(keyring::Entry::new_with_credential(Box::new(cred))),
-        Err(e) => {
-            log::warn!("カーネルキーリングを使えません ({}): {}", key, e);
-            None
-        }
-    }
+fn fallback_store() -> Option<crate::credential_file::FileStore> {
+    crate::credential_file::FileStore::at_default_path()
 }
 
 #[cfg(not(target_os = "linux"))]
-fn fallback_entry(_key: &str) -> Option<keyring::Entry> {
+fn fallback_store() -> Option<crate::credential_file::FileStore> {
     None
 }
 
@@ -42,10 +37,10 @@ pub fn get_password(key: &str) -> Result<Option<String>> {
         Err(e) => Some(e),
     };
 
-    if let Some(entry) = fallback_entry(key) {
-        match entry.get_password() {
-            Ok(password) => return Ok(Some(password)),
-            Err(keyring::Error::NoEntry) => {}
+    if let Some(store) = fallback_store() {
+        match store.get(key) {
+            Ok(Some(password)) => return Ok(Some(password)),
+            Ok(None) => {}
             Err(e) => log::warn!("退避先からの読み取りに失敗しました ({}): {}", key, e),
         }
     }
@@ -63,41 +58,48 @@ pub fn set_password(key: &str, password: &str) -> Result<()> {
         Err(e) => Some(e),
     };
 
-    let mut saved_to_fallback = false;
-    if let Some(entry) = fallback_entry(key) {
-        match entry.set_password(password) {
-            Ok(()) => saved_to_fallback = true,
-            Err(e) => log::warn!("退避先への保存に失敗しました ({}): {}", key, e),
+    let Some(primary_error) = primary_error else {
+        // OS の資格情報ストアに入ったので、ディスクには残さない
+        if let Some(store) = fallback_store() {
+            if let Err(e) = store.delete(key) {
+                log::warn!("退避先の古い資格情報を消せません ({}): {}", key, e);
+            }
         }
-    }
+        log::info!("Password saved for key: {}", key);
+        return Ok(());
+    };
 
-    match primary_error {
-        None => {
-            log::info!("Password saved for key: {}", key);
-            Ok(())
-        }
-        // 既定の保存先が無い環境(画面の無い Linux など)。再起動までは使える。
-        Some(e) if saved_to_fallback => {
+    match fallback_store() {
+        Some(store) => {
+            store.set(key, password).map_err(|e| {
+                anyhow::anyhow!(
+                    "Password save failed: {} / 退避先にも保存できません: {}",
+                    primary_error,
+                    e
+                )
+            })?;
             log::warn!(
-                "既定の資格情報ストアに保存できないため、カーネルキーリングへ保存しました ({}): {}",
+                "既定の資格情報ストアに保存できないため、暗号化したファイルへ保存しました ({}): {}",
                 key,
-                e
+                primary_error
             );
             Ok(())
         }
-        Some(e) => Err(anyhow::anyhow!("Password save failed: {}", e)),
+        None => Err(anyhow::anyhow!("Password save failed: {}", primary_error)),
     }
 }
 
 pub fn delete_password(key: &str) -> Result<()> {
     // どちらに入っていても消す。消す対象が無いのは成功扱い。
-    for entry in [primary_entry(key).ok(), fallback_entry(key)]
-        .into_iter()
-        .flatten()
-    {
+    if let Ok(entry) = primary_entry(key) {
         match entry.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => {}
             Err(e) => log::warn!("Failed to delete password for {}: {}", key, e),
+        }
+    }
+    if let Some(store) = fallback_store() {
+        if let Err(e) = store.delete(key) {
+            log::warn!("Failed to delete password for {} (fallback): {}", key, e);
         }
     }
     Ok(())
@@ -110,8 +112,8 @@ mod tests {
     /// back to a non-persistent mock store). Touches the real credential
     /// manager, so it is opt-in via `--ignored`.
     ///
-    /// Linux では secret-service が無い環境(CI のランナーなど)でも、
-    /// カーネルキーリングへの退避で通ることを確かめる意味も持つ。
+    /// Linux では secret-service の無い環境(CI のランナーなど)でも、
+    /// 暗号化ファイルへの退避で通ることを確かめる意味も持つ。
     #[test]
     #[ignore = "touches the real OS credential store"]
     fn keyring_persists_roundtrip() {

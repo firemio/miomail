@@ -71,8 +71,19 @@ jobs:
           cargo test --manifest-path src-tauri/Cargo.toml --lib credentials:: -- --ignored
 
       - name: パッケージ作成
-        # bundle.targets は src-tauri/tauri.linux.conf.json 側で deb と appimage を指定
-        run: npm run tauri -- build
+        # bundle.targets は src-tauri/tauri.linux.conf.json 側で deb と appimage を指定。
+        # 自動更新用の成果物(.sig)は署名鍵が要る。鍵が無いリポジトリでもビルド自体は
+        # 通るよう、そのときだけ createUpdaterArtifacts を落とす。
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npm run tauri -- build
+          else
+            echo "署名鍵が無いので、自動更新用の成果物は作りません"
+            npm run tauri -- build --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          fi
 
       - name: 中身の確認
         run: |
@@ -84,6 +95,11 @@ jobs:
           mkdir -p dist-linux
           cp src-tauri/target/release/bundle/deb/*.deb dist-linux/MioMail-amd64.deb
           cp src-tauri/target/release/bundle/appimage/*.AppImage dist-linux/MioMail-x86_64.AppImage
+          # 自動更新用の署名(鍵があるときだけ作られる)
+          if ls src-tauri/target/release/bundle/appimage/*.AppImage.sig >/dev/null 2>&1; then
+            cp src-tauri/target/release/bundle/appimage/*.AppImage.sig dist-linux/MioMail-x86_64.AppImage.sig
+          fi
+          ls -l dist-linux
 
       - uses: actions/upload-artifact@v4
         with:
@@ -95,3 +111,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" dist-linux/* --clobber
+
+      - name: 自動更新のlatest.jsonにLinuxを足す
+        # Windows のリリース時に作られた latest.json に、AppImage の項目を足す。
+        # これが無いと Linux 版は更新先を見つけられない。
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "署名鍵が無いので latest.json は触りません(Linux の自動更新は無効のまま)"
+            exit 0
+          fi
+          tag="${{ github.event.release.tag_name }}"
+          gh release download "$tag" --pattern latest.json --dir . --clobber
+          node scripts/add-linux-to-latest-json.mjs \
+            --manifest latest.json \
+            --appimage dist-linux/MioMail-x86_64.AppImage \
+            --tag "$tag"
+          gh release upload "$tag" latest.json --clobber
