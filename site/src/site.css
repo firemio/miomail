@@ -310,6 +310,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
 @keyframes siteArrive { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes siteTwinkle { 0%, 100% { opacity: .4; transform: scale(.72) rotate(0); } 50% { opacity: 1; transform: scale(1.15) rotate(16deg); } }
 
+/* ナビ項目が増えたぶん、横並びでいられる下限(981px)で詰まり、
+   「ダウンロード」が2行に折り返してヘッダーが崩れる。この帯だけ間隔を詰める */
+@media (min-width: 981px) and (max-width: 1120px) {
+  .site-nav { gap: 20px; }
+  .site-nav > a { white-space: nowrap; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }

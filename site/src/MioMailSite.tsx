@@ -199,7 +199,7 @@ export function MioMailSite() {
           <a href="#companion" onClick={() => setMenuOpen(false)}>相棒について</a>
           <a href="#mcp" onClick={() => setMenuOpen(false)}>AIエージェントとつながる</a>
           <a href="#security" onClick={() => setMenuOpen(false)}>安心設計</a>
-          <a href="./muse.html">Linux版</a>
+          <a href="./muse.html">Linux・Muse</a>
           <a className="site-nav__download" href={DOWNLOAD_URL}>
             ダウンロード <ArrowRight size={14} />
           </a>
@@ -238,14 +238,14 @@ export function MioMailSite() {
                 <Download size={18} /> Windows版をダウンロード
               </a>
               <a className="site-text-link" href="./muse.html">
-                Linux版について <ArrowRight size={16} />
+                Linux・Museで使う <ArrowRight size={16} />
               </a>
               <a className="site-text-link" href="#features">
                 もっと見る <ArrowDown size={16} />
               </a>
             </div>
             <p className="site-hero__note site-intro-4">
-              無料・広告なし ／ Windows 10・11 ＆ Linux 対応 ／ 最新版 <strong>v{version}</strong>
+              無料・広告なし ／ Windows 11 ＆ Linux 対応 ／ 最新版 <strong>v{version}</strong>
             </p>
           </div>
 
@@ -360,6 +360,12 @@ export function MioMailSite() {
             <a className="site-text-link" href="#ai-search">意味検索 <ArrowRight size={13} /></a>
             もあわせてどうぞ。
           </p>
+          <p className="site-mcp-setup__note">
+            ※ Metaの<strong>Muse</strong>をお使いなら、割り当てられた仮想マシン(Ubuntu)にMioMailを入れて、
+            スマホからメールを読み書きできます。貼り付けるだけの設定プロンプトは
+            <a className="site-text-link" href="./muse.html">Museガイド <ArrowRight size={13} /></a>
+            にあります。
+          </p>
         </section>
 
         <section className="site-companion" id="companion">
@@ -435,7 +441,7 @@ export function MioMailSite() {
             MioMailをはじめる <ArrowRight size={18} />
           </a>
           <a className="site-text-link site-cta__linux" href="./muse.html">
-            Linux(Ubuntu)で使う <ArrowRight size={16} />
+            Linux・Museで使う <ArrowRight size={16} />
           </a>
           <span className="site-cta__aside">See you in your inbox!</span>
         </section>
