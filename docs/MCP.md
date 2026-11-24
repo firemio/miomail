@@ -104,8 +104,29 @@ command = 'C:\Users\<ユーザー名>\AppData\Local\MioMail\miomail-mcp.exe'
 - 「◯◯さんからのメールを探して返信の下書きを作って」 → `search_messages` → `get_message` →（内容確認後）`send_mail`
 - 「この案内メールをゴミ箱に入れて」 → `delete_message`
 
-`send_mail` と `delete_message` は取り消しができないため、エージェントは実行前に
-ユーザーへ内容を確認する想定です（ツール説明にもその旨を記載済み）。
+## 承認プロンプトを減らす
+
+各ツールには MCP の annotations（`readOnlyHint` / `destructiveHint` / `idempotentHint` /
+`openWorldHint`）と日本語の表示名を付けています。対応クライアントは、読み取りだけの
+ツール（一覧・検索・本文取得）と、変更を伴うツール（送信・削除・既読変更・同期）を
+区別して扱えます。
+
+それでも毎回の承認ダイアログが出る場合は、クライアント側の許可設定で止めます。
+
+**Claude Code** — `.claude/settings.json`（プロジェクト）または
+`~/.claude/settings.json`（全体）の `permissions.allow` に追加します。
+
+| 書き方 | 意味 |
+|--------|------|
+| `mcp__miomail__list_messages` | そのツールだけ許可 |
+| `mcp__miomail__send_mail` | 送信を毎回聞かずに実行 |
+| `mcp__miomail__*` | MioMail のツールをすべて許可 |
+
+**Claude Desktop** — 承認ダイアログで「常に許可」を選びます。
+
+`send_mail`（即時送信）と `delete_message`（ゴミ箱へ移動。ゴミ箱から消すと復元不可）は
+取り消せません。許可を省略するのは、内容を確認せずに実行されても困らない範囲に
+とどめてください。
 
 ## トラブルシューティング
 

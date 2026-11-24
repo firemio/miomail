@@ -129,11 +129,23 @@ fn tool_definitions() -> Value {
     json!([
         {
             "name": "list_accounts",
+            "annotations": {
+                "title": "アカウント一覧",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
             "description": "List the mail accounts configured in MioMail (id, name, email, servers). Passwords are never returned.",
             "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
         },
         {
             "name": "list_folders",
+            "annotations": {
+                "title": "フォルダ一覧",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
             "description": "List the folders of an account with unread/total counts, from the local cache. Use the sync tool first for fresh server state.",
             "inputSchema": {
                 "type": "object",
@@ -144,6 +156,12 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "list_messages",
+            "annotations": {
+                "title": "メール一覧",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
             "description": "List messages in a folder (newest first) from the local cache. Returns headers and preview snippets, not full bodies.",
             "inputSchema": {
                 "type": "object",
@@ -159,6 +177,12 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "get_message",
+            "annotations": {
+                "title": "メールを開く",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": true
+            },
             "description": "Fetch a full message (headers + text body). Downloads from the IMAP server if not cached. Does NOT mark the message as read.",
             "inputSchema": {
                 "type": "object",
@@ -172,6 +196,12 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "search_messages",
+            "annotations": {
+                "title": "メールを検索",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
             "description": "Search cached messages by keyword (subject, sender, snippet, downloaded body text).",
             "inputSchema": {
                 "type": "object",
@@ -185,6 +215,12 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "semantic_search",
+            "annotations": {
+                "title": "意味で検索",
+                "readOnlyHint": true,
+                "idempotentHint": true,
+                "openWorldHint": false
+            },
             "description": "Semantic (meaning-based) search over cached messages using the local embedding model, fused with keyword search. Requires the embedding model to be downloaded first — enable semantic search in the MioMail app settings. Returns the same message objects as search_messages.",
             "inputSchema": {
                 "type": "object",
@@ -199,7 +235,14 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "send_mail",
-            "description": "Send an email IMMEDIATELY via the account's SMTP server and save a copy to its Sent folder. There is no draft step or undo — confirm the recipients and content with the user before calling this.",
+            "annotations": {
+                "title": "メールを送信",
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": false,
+                "openWorldHint": true
+            },
+            "description": "Send an email IMMEDIATELY via the account's SMTP server and save a copy to its Sent folder. There is no draft step or undo, so the recipients and content must be what the user asked for. When the user has already asked for this mail to be sent, send it instead of asking them to confirm again.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -217,6 +260,13 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "mark_read",
+            "annotations": {
+                "title": "既読/未読を切り替え",
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": true,
+                "openWorldHint": true
+            },
             "description": "Mark a message as read or unread (updates the IMAP server and the local cache).",
             "inputSchema": {
                 "type": "object",
@@ -230,7 +280,14 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "delete_message",
-            "description": "Delete a message. Moves it to the account's Trash folder; deleting from Trash is permanent. Confirm with the user before calling this.",
+            "annotations": {
+                "title": "メールをゴミ箱へ",
+                "readOnlyHint": false,
+                "destructiveHint": true,
+                "idempotentHint": false,
+                "openWorldHint": true
+            },
+            "description": "Delete a message. Moves it to the account's Trash folder; deleting from Trash is permanent. When the user has already asked for this message to be deleted, delete it instead of asking them to confirm again.",
             "inputSchema": {
                 "type": "object",
                 "properties": { "message_id": { "type": "integer" } },
@@ -240,6 +297,13 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "sync",
+            "annotations": {
+                "title": "サーバーと同期",
+                "readOnlyHint": false,
+                "destructiveHint": false,
+                "idempotentHint": true,
+                "openWorldHint": true
+            },
             "description": "Refresh the local cache from the IMAP server (folder list + inbox messages). Run this before reading when fresh data matters.",
             "inputSchema": {
                 "type": "object",
