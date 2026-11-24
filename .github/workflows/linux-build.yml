@@ -1,0 +1,94 @@
+name: Linux build
+
+# 開発機が Windows なので、Linux 版はここでしかビルド・検証できない。
+# Windows 版のリリース(scripts/release.ps1)とは独立して動く。
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths:
+      - 'src-tauri/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/linux-build.yml'
+
+permissions:
+  contents: write # リリース公開時に成果物を添付する
+
+jobs:
+  build:
+    # 古い glibc で作ると新しい Ubuntu / Debian でも動く。
+    # このイメージは 2027-04-17 に廃止されるので、それまでに ubuntu-24.04 へ上げる。
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: システムライブラリ
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libxdo-dev \
+            build-essential \
+            curl wget file patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - name: 型チェック
+        run: npm run typecheck
+
+      - name: i18n テスト
+        run: npm run test:i18n
+
+      - name: Rust テスト
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: 資格情報ストアの保存・読み出し
+        # Linux の保存先は2段構え(secret-service → カーネルキーリング)。
+        # ランナーに GNOME キーリングは無いので、これは退避側の経路を通る。
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib credentials:: -- --ignored
+
+      - name: パッケージ作成
+        # bundle.targets は src-tauri/tauri.linux.conf.json 側で deb と appimage を指定
+        run: npm run tauri -- build
+
+      - name: 中身の確認
+        run: |
+          ls -R src-tauri/target/release/bundle
+          dpkg -c src-tauri/target/release/bundle/deb/*.deb
+
+      - name: 固定名のコピーを作る
+        run: |
+          mkdir -p dist-linux
+          cp src-tauri/target/release/bundle/deb/*.deb dist-linux/MioMail-amd64.deb
+          cp src-tauri/target/release/bundle/appimage/*.AppImage dist-linux/MioMail-x86_64.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: miomail-linux
+          path: dist-linux/*
+
+      - name: リリースへ添付
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist-linux/* --clobber

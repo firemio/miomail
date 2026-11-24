@@ -650,6 +650,13 @@ fn ensure_ort_env() -> Result<(), String> {
     ORT_ENV
         .get_or_init(|| {
             let Some(dll) = resolved_ort_dll() else {
+                // Windows ML は Windows 専用。他の OS では下の案内が噛み合わない。
+                if !cfg!(windows) {
+                    return Err(
+                        "セマンティック検索は Windows 版のみ対応しています(Windows ML を使うため)。キーワード検索はそのまま使えます。"
+                            .to_string(),
+                    );
+                }
                 // エンドユーザーに出る文言。原因(Windows ML 未導入)と対処が分かるようにする。
                 // 開発者向けの ORT_DYLIB_PATH は補足として最後に置く。
                 return Err(

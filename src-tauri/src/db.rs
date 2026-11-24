@@ -27,11 +27,28 @@ pub fn get_db_path(app: &AppHandle) -> PathBuf {
 }
 
 /// DB path resolvable without a Tauri AppHandle (used by the MCP server binary).
-/// Matches Tauri's app_data_dir on Windows: %APPDATA%/com.firemio.miomail
+/// Tauri の app_data_dir と同じ場所を指す必要がある。
+///   Windows: %APPDATA%/com.firemio.miomail
+///   Linux:   $XDG_DATA_HOME(既定は ~/.local/share)/com.firemio.miomail
 pub fn default_db_path() -> Option<PathBuf> {
-    std::env::var("APPDATA")
-        .ok()
-        .map(|p| PathBuf::from(p).join("com.firemio.miomail").join("miomail.db"))
+    app_data_root().map(|p| p.join("com.firemio.miomail").join("miomail.db"))
+}
+
+#[cfg(windows)]
+fn app_data_root() -> Option<PathBuf> {
+    std::env::var_os("APPDATA").map(PathBuf::from)
+}
+
+/// Tauri が使う dirs クレートと同じ規則:
+/// XDG_DATA_HOME が絶対パスならそれ、無ければ $HOME/.local/share。
+#[cfg(not(windows))]
+fn app_data_root() -> Option<PathBuf> {
+    std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local").join("share"))
+        })
 }
 
 pub fn init_database(app: &AppHandle) -> Result<()> {
@@ -390,8 +407,15 @@ pub fn parse_date_to_timestamp(date: &str) -> i64 {
         .unwrap_or(0)
 }
 
+/// 旧 Electron 版の DB 置き場(%APPDATA%/miomail)。Windows にしか存在しない。
+#[cfg(windows)]
 fn dirs_next_appdata() -> Option<PathBuf> {
-    std::env::var("APPDATA").ok().map(PathBuf::from)
+    std::env::var_os("APPDATA").map(PathBuf::from)
+}
+
+#[cfg(not(windows))]
+fn dirs_next_appdata() -> Option<PathBuf> {
+    None
 }
 
 #[cfg(test)]

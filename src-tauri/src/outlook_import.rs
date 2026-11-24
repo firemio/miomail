@@ -47,6 +47,11 @@ fn find_python() -> Result<String> {
 }
 
 pub fn run_extract(app: &AppHandle, args: &[&str]) -> Result<Value> {
+    // 取り出しスクリプトは New Outlook の COM を叩くので Windows 専用。
+    if !cfg!(windows) {
+        anyhow::bail!("New Outlook からの取り込みは Windows 版のみ対応しています");
+    }
+
     let script_path = get_script_path(app)?;
     let python = find_python()?;
 

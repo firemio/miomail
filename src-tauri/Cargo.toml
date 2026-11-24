@@ -34,7 +34,7 @@ futures = "0.3"
 lettre = { version = "0.11", default-features = false, features = ["tokio1-native-tls", "builder", "smtp-transport"] }
 mail-parser = "0.9"
 base64 = "0.22"
-keyring = { version = "3", features = ["windows-native"] }
+# keyring は OS ごとに使える保存先が違うため、ターゲット別に下で指定する
 thiserror = "2"
 anyhow = "1"
 log = "0.4"
@@ -64,6 +64,22 @@ ort = { version = "=2.0.0-rc.12", default-features = false, features = [
 tokenizers = { version = "=0.23.1", default-features = false, features = ["fancy-regex"] }
 # モデルの手動ダウンロード(hf-hub の代わり。バイナリサイズと依存削減)
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+
+# --- OS 資格情報ストア(credentials.rs) ---
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
+# Linux は保存先が2種類あるので両方入れ、credentials.rs で使い分ける。
+#   sync-secret-service: GNOME キーリング等。再起動後も残るが、常駐と D-Bus が要る
+#   linux-native:        カーネルキーリング(keyutils)。常駐も D-Bus も不要で必ず
+#                        動くが、保存は再起動まで
+#   crypto-rust:         secret-service との通信を暗号化(純Rust。OpenSSL 不要)
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = [
+    "sync-secret-service",
+    "linux-native",
+    "crypto-rust",
+] }
 
 [features]
 default = []
