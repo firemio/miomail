@@ -65,7 +65,9 @@ jobs:
       - name: 資格情報ストアの保存・読み出し
         # Linux の保存先は2段構え(secret-service → カーネルキーリング)。
         # ランナーに GNOME キーリングは無いので、これは退避側の経路を通る。
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib credentials:: -- --ignored
+        # YAML の plain scalar に ': ' は書けない(credentials:: が衝突する)
+        run: |
+          cargo test --manifest-path src-tauri/Cargo.toml --lib credentials:: -- --ignored
 
       - name: パッケージ作成
         # bundle.targets は src-tauri/tauri.linux.conf.json 側で deb と appimage を指定
