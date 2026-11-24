@@ -839,16 +839,40 @@ fn encode_wire_path(path: &str) -> String {
     out
 }
 
-/// Create a new mailbox (folder) on the server.
-pub async fn create_folder(config: &ImapConfig, path: &str) -> Result<()> {
+fn mailbox_creation_path(path: &str, root: &str, delimiter: Option<&str>) -> String {
+    if root.is_empty() {
+        return path.to_owned();
+    }
+    let prefix = match delimiter {
+        Some(d) if !d.is_empty() && !root.ends_with(d) => format!("{}{}", root, d),
+        _ => root.to_owned(),
+    };
+    format!("{}{}", prefix, path)
+}
+
+/// For account-level creation, discover the server's root instead of assuming
+/// an empty namespace (RFC 3501 section 6.3.8, LIST "" ""). Explicit parent
+/// paths are already absolute wire names and must never be prefixed again.
+pub async fn create_folder(config: &ImapConfig, path: &str, at_account_root: bool) -> Result<()> {
     // ユーザー入力の非ASCII名を送信前に modified UTF-7 へエンコードする。
     // 既に wire 形式の部分は二重エンコードされない。
-    let wire_path = encode_wire_path(path);
+    let mut wire_path = encode_wire_path(path);
     let mut session = connect(config).await?;
-    session
+    if at_account_root {
+        if let Ok(roots) = collect_list(&mut session, "", "").await {
+            if let Some(root) = roots.first() {
+                wire_path = mailbox_creation_path(&wire_path, root.name(), root.delimiter());
+            }
+        }
+    }
+    let result = session
         .create(&wire_path)
         .await
-        .map_err(|e| anyhow::anyhow!("フォルダ '{}' の作成に失敗しました: {}", path, e))?;
+        .map_err(|e| anyhow::anyhow!("フォルダ '{}' の作成に失敗しました: {}", path, e));
+    if let Err(error) = result {
+        let _ = session.logout().await;
+        return Err(error);
+    }
     // Subscribe so it shows up in clients that only list subscribed folders
     session.subscribe(&wire_path).await.ok();
     session.logout().await?;
@@ -885,6 +909,15 @@ pub async fn delete_folder(config: &ImapConfig, path: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mailbox_creation_uses_server_root() {
+        assert_eq!(mailbox_creation_path("asdasd", "INBOX.", Some(".")), "INBOX.asdasd");
+        assert_eq!(mailbox_creation_path("asdasd", "INBOX", Some(".")), "INBOX.asdasd");
+        assert_eq!(mailbox_creation_path("asdasd", "", Some("/")), "asdasd");
+        assert_eq!(mailbox_creation_path("asdasd", "", None), "asdasd");
+        assert_eq!(mailbox_creation_path("&TtVOiw-", "INBOX/", Some("/")), "INBOX/&TtVOiw-");
+    }
 
     #[test]
     fn wire_path_encoding_is_idempotent() {

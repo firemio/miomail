@@ -1564,7 +1564,7 @@ pub async fn mail_create_folder(
         (config, path)
     };
 
-    imap_service::create_folder(&config, &path)
+    imap_service::create_folder(&config, &path, parent_id.is_none())
         .await
         .map_err(|e| e.to_string())?;
 
