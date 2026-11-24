@@ -1,5 +1,6 @@
 import { ArrowLeft, Download, FolderOpen, Plus, RefreshCw, ShieldCheck } from 'lucide-react'
 import { DOWNLOAD_URL } from './links'
+import { useLatestVersion } from './version'
 import logoImage from '../../src/renderer/assets/miomail-logo.png'
 
 const FOLDER_TREE = `character-mods/
@@ -203,6 +204,8 @@ function FormatFacts({ rows }: FormatFactsProps) {
 }
 
 export function ModsGuide() {
+  const version = useLatestVersion()
+
   return (
     <div className="site-docs">
       <header className="site-docs-header">
@@ -460,6 +463,7 @@ export function ModsGuide() {
       </main>
 
       <footer className="site-docs-footer">
+        <span>v{version}</span>
         <span>© 2026 MioMail</span>
         <span style={{ display: 'inline-flex', gap: 18 }}>
           <a href="./mcp.html">MCPガイド</a>

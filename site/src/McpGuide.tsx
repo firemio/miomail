@@ -1,5 +1,6 @@
 import { AlertTriangle, ArrowLeft, Bot, Download, ShieldCheck, Sparkles, Terminal } from 'lucide-react'
 import { DOWNLOAD_URL } from './links'
+import { useLatestVersion } from './version'
 import { AUTO_SETUP_PROMPT, CopyPromptButton } from './mcpSetup'
 import logoImage from '../../src/renderer/assets/miomail-logo.png'
 
@@ -39,6 +40,8 @@ const PROMPT_EXAMPLES = [
 ]
 
 export function McpGuide() {
+  const version = useLatestVersion()
+
   return (
     <div className="site-docs">
       <header className="site-docs-header">
@@ -177,6 +180,7 @@ export function McpGuide() {
       </main>
 
       <footer className="site-docs-footer">
+        <span>v{version}</span>
         <span>© 2026 MioMail</span>
         <a href="https://github.com/firemio/miomail">GitHub</a>
       </footer>

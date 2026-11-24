@@ -27,6 +27,7 @@ import logoImage from '../../src/renderer/assets/miomail-logo.png'
 import titleBanner from './assets/miomail-title-banner.png'
 
 import { DOWNLOAD_URL, RELEASE_PAGE_URL } from './links'
+import { useLatestVersion } from './version'
 import { AUTO_SETUP_PROMPT, CopyPromptButton } from './mcpSetup'
 
 const features = [
@@ -174,6 +175,7 @@ function EnvelopeMark({ small = false }: { small?: boolean }) {
 
 export function MioMailSite() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const version = useLatestVersion()
 
   useEffect(() => {
     const reveal = new IntersectionObserver(
@@ -238,7 +240,9 @@ export function MioMailSite() {
                 もっと見る <ArrowDown size={16} />
               </a>
             </div>
-            <p className="site-hero__note site-intro-4">無料・広告なし ／ Windows 10・11対応</p>
+            <p className="site-hero__note site-intro-4">
+              無料・広告なし ／ Windows 10・11対応 ／ 最新版 <strong>v{version}</strong>
+            </p>
           </div>
 
           <div className="site-hero__visual site-intro-character" aria-label="MioMailの相棒、白い子猫のミオ">
@@ -440,6 +444,7 @@ export function MioMailSite() {
           <a href="./mcp.html">MCPガイド</a>
           <a href="https://github.com/firemio/miomail">GitHub</a>
           <a href={RELEASE_PAGE_URL}>Releases</a>
+          <span>v{version}</span>
           <span>© 2026 MioMail</span>
         </div>
       </footer>
