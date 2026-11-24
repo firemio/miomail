@@ -40,10 +40,11 @@ jobs:
             build-essential \
             curl wget file patchelf
 
+      # このリポジトリは lockfile を持たない(Windows 側のビルドも同じ)ので、
+      # npm のキャッシュも npm ci も使えない
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -51,7 +52,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
 
       - name: 型チェック
         run: npm run typecheck
