@@ -94,6 +94,44 @@ Muse のスペースは **`blob:` の iframe** の中で動く。2026-11-25 に�
 (`__attachment_bytes` / `character_mod_read_asset` は base64、イベントは
 `__events_poll` で差分を取りに行く)。
 
+### 実機で分かったこと(2026-11-25、Muse に公式プロンプトを渡して通した)
+
+`--serve --single-file --no-token` で入れ、スペースを作るところまで実機で通した。
+出たつまずきは7つ。どれも `site/src/museSetup.tsx` のプロンプトへ書き足した。
+
+- **サーバーアクションから `127.0.0.1` が叩けない**。`NODE_USE_ENV_PROXY=1` と
+  `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`(宛先は `hatch-egress-proxy:3128`)が
+  ループバック宛てにも効き、**エラーも出ないまま応答が返らない**。その実行プロセスの
+  `NO_PROXY`(`no_proxy`)に `127.0.0.1` を入れる。駄目なら生ソケットで POST。
+- **利用者が2回、許可を押す**。(1)プロンプトをファイルで渡すと「プログラムを
+  ダウンロードして実行する手順」としてエージェント側のセキュリティ検査に止められる。
+  (2)スペースの後ろ側が `127.0.0.1:7272` へ初めて繋ぐとき、「127.0.0.1 との情報共有を
+  許可しますか」が出る。「このスペースに対して常に許可」を選ぶと
+  スペース×宛先の限定・期限なしで保存され、以後は出ない。「一度だけ許可」はその1回だけ。
+- **`invoke` のコマンド名と MCP のツール名は別物**。`list_accounts` は MCP 側で、
+  `invoke` では `{"error":"未対応のコマンドです: list_accounts","ok":false}` が返る。
+  中継ができたかは `account_list` と `character_mod_list` で試す。
+- **枠の幅をそのまま渡させる**。1カラムは `(max-width: 899px)`(`lib/useNarrowLayout.ts`)。
+  固定幅・`transform: scale`・ズーム指定を挟まれると、スマホでも3ペインのまま描かれる。
+- **取り出した HTML を `blob:` の URL で保存させない**。`blob:` の URL は作った
+  ドキュメントが閉じた時点で無効になる。スペースを開き直すとページごと作り直されるので、
+  前に作った `blob:` URL への fetch は `TypeError: Failed to fetch` で落ち、
+  **枠が真っ白のまま何も出ない**。作り手の監査は作成と取得が同じページの中なので再現しない。
+  中身(バイト列)をスペース側のファイルとして持たせる(次の項のとおり `blob:` 自体を使わせない)。
+- **VM に1回も聞かないうちに画面を描かせる**。中継(invoke)も生存確認も画面が出た後でいい。
+  MioMail が止まっていても、開いて数秒で画面が出るのが正しい作り。
+- **枠は本物の https の URL から読ませる。`srcdoc` と `blob:` は使えない**(最大の罠)。
+  `about:srcdoc` / `blob:` / `data:` の文書は**親ページの CSP を引き継ぐ**。引き継いだ分と
+  その文書自身の分の両方が効くので、`web.rs` が付ける nonce 付きインラインスクリプトは
+  親の nonce と一致せず**1行も実行されない**。HTML は届くのに画面が起動しない。
+  muse.ai の `script-src` は `'self' 'wasm-unsafe-eval' 'nonce-...' 'strict-dynamic' blob:` で、
+  `strict-dynamic` により `'self'` も `blob:` も無視され、nonce 一致だけが通る。
+  親の `frame-src` が許す先(muse.ai なら `*.metaaiusercontent.com` など)へファイルを置き、
+  その URL を `iframe src` に指させる。ホスト側の監査環境はこのヘッダーを返さないので再現しない。
+
+中継経由で実際に通ったもの: `account_list`、`__events_poll`、`character_mod_list`
+(同梱の4体・9パッケージ・`origin:"builtin"`・`issues` 空)。Linux でも MOD は見えている。
+
 ### サーバー側も作り直していない
 
 `web.rs` はコマンドを**再実装していない**。デスクトップ版の `#[tauri::command]` から
