@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { listen } from '@tauri-apps/api/event'
+import { listen as tauriListen } from '@tauri-apps/api/event'
 import type { DemoMailEvent, NewMailEvent } from './types'
 import { ComposePanel } from './components/compose/ComposePanel'
 import { AccountSetup } from './components/account/AccountSetup'
@@ -20,8 +20,14 @@ import { useMascotStore } from './stores/mascotStore'
 import { useCharacterStore } from './stores/characterStore'
 import { useUIStore } from './stores/uiStore'
 
+import { bridgeListen, isBridgeRuntime } from './lib/bridge'
 import { isTauriRuntime } from './lib/ipc'
 import { useIsNarrowLayout } from './lib/useNarrowLayout'
+
+/** イベントの受け口。デスクトップ版は Tauri、Web ブリッジは SSE。 */
+const listen = isBridgeRuntime
+  ? (bridgeListen as unknown as typeof tauriListen)
+  : tauriListen
 import { useLanguage } from './lib/i18n'
 
 export default function App() {

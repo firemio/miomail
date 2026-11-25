@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { type ThemeId } from '../data/themes'
 import { loadThemeId, persistThemeId } from '../lib/theme'
+import { safeStorage } from '../lib/safeStorage'
 
 export type ComposeMode = 'new' | 'reply' | 'forward'
 /** 狭い画面で表示しているペイン(フォルダ → 一覧 → 本文 の順に進む)。 */
@@ -69,7 +70,7 @@ function loadComposeState(): PersistedComposeState {
   if (typeof window === 'undefined') return { drafts: [], activeDockedComposeId: null }
 
   try {
-    const raw = window.localStorage.getItem(COMPOSE_DRAFTS_STORAGE_KEY)
+    const raw = safeStorage.getItem(COMPOSE_DRAFTS_STORAGE_KEY)
     if (!raw) return { drafts: [], activeDockedComposeId: null }
 
     const saved = JSON.parse(raw) as Partial<PersistedComposeState>
@@ -105,7 +106,7 @@ function persistComposeState(state: PersistedComposeState) {
   if (typeof window === 'undefined') return
 
   try {
-    window.localStorage.setItem(COMPOSE_DRAFTS_STORAGE_KEY, JSON.stringify(state))
+    safeStorage.setItem(COMPOSE_DRAFTS_STORAGE_KEY, JSON.stringify(state))
   } catch {
     // Storage failures must not interrupt composing or sending mail.
   }

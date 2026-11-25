@@ -90,6 +90,60 @@ jobs:
           ls -R src-tauri/target/release/bundle
           dpkg -c src-tauri/target/release/bundle/deb/*.deb
 
+      - name: ブラウザから使えるか(miomail --serve の煙テスト)
+        # Muse ではこの経路しか使えないので、実機で動くことをここで確かめる。
+        # 画面は tauri/custom-protocol が有効なときだけ実行ファイルへ埋め込まれる。
+        # 素の cargo build で作ると画面が空になるため、その取り違えもここで落とす。
+        run: |
+          export MIOMAIL_DB="$PWD/smoke-test.db"
+          src-tauri/target/release/miomail --serve --port 7272 --token smoketoken >serve.log 2>&1 &
+          serve_pid=$!
+          trap 'kill $serve_pid 2>/dev/null || true' EXIT
+          for _ in $(seq 1 20); do
+            curl -sf -o /dev/null "http://127.0.0.1:7272/?t=smoketoken" && break
+            sleep 1
+          done
+          cat serve.log
+          # 画面が埋め込まれていること(0件ならここまで来ずに起動が止まる)
+          curl -sf "http://127.0.0.1:7272/?t=smoketoken" | grep -q "__miomail/bridge.js"
+          # 合言葉が無ければ開けないこと
+          test "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:7272/")" = "401"
+          # コマンドが通ること(アカウント0件でも ok:true が返る)
+          curl -sf -H "X-MioMail-Token: smoketoken" -H "Content-Type: application/json" \
+            -d '{"cmd":"account_list"}' "http://127.0.0.1:7272/__miomail/invoke" | grep -q '"ok":true'
+
+          # --- Muse のスペース用: 1ファイル完結の画面 ---
+          curl -sf "http://127.0.0.1:7272/__miomail/standalone.html?t=smoketoken" >standalone.html
+          grep -q "standalone:true" standalone.html
+          # 外部ファイルを参照していないこと(枠の中からは取りに行けない)
+          ! grep -q 'src="./assets/' standalone.html
+          ! grep -q 'href="./assets/' standalone.html
+          # 画面の設定を預かり、次に開くときに埋めて返すこと
+          curl -sf -H "X-MioMail-Token: smoketoken" -H "Content-Type: application/json" \
+            -d '{"cmd":"__settings_set","args":{"key":"smoke","value":"1"}}' \
+            "http://127.0.0.1:7272/__miomail/invoke" | grep -q '"ok":true'
+          curl -sf "http://127.0.0.1:7272/__miomail/standalone.html?t=smoketoken" | grep -q '"smoke":"1"'
+          # SSE を張れない枠のための、イベントを取りに行く口
+          curl -sf -H "X-MioMail-Token: smoketoken" -H "Content-Type: application/json" \
+            -d '{"cmd":"__events_poll","args":{"since":0}}' \
+            "http://127.0.0.1:7272/__miomail/invoke" | grep -q '"events"'
+          kill $serve_pid
+          trap - EXIT
+
+          # --- スペースと同じ起動の仕方 ---
+          src-tauri/target/release/miomail --serve --port 7273 --single-file --no-token >serve-space.log 2>&1 &
+          space_pid=$!
+          trap 'kill $space_pid 2>/dev/null || true' EXIT
+          for _ in $(seq 1 20); do
+            curl -sf -o /dev/null "http://127.0.0.1:7273/" && break
+            sleep 1
+          done
+          cat serve-space.log
+          curl -sf "http://127.0.0.1:7273/" | grep -q "standalone:true"
+          # --no-token は 127.0.0.1 のときだけ。他のアドレスでは起動を断る
+          ! src-tauri/target/release/miomail --serve --host 0.0.0.0 --no-token
+          echo "--serve は動いています"
+
       - name: 固定名のコピーを作る
         run: |
           mkdir -p dist-linux
@@ -115,7 +169,8 @@ jobs:
       - name: 自動更新のlatest.jsonにLinuxを足す
         # Windows のリリース時に作られた latest.json に、AppImage の項目を足す。
         # これが無いと Linux 版は更新先を見つけられない。
-        if: github.event_name == 'release'
+        # 予行演習(prerelease)では触らない。自動更新の宛先を試作版へ向けてしまうため。
+        if: github.event_name == 'release' && !github.event.release.prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

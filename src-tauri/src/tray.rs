@@ -1,10 +1,6 @@
-use once_cell::sync::Lazy;
-use serde::Serialize;
-use std::collections::HashSet;
-use std::sync::Mutex;
 use tauri::menu::MenuBuilder;
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, Window, WindowEvent};
+use tauri::{AppHandle, Manager, Window, WindowEvent};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::commands::mail::{self, Message};
@@ -13,15 +9,6 @@ const TRAY_ID: &str = "main-tray";
 const MENU_OPEN: &str = "tray-open";
 const MENU_SYNC: &str = "tray-sync";
 const MENU_QUIT: &str = "tray-quit";
-const EVENT_NEW_MAIL: &str = "miomail://new-mail";
-
-static SEEN_MESSAGE_KEYS: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
-
-#[derive(Debug, Clone, Serialize)]
-pub struct NewMailEvent {
-    pub message: Message,
-    pub unread_count: i64,
-}
 
 pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
@@ -99,32 +86,8 @@ pub fn notify_new_mail(
         return Ok(());
     }
 
-    let fresh_messages = {
-        let mut seen = SEEN_MESSAGE_KEYS.lock().map_err(|e| e.to_string())?;
-        let mut fresh = Vec::new();
-
-        for message in messages {
-            let key = if message.message_id.is_empty() {
-                format!(
-                    "{}:{}:{}",
-                    message.account_id, message.folder_id, message.uid
-                )
-            } else {
-                format!("{}:{}", message.account_id, message.message_id)
-            };
-
-            if seen.insert(key) {
-                fresh.push(message);
-            }
-        }
-
-        fresh
-    };
-
-    if fresh_messages.is_empty() {
-        update_tray_tooltip(app, unread_count);
-        return Ok(());
-    }
+    // 重複落としは mail::dedup_new_messages 済み(フロントへのイベントと同じ台帳)。
+    let fresh_messages = messages;
 
     // Messages arrive sorted by UID ascending, so the newest is the last one
     let latest = fresh_messages[fresh_messages.len() - 1].clone();
@@ -151,15 +114,6 @@ pub fn notify_new_mail(
         })
         .show()
         .map_err(|e| e.to_string())?;
-
-    app.emit(
-        EVENT_NEW_MAIL,
-        NewMailEvent {
-            message: latest,
-            unread_count,
-        },
-    )
-    .map_err(|e| e.to_string())?;
 
     update_tray_tooltip(app, unread_count);
     Ok(())

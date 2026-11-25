@@ -15,6 +15,7 @@ import type {
   SystemInfo,
 } from '../types'
 import { APP_BUILD_ID, APP_COMMIT, APP_VERSION } from '../version'
+import { safeStorage } from './safeStorage'
 
 interface PreviewDb {
   accounts: Account[]
@@ -410,7 +411,7 @@ function loadDb(): PreviewDb {
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = safeStorage.getItem(STORAGE_KEY)
     if (!raw) {
       const seeded = seedDb()
       saveDb(seeded)
@@ -450,7 +451,7 @@ function saveDb(db: PreviewDb) {
     return
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(db))
+  safeStorage.setItem(STORAGE_KEY, JSON.stringify(db))
 }
 
 function getFolderByPath(db: PreviewDb, accountId: number, path: string) {
@@ -494,7 +495,7 @@ const SEMANTIC_MODEL_SIZE_MB = 45
 // プレビュー用のセマンティック検索ステート。enable → 擬似ダウンロード → ready を
 // 時間経過で再現し、プログレスバーの見た目を確認できるようにする。
 const mockSemanticState: { status: SemanticStatus; downloadStartedAt: number | null } = {
-  status: { state: 'off', model_size_mb: SEMANTIC_MODEL_SIZE_MB, error: null },
+  status: { state: 'off', model_size_mb: SEMANTIC_MODEL_SIZE_MB, error: null, supported: true },
   downloadStartedAt: null,
 }
 
@@ -508,6 +509,7 @@ function tickMockSemantic(): SemanticStatus {
       state: 'ready',
       model_size_mb: SEMANTIC_MODEL_SIZE_MB,
       error: null,
+      supported: true,
     }
     mockSemanticState.downloadStartedAt = null
   }
@@ -1067,6 +1069,7 @@ export const mockApi = {
         state: 'downloading',
         model_size_mb: SEMANTIC_MODEL_SIZE_MB,
         error: null,
+        supported: true,
       }
       mockSemanticState.downloadStartedAt = Date.now()
       return mockSemanticState.status

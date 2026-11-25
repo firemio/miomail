@@ -6,38 +6,57 @@ import { CopyPromptButton } from './mcpSetup'
 import logoImage from '../../src/renderer/assets/miomail-logo.png'
 
 const APT_DEPS = `sudo apt-get update
-sudo apt-get install -y libwebkit2gtk-4.1-0 libayatana-appindicator3-1 libdbus-1-3 gnome-keyring`
+sudo apt-get install -y libwebkit2gtk-4.1-0 libayatana-appindicator3-1 libdbus-1-3`
 
-const INSTALL_DEB = `wget -O MioMail-amd64.deb https://github.com/firemio/miomail/releases/latest/download/MioMail-amd64.deb
-sudo apt-get install -y ./MioMail-amd64.deb`
+const INSTALL_DEB = `wget -O /tmp/MioMail-amd64.deb https://github.com/firemio/miomail/releases/latest/download/MioMail-amd64.deb
+rm -rf "$HOME/miomail-app"
+dpkg -x /tmp/MioMail-amd64.deb "$HOME/miomail-app"`
 
-const SCREEN_DEPS = `sudo apt-get install -y xvfb x11vnc novnc websockify matchbox-window-manager`
+const SERVE_CMD = `~/miomail-app/usr/bin/miomail --serve --single-file --no-token`
 
-const SCREEN_SCRIPT = `#!/bin/sh
-nohup Xvfb :9 -screen 0 420x880x24 >>~/miomail-screen.log 2>&1 &
-sleep 1
-DISPLAY=:9 nohup matchbox-window-manager -use_titlebar no >>~/miomail-screen.log 2>&1 &
-DISPLAY=:9 WEBKIT_DISABLE_DMABUF_RENDERER=1 nohup miomail >>~/miomail-screen.log 2>&1 &
-sleep 2
-nohup x11vnc -display :9 -forever -nopw -localhost -rfbport 5900 >>~/miomail-screen.log 2>&1 &
-nohup websockify --web=/usr/share/novnc 6080 localhost:5900 >>~/miomail-screen.log 2>&1 &`
+const START_SCRIPT = `#!/bin/sh
+set -e
+APP="$HOME/miomail-app/usr/bin/miomail"
+if [ ! -x "$APP" ]; then
+  echo "MioMail がありません。~/miomail-recover.sh を実行してください。" >&2
+  exit 1
+fi
+pkill -f 'miomail --serve' 2>/dev/null || true
+nohup "$APP" --serve --port 7272 --single-file --no-token >>"$HOME/miomail-serve.log" 2>&1 &
+sleep 3
+if curl -sf -o /dev/null http://127.0.0.1:7272/; then
+  echo "MioMail は http://127.0.0.1:7272/ で動いています"
+else
+  echo "起動できませんでした。$HOME/miomail-serve.log を見てください。" >&2
+  exit 1
+fi`
 
-const SCREEN_URL = 'http://localhost:6080/vnc.html?autoconnect=1&resize=scale'
+const RECOVER_SCRIPT = `#!/bin/sh
+set -e
+while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+sudo apt-get update
+sudo apt-get install -y libwebkit2gtk-4.1-0 libayatana-appindicator3-1 libdbus-1-3
+if [ ! -x "$HOME/miomail-app/usr/bin/miomail" ]; then
+  wget -qO /tmp/MioMail-amd64.deb https://github.com/firemio/miomail/releases/latest/download/MioMail-amd64.deb
+  rm -rf "$HOME/miomail-app"
+  dpkg -x /tmp/MioMail-amd64.deb "$HOME/miomail-app"
+fi
+sh "$HOME/miomail-start.sh"`
 
-const BLANK_WINDOW = `WEBKIT_DISABLE_DMABUF_RENDERER=1 miomail`
+const MCP_TOOLS = `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | ~/miomail-app/usr/bin/miomail-mcp`
 
-const MCP_TOOLS = `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | /usr/bin/miomail-mcp`
-
-const MCP_ACCOUNTS = `echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_accounts","arguments":{}}}' | /usr/bin/miomail-mcp`
+const MCP_ACCOUNTS = `echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_accounts","arguments":{}}}' | ~/miomail-app/usr/bin/miomail-mcp`
 
 const DIFFERENCES: [string, string][] = [
   ['メールの送受信(IMAP / SMTP)', '使える'],
-  ['添付ファイル・キャラクターMOD・8言語の表示切り替え', '使える'],
-  ['MCPサーバー(AIエージェント連携)', '使える。Museのカスタムコネクタの口になる'],
-  ['画面を指で直接操作する', 'ブラウザ経由(noVNC)で行う。Museはデスクトップアプリを操作できない'],
-  ['パスワードの保存', 'GNOMEキーリングがあればそこへ。無ければ暗号化したファイルへ退避する(再起動後も残る)'],
-  ['自動更新', 'AppImage版のみ。debは新しいdebを入れ直す'],
-  ['セマンティック検索(意味での検索)', '使えない。Windows ML が前提のため'],
+  ['相棒キャラクター・キャラクターMOD・テーマ・8言語', '使える。アプリ本体と同じ画面がそのまま出る'],
+  ['添付ファイル', '使える。選ぶのはブラウザのファイル選択、保存はブラウザのダウンロード'],
+  ['MCPサーバー(AIエージェント連携)', '使える。Muse に登録すれば Muse からもメールを扱える'],
+  ['ウィンドウの最小化・最大化・閉じる', 'ボタンを出さない。窓枠はブラウザが持っているため'],
+  ['パスワードの保存', 'GNOMEキーリングがあればそこへ。無ければ暗号化したファイルへ退避する(仮想マシンが入れ替わっても残る)'],
+  ['テーマ・相棒の選択・書きかけのメール', '残る。スペースの枠では localStorage が使えないので、MioMail のデータベースへ預かる'],
+  ['自動更新', 'AppImage版のみ。debは新しいdebを入れ直す。スペースからは更新できない'],
+  ['セマンティック検索(意味での検索)', '使えない。Windows ML が前提のため。言葉での検索はそのまま使える'],
   ['New Outlook からの取り込み', '使えない。取り出しスクリプトが Windows の COM を使うため'],
 ]
 
@@ -65,42 +84,37 @@ export function MuseGuide() {
           Ubuntu Linux のクラウドPC(Muse Secure VM)が割り当てられ、スマホや web から操作します。
           MioMail には Linux 版があるので、この仮想マシンに入れて
           <strong>自分のメールをその中で読み書きする</strong>ことができます。
-          普段の読み書きは、Museがアプリの中に作る<strong>「スペース」</strong>から行います。
         </p>
         <div className="site-docs-note">
           <Smartphone size={18} />
           <span>
-            <strong>Museでは、デスクトップアプリの画面を指で触れません。</strong>
-            Museが操作を代われるのはブラウザだけなので、仮想マシンのデスクトップでMioMailを
-            起動しても、返ってくるのはVMの画面の大きさのスクリーンショットだけです。
-            この手順では<strong>MioMailの画面をブラウザから開ける形</strong>にして、
-            スマホの縦画面に合う420x880で映します。幅900px未満なので1カラム表示になり、
-            指で押せる戻るボタンで行き来できます。
+            <strong>アプリの画面が、そのままMuseのスペースに入ります。</strong>
+            <code>miomail --serve</code> で起動すると、MioMailは
+            <strong>デスクトップ版とまったく同じ画面</strong>を、仮想マシンの中だけで
+            開けるページとして出します。幅900px未満では1カラム表示になるので、
+            スマホからそのまま使えます。作り直した画面ではないので、
+            相棒キャラクターもキャラクターMODもテーマもそのままです。
           </span>
         </div>
 
-        <h2>3つの部品でできています</h2>
+        <h2>2つの部品でできています</h2>
         <ul>
           <li>
             <strong>MioMail本体</strong> … 仮想マシンの中にメールを保管し、IMAP/SMTPでやりとりします。
-            初回のアカウント設定と、画面を直接触りたいときに使います。
+            <code>--serve</code> を付けて起動すると、同じ画面をブラウザから開けるようにします。
+            あなたが読み書きするのはここです。
           </li>
           <li>
-            <strong>カスタムコネクタ</strong> … 同梱の <code>/usr/bin/miomail-mcp</code> を
-            Muse自身が呼べるようにしたものです。審査は要りません。Museに頼めば、
-            このコマンドに対してコネクタを作ってくれます。
-          </li>
-          <li>
-            <strong>スペース</strong> … Museがアプリの中に作る、あなた専用の画面です。
-            受信箱・本文・返信・検索をここから操作します。普段使いはこれです。
+            <strong>MCPサーバー</strong> … 同梱の <code>miomail-mcp</code> です。
+            Muse に登録すると、Muse 自身があなたのメールを読んだり、下書きを作ったりできます。
           </li>
         </ul>
 
         <h2><Sparkles size={20} /> かんたん設定: Museに貼り付ける(おすすめ)</h2>
         <p>
           <strong>下の文章をコピーして、Museとの会話にそのまま貼り付けるだけ</strong>です。
-          Museが仮想マシンの中で、インストール → 画面をブラウザから開ける形にする →
-          コネクタを作る → スペースを作る、まで進めてくれます。
+          Museが仮想マシンの中で、インストール → 起動 → スマホから触れるスペースを作る →
+          MCPサーバーの登録 → 復旧スクリプトの用意、まで進めてくれます。
           メールアカウントのパスワードは<strong>あなた自身がMioMailの画面に入力します</strong>
           (プロンプトにもそう書いてあります)。
         </p>
@@ -111,12 +125,28 @@ export function MuseGuide() {
         <ul>
           <li>Museは外向きの通信に承認を求めることがあります。メールサーバーへの接続(IMAP 993 / SMTP 465・587)を許可してください。</li>
           <li>
-            Museが <code>localhost:6080</code> をブラウザで開いたら、
-            <strong>「ブラウザの操作を代わる」(Take control)</strong>を押してください。
-            そこに映っているのがMioMailの画面です。
+            Museが<strong>スペース</strong>を作ります。サイドバーのそのスペースを開くと、
+            MioMailの画面がそのまま出ます。これがあなたの普段の入り口です。
           </li>
-          <li>アカウント設定の画面まで進んだら、Museの手は止まります。パスワードはあなたが入力してください。</li>
+          <li>アカウントが未設定なら、最初に設定画面が出ます。パスワードはあなたが入力してください。</li>
         </ul>
+
+        <h2>スペースに本物のMioMailが入ります</h2>
+        <p>
+          Museのスペースは、仮想マシンのポートに繋がった<strong>枠</strong>です。
+          その枠には<strong>自分のアドレスが無い</strong>ため、ふつうのWebページのように
+          別ファイルを読みに行ったり、ブラウザに設定を覚えさせたりできません。
+          MioMailは、この枠のために
+        </p>
+        <ul>
+          <li><strong>画面を1枚のファイルにまとめて返します</strong>(<code>--single-file</code>)。文字も絵もキャラクターも、ぜんぶその中です。</li>
+          <li><strong>問い合わせ口を1つにまとめています。</strong>メールも添付もMODの絵も新着の知らせも、同じ1本を通ります。Muse側に書いてもらう中継はごく短いもので済みます。</li>
+          <li><strong>テーマ・相棒の選択・書きかけのメールは、MioMailのデータベースに預かります。</strong>枠がブラウザに覚えさせられない分をこちらで持つので、開き直しても仮想マシンが入れ替わっても残ります。</li>
+        </ul>
+        <p>
+          画面を作り直しているわけではありません。<strong>デスクトップ版とまったく同じ画面</strong>が、
+          そのまま枠に入ります。
+        </p>
 
         <h2><Terminal size={20} /> 手動で入れる</h2>
         <ol className="site-docs-steps">
@@ -125,29 +155,33 @@ export function MuseGuide() {
             <pre className="site-docs-code">{APT_DEPS}</pre>
           </li>
           <li>
-            最新版の deb を入れます(URLは常に最新版を指します)。
+            最新版の deb を<strong>ホームの中へ展開します</strong>(URLは常に最新版を指します)。
             <pre className="site-docs-code">{INSTALL_DEB}</pre>
+            <code>sudo apt-get install ./MioMail-amd64.deb</code> は使いません。
+            Museの仮想マシンは入れ替えのたびに <code>/usr</code> が初期化されるので、
+            ホームの中に置けば消えません。
           </li>
           <li>
-            画面をブラウザから開くための道具を入れます。
-            <pre className="site-docs-code">{SCREEN_DEPS}</pre>
+            ブラウザから開ける状態で起動します。
+            <pre className="site-docs-code">{SERVE_CMD}</pre>
           </li>
           <li>
-            次を <code>~/miomail-screen.sh</code> として保存し、<code>chmod +x</code> して実行します。
-            420x880の仮想画面でMioMailを起動し、noVNCでブラウザに映します。
-            <pre className="site-docs-code">{SCREEN_SCRIPT}</pre>
-          </li>
-          <li>
-            ブラウザで <code>{SCREEN_URL}</code> を開き、MioMailの画面で
-            メールアドレス・サーバー名・パスワードを入力します。
-            パスワードはOSの資格情報ストアに保存され、MioMailの外へ出ることはありません。
+            <code>http://127.0.0.1:7272/</code> を開き、メールアドレス・サーバー名・パスワードを入力します。
+            パスワードは仮想マシンの中に暗号化して保存され、MioMailの外へ出ることはありません。
           </li>
         </ol>
         <p>
-          仮想マシンを再起動したら、<code>~/miomail-screen.sh</code> をもう一度実行してください。
-          うまく動かないときは <code>~/miomail-screen.log</code> を見てください。
-          5900番と6080番はループバックだけに開いているので、仮想マシンの外からは見えません。
+          <code>--serve</code> は既定で <strong>127.0.0.1 の 7272番</strong>だけで待ち受けます。
+          仮想マシンの外からは見えません。ポートは <code>--port</code> で変えられます。
+          ふだんは合言葉付きのURL(<code>?t=…</code>)で守りますが、
+          スペースの枠はURLに合言葉を足せないので <code>--no-token</code> で外します。
+          これは <strong>127.0.0.1 で待ち受けているときだけ</strong>指定できます。
         </p>
+        <p>
+          入れ替わったあとも一発で戻せるよう、次を
+          <code>~/miomail-start.sh</code> として保存しておいてください。
+        </p>
+        <pre className="site-docs-code">{START_SCRIPT}</pre>
         <p>
           deb は apt の管理下に入るので導入も削除も簡単ですが、更新は新しい deb を入れ直す形になります。
           <strong>自動更新を使いたいなら <a href={LINUX_APPIMAGE_URL}>AppImage版</a></strong> を選んでください
@@ -155,25 +189,32 @@ export function MuseGuide() {
           deb の直リンクは <a href={LINUX_DEB_URL}>こちら</a>。どちらも x86_64 用です。
         </p>
 
-        <h2>カスタムコネクタにする(スペースの土台)</h2>
+        <h2>仮想マシンが入れ替わったとき</h2>
         <p>
-          MioMailのMCPサーバーも一緒に入ります。実行ファイルは <code>/usr/bin/miomail-mcp</code> で、
+          Muse の仮想マシンは、1〜2時間おきに入れ替わって<strong>システム領域が初期化される</strong>ことがあります。
+          <strong>ホームの中(メール・パスワード・設定・MioMail本体)は消えません</strong>。
+          消えるのは <code>/usr</code> のライブラリと、動いていたプロセスです。
+          ライブラリは apt で名前を指定して入れてあるので自動で戻り、あとは起動し直すだけです。
+          次を <code>~/miomail-recover.sh</code> として置いておいてください。
+          スペースに「繋がらない」と出たら、たいていこれで直ります。スペースを作り直す必要はありません。
+        </p>
+        <pre className="site-docs-code">{RECOVER_SCRIPT}</pre>
+
+        <h2>Museにもメールを扱わせる(MCP)</h2>
+        <p>
+          MioMailのMCPサーバーも一緒に入ります。実行ファイルは <code>~/miomail-app/usr/bin/miomail-mcp</code> で、
           <strong>標準入力に1行のJSON-RPC 2.0を渡すと標準出力に1行返す</strong>だけの作りです。
           初期化のやりとりは要らないので、シェルからそのまま呼べます。
         </p>
         <pre className="site-docs-code">{MCP_TOOLS}</pre>
         <p>
-          これでツールの一覧と引数が返ります。Museのカスタムコネクタは
-          <strong>CLIに対してMuse自身がコードを書いて作る</strong>仕組みなので、
-          この1行を教えれば、あとはMuseが組み立てます。審査は要りません。
+          これでツールの一覧と引数が返ります。Museに
+          <strong>「このコマンドをMCPサーバーとして登録して」</strong>と頼めば、あとはMuseが組み立てます。
           アカウントが見えているかは、次で確かめられます。
         </p>
         <pre className="site-docs-code">{MCP_ACCOUNTS}</pre>
         <p>
-          コネクタができたら、Museに<strong>「MioMailのスペースを作って」</strong>と頼みます。
-          スペースは連携したアプリの内容を使えるので、受信箱の一覧・本文・返信・検索を
-          スマホの画面に合う形で持てます。ツールの一覧と使い方は
-          <a href="./mcp.html">MCPガイド</a> にあります。
+          ツールの一覧と使い方は <a href="./mcp.html">MCPガイド</a> にあります。
         </p>
         <div className="site-docs-note">
           <AlertTriangle size={18} />
@@ -197,32 +238,44 @@ export function MuseGuide() {
         </table>
 
         <h2>うまくいかないとき</h2>
-        <h3>スペースやスクリーンショットから操作できない</h3>
+        <h3>ブラウザで開いても「権限がありません」と出る</h3>
         <p>
-          Museが操作を代われるのは<strong>ブラウザだけ</strong>です。仮想マシンのデスクトップで
-          <code>miomail</code> を直接起動すると、返ってくるのはVMの画面の大きさの
-          スクリーンショットだけで、指で押すことはできません。
-          <code>~/miomail-screen.sh</code> でブラウザから開ける形にして、
-          <code>{SCREEN_URL}</code> を開いてから「ブラウザの操作を代わる」を押してください。
-        </p>
-        <p>
-          スペースから操作したいときは、先にカスタムコネクタを作る必要があります。
-          スペースは、Museが持っている連携を通してしかメールに触れません。
+          URLの末尾に付く <code>?t=…</code> が合言葉です。これが無いと開けません。
+          <code>miomail --serve</code> を実行した端末に表示されたURLを、そのまま開いてください。
+          一度開けば合言葉はブラウザが覚えるので、次からは <code>?t=…</code> 無しでも開けます。
         </p>
 
-        <h3>ウィンドウが真っ白で何も出ない</h3>
+        <h3>スクリーンショットからは操作できない</h3>
         <p>
-          GPUの無い仮想マシンでは、WebKitGTKの描画が失敗することがあります。
-          <code>~/miomail-screen.sh</code> は最初からこれを避ける形で起動しますが、
-          自分で起動するときは次のようにしてください。
+          仮想マシンのデスクトップで <code>miomail</code> を<strong>そのまま</strong>起動すると、
+          返ってくるのはVMの画面の大きさのスクリーンショットだけで、指で押すことはできません。
+          Museが操作を渡せるのは<strong>スペースかブラウザだけ</strong>です。
+          <code>--serve</code> を付けて起動し、スペースから開いてください。
         </p>
-        <pre className="site-docs-code">{BLANK_WINDOW}</pre>
+
+        <h3>似ているけれど別物の画面が出てきた</h3>
+        <p>
+          エージェントが<strong>自分でWebメールを作ってしまった</strong>ときです。
+          相棒キャラクターもMODもテーマも出ません。
+          貼り付けるプロンプトには「画面を作らないでください」と書いてあります。
+          <code>http://127.0.0.1:7272/</code> が返すものを、そのままスペースに映すよう伝えてください。
+        </p>
+
+        <h3>スペースに「繋がらない」と出る</h3>
+        <p>
+          たいてい仮想マシンが入れ替わって MioMail が止まっています。
+          <code>sh ~/miomail-start.sh</code> を実行し直してください。
+          本体ごと消えていた場合は <code>sh ~/miomail-recover.sh</code> です。
+          それでも出ないときは <code>~/miomail-serve.log</code> を見てください。
+          ポートが使われている場合は <code>--port</code> で別の番号にしてください。
+        </p>
 
         <h3>「パスワードを再入力してください」と出る</h3>
         <p>
           パスワードはまずGNOMEキーリングに保存し、それが動いていない環境では
-          暗号化したファイル(パーミッション0600)へ退避します。どちらも仮想マシンを
-          再起動しても残るので、通常この案内は出ません。
+          暗号化したファイル(パーミッション0600)へ退避します。退避先はメールと同じ
+          ホームの中で、<strong>仮想マシンが入れ替わっても残ります</strong>ので、
+          通常この案内は出ません。
           出たときは、設定 → メールアカウント からアカウントを開き、パスワードを
           入れ直して保存してください。
         </p>
@@ -230,7 +283,7 @@ export function MuseGuide() {
         <h3>メールサーバーにつながらない</h3>
         <p>
           仮想マシンの外向き通信が許可されているか確認してください。
-          IMAPは993、SMTPは465または587を使います。
+          IMAPは993(TLS必須)、SMTPは465または587を使います。
         </p>
 
         <div className="site-docs-note">
@@ -239,6 +292,7 @@ export function MuseGuide() {
             <strong>メールはあなたの仮想マシンの中にあります:</strong> MioMailは
             メールデータを外部のサーバーへ送る仕組みを持っていません。
             読み書きはすべて、あなたのメールサーバーとMioMailの間だけで行われます。
+            <code>--serve</code> が開くのも、仮想マシンの中だけで届くアドレスです。
           </span>
         </div>
 

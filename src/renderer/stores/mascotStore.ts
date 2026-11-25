@@ -1,6 +1,7 @@
 import { t } from '../lib/i18n'
 import { create } from 'zustand'
 import { MASCOT_IDS, type MascotId } from '../data/mascots'
+import { safeStorage } from '../lib/safeStorage'
 
 const STORAGE_KEY = 'miomail-mascot-state'
 const DECAY_STEP_MS = 1000 * 60 * 45
@@ -169,7 +170,7 @@ function loadInitialState(): MascotSnapshot {
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
+    const raw = safeStorage.getItem(STORAGE_KEY)
     if (!raw) {
       return fallback
     }
@@ -207,7 +208,7 @@ function persist(state: MascotSnapshot | MascotStore) {
     return
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(getSnapshot(state)))
+  safeStorage.setItem(STORAGE_KEY, JSON.stringify(getSnapshot(state)))
 }
 
 function applyDecayToCare(care: MascotCareStats, now: number) {

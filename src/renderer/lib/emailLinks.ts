@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { isBridgeRuntime } from './bridge'
 import { isTauriRuntime } from './ipc'
 
 export async function openEmailLink(href: string) {
@@ -6,10 +7,11 @@ export async function openEmailLink(href: string) {
   const url = new URL(value.startsWith('//') ? `https:${value}` : value)
   if (!['https:', 'http:', 'mailto:'].includes(url.protocol)) return
 
-  if (isTauriRuntime) {
+  if (isTauriRuntime && !isBridgeRuntime) {
     // Never fall back to WebView navigation when the system opener fails.
     await invoke('plugin:opener|open_url', { url: url.href })
   } else {
+    // ブラウザー(Web ブリッジ・プレビュー)では、そのまま新しいタブで開く。
     window.open(url.href, '_blank', 'noopener,noreferrer')
   }
 }

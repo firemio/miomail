@@ -168,6 +168,8 @@ export interface SemanticStatus {
   state: SemanticState
   model_size_mb: number
   error: string | null
+  /** この環境で意味検索が使えるか(Windows ML が前提なので Windows のみ)。 */
+  supported: boolean
 }
 
 // バックエンド(ort GetEpDevices)が実デバイスから動的に id を決めるため、

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invoke as tauriInvoke } from '@tauri-apps/api/core'
 import type {
   Account,
   AppBuildInfo,
@@ -17,12 +17,19 @@ import type {
   UpdateStatus,
 } from '../types'
 import type { CharacterModInstallResult, CharacterModScanResult } from '../characters/types'
-import { browserBuiltinAssetBytes, browserBuiltinScan } from '../characters/browserBuiltinMods'
+import { bridgeInvoke, isBridgeRuntime } from './bridge'
 import { mockApi } from './mockApi'
 
+/** 本物のバックエンドがいるか。デスクトップ版(Tauri)と Web ブリッジの両方で true。
+ *  false のときだけ、ブラウザープレビュー用のモックに切り替わる。 */
 export const isTauriRuntime =
-  typeof window !== 'undefined' &&
-  (Boolean((window as any).__TAURI_INTERNALS__) || navigator.userAgent.includes('Tauri'))
+  isBridgeRuntime ||
+  (typeof window !== 'undefined' &&
+    (Boolean((window as any).__TAURI_INTERNALS__) || navigator.userAgent.includes('Tauri')))
+
+/** コマンドの送り先。デスクトップ版は Tauri の IPC、Web ブリッジは HTTP。 */
+type InvokeFn = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>
+const invoke: InvokeFn = isBridgeRuntime ? bridgeInvoke : (tauriInvoke as InvokeFn)
 
 const accountApi = isTauriRuntime
   ? {
@@ -122,13 +129,17 @@ const characterModsApi = isTauriRuntime
         invoke('character_mod_install_archive'),
     }
   : {
-      // ブラウザープレビューでは同梱の既定MODだけを静的バンドルから供給する
-      list: async (): Promise<CharacterModScanResult> => browserBuiltinScan(),
+      // ブラウザープレビューでは同梱の既定MODだけを静的バンドルから供給する。
+      // 3Dモデルなど数MBあるので、本物のバックエンドがいる経路(デスクトップ版・
+      // Webブリッジ)では読み込まれないよう、必要になってから取りに行く。
+      list: async (): Promise<CharacterModScanResult> =>
+        (await import('../characters/browserBuiltinMods')).browserBuiltinScan(),
       readAsset: async (
         modId: string,
         _revision: string,
         assetKey: string
-      ): Promise<ArrayBuffer | Uint8Array | number[]> => browserBuiltinAssetBytes(modId, assetKey),
+      ): Promise<ArrayBuffer | Uint8Array | number[]> =>
+        (await import('../characters/browserBuiltinMods')).browserBuiltinAssetBytes(modId, assetKey),
       openFolder: async (): Promise<void> => {
         throw new Error('MODフォルダーはデスクトップ版から開けます。')
       },

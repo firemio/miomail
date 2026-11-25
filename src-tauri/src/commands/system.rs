@@ -175,6 +175,10 @@ fn detect_cpu_name() -> String {
 /// semantic は既存 mail_semantic_status と同じロジック(embed::semantic_status)。
 #[tauri::command]
 pub fn mail_system_info(db: State<'_, DbState>) -> Result<SystemInfo, String> {
+    system_info_core(db.inner())
+}
+
+pub fn system_info_core(db: &DbState) -> Result<SystemInfo, String> {
     let semantic = {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
         embed::semantic_status(&conn)

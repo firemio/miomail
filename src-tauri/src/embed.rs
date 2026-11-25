@@ -153,6 +153,9 @@ pub struct SemanticStatus {
     pub state: String,
     pub model_size_mb: i64,
     pub error: Option<String>,
+    /// この環境で意味検索が使えるか。Windows ML が前提なので Windows のみ。
+    /// false のときは画面に「有効にする」を出さない(押せても失敗するため)。
+    pub supported: bool,
 }
 
 /// 現在の状態を組み立てる。enabled フラグ(app_settings)とファイル有無と
@@ -179,6 +182,7 @@ pub fn semantic_status(conn: &rusqlite::Connection) -> SemanticStatus {
             EXPECTED_MODEL_SIZE_MB
         },
         error: if state == "error" { error } else { None },
+        supported: cfg!(windows),
     }
 }
 

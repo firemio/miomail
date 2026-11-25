@@ -18,7 +18,7 @@ const UNSAFE_OPEN_EXTENSIONS: &[&str] = &[
     "wsf", "wsh", "hta", "cpl", "jar", "lnk", "url", "reg", "dll", "application", "appx",
 ];
 
-fn is_unsafe_to_open(filename: &str) -> bool {
+pub(crate) fn is_unsafe_to_open(filename: &str) -> bool {
     let ext = filename
         .rsplit('.')
         .next()

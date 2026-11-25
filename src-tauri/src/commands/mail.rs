@@ -248,6 +248,10 @@ pub async fn mail_sync_folders(
 /// DB-only folder listing (no network) so the UI can refresh counts cheaply.
 #[tauri::command]
 pub fn mail_list_folders(account_id: i64, db: State<'_, DbState>) -> Result<Vec<Folder>, String> {
+    list_folders_core(db.inner(), account_id)
+}
+
+pub fn list_folders_core(db: &DbState, account_id: i64) -> Result<Vec<Folder>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     query_folder(
         &conn,
@@ -449,36 +453,75 @@ pub async fn sync_messages_for_folder(
     // 3. Notify — only for genuinely new, still-unread messages after an
     //    incremental sync (not the initial import of an existing mailbox)
     let total_unread = total_unread_count(db)?;
-    if let Some(app) = app {
-        if since_uid > 0 {
-            let fresh_unread: Vec<Message> = messages
-                .iter()
-                .filter(|m| !m.flags.iter().any(|f| f == "\\Seen"))
-                .map(|m| Message {
-                    id: 0,
-                    account_id,
-                    folder_id,
-                    uid: m.uid as i64,
-                    message_id: m.message_id.clone(),
-                    subject: m.subject.clone(),
-                    from_address: m.from.clone(),
-                    to_addresses: m.to.clone(),
-                    cc_addresses: m.cc.clone(),
-                    date: m.date.clone(),
-                    date_ts: m.date_ts,
-                    flags: serde_json::to_string(&m.flags).unwrap_or_default(),
-                    snippet: m.snippet.clone(),
-                    has_attachments: if m.has_attachments { 1 } else { 0 },
-                    score: None,
-                })
-                .collect();
-            tray::notify_new_mail(app, total_unread, fresh_unread)?;
-        } else {
-            tray::update_tray_tooltip(app, total_unread);
+    if since_uid > 0 {
+        let fresh_unread: Vec<Message> = messages
+            .iter()
+            .filter(|m| !m.flags.iter().any(|f| f == "\\Seen"))
+            .map(|m| Message {
+                id: 0,
+                account_id,
+                folder_id,
+                uid: m.uid as i64,
+                message_id: m.message_id.clone(),
+                subject: m.subject.clone(),
+                from_address: m.from.clone(),
+                to_addresses: m.to.clone(),
+                cc_addresses: m.cc.clone(),
+                date: m.date.clone(),
+                date_ts: m.date_ts,
+                flags: serde_json::to_string(&m.flags).unwrap_or_default(),
+                snippet: m.snippet.clone(),
+                has_attachments: if m.has_attachments { 1 } else { 0 },
+                score: None,
+            })
+            .collect();
+
+        // 同じメールで二度演出しないよう、ここで一度だけ重複を落とす。
+        let fresh_unread = dedup_new_messages(fresh_unread)?;
+
+        // フロントへの新着通知はイベントバス経由。デスクトップ版・Web ブリッジの
+        // どちらでも同じものが届く(tray 側は OS 通知とトレイ表示だけを担当する)。
+        if let Some(latest) = fresh_unread.last() {
+            crate::events::publish(
+                crate::events::NEW_MAIL,
+                serde_json::json!({ "message": latest, "unread_count": total_unread }),
+            );
         }
+
+        if let Some(app) = app {
+            tray::notify_new_mail(app, total_unread, fresh_unread)?;
+        }
+    } else if let Some(app) = app {
+        tray::update_tray_tooltip(app, total_unread);
     }
 
     Ok(())
+}
+
+/// 一度フロントへ知らせたメールを覚えておき、同じものを二度演出しないための台帳。
+/// プロセス内のみ(再起動で忘れる)。デスクトップ版と Web ブリッジで共用する。
+static NOTIFIED_MESSAGE_KEYS: once_cell::sync::Lazy<
+    std::sync::Mutex<std::collections::HashSet<String>>,
+> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(std::collections::HashSet::new()));
+
+/// まだ知らせていないメールだけを残す。
+pub fn dedup_new_messages(messages: Vec<Message>) -> Result<Vec<Message>, String> {
+    let mut seen = NOTIFIED_MESSAGE_KEYS.lock().map_err(|e| e.to_string())?;
+    let mut fresh = Vec::new();
+    for message in messages {
+        let key = if message.message_id.is_empty() {
+            format!(
+                "{}:{}:{}",
+                message.account_id, message.folder_id, message.uid
+            )
+        } else {
+            format!("{}:{}", message.account_id, message.message_id)
+        };
+        if seen.insert(key) {
+            fresh.push(message);
+        }
+    }
+    Ok(fresh)
 }
 
 pub async fn sync_all_accounts(app: Option<&AppHandle>, db: &DbState) -> Result<(), String> {
@@ -852,61 +895,64 @@ pub fn start_background_sync(app: AppHandle) {
 /// MCPサーバー(別プロセス)がapp_eventsキューへ入れたイベントを拾い、
 /// フロントへ転送してマスコットの配達アニメーションなどに反映する。
 pub fn start_mcp_event_bridge(app: AppHandle) {
-    use tauri::Emitter;
-
     tauri::async_runtime::spawn(async move {
-        // アプリ起動前に溜まったイベントは演出しても意味がないので黙って消化する
-        {
-            let db = app.state::<DbState>();
-            let lock = db.conn.lock();
-            if let Ok(conn) = lock {
-                let _ = conn.execute("UPDATE app_events SET consumed = 1 WHERE consumed = 0", []);
-            }
-        }
-
+        discard_pending_app_events(app.state::<DbState>().inner());
         loop {
             sleep(Duration::from_secs(2)).await;
-
-            let events: Vec<(i64, String, String)> = {
-                let db = app.state::<DbState>();
-                let Ok(conn) = db.conn.lock() else { continue };
-                let Ok(mut stmt) = conn.prepare(
-                    "SELECT id, event_type, COALESCE(payload, '') FROM app_events
-                     WHERE consumed = 0 ORDER BY id LIMIT 20",
-                ) else {
-                    continue;
-                };
-                stmt.query_map([], |row| {
-                    Ok((row.get(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
-                })
-                .map(|rows| rows.filter_map(Result::ok).collect())
-                .unwrap_or_default()
-            };
-
-            if events.is_empty() {
-                continue;
-            }
-
-            for (_, event_type, payload) in &events {
-                if event_type == "mcp_mail_sent" {
-                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) {
-                        let _ = app.emit("miomail://mcp-mail-sent", value);
-                    }
-                }
-            }
-
-            let max_id = events.iter().map(|(id, _, _)| *id).max().unwrap_or(0);
-            let db = app.state::<DbState>();
-            let lock = db.conn.lock();
-            if let Ok(conn) = lock {
-                let _ = conn.execute("UPDATE app_events SET consumed = 1 WHERE id <= ?1", [max_id]);
-                let _ = conn.execute(
-                    "DELETE FROM app_events WHERE consumed = 1 AND created_ts < strftime('%s','now') - 86400",
-                    [],
-                );
-            }
+            drain_app_events(app.state::<DbState>().inner());
         }
     });
+}
+
+/// 起動前に溜まっていたイベントを、演出せずに消化する。
+pub fn discard_pending_app_events(db: &DbState) {
+    if let Ok(conn) = db.conn.lock() {
+        let _ = conn.execute("UPDATE app_events SET consumed = 1 WHERE consumed = 0", []);
+    }
+}
+
+/// app_events キューを1回ぶん読み、イベントバスへ流して消費済みにする。
+/// デスクトップ版(start_mcp_event_bridge)と Web ブリッジの両方がこれを回す。
+pub fn drain_app_events(db: &DbState) {
+    let events: Vec<(i64, String, String)> = {
+        let Ok(conn) = db.conn.lock() else { return };
+        let Ok(mut stmt) = conn.prepare(
+            "SELECT id, event_type, COALESCE(payload, '') FROM app_events
+             WHERE consumed = 0 ORDER BY id LIMIT 20",
+        ) else {
+            return;
+        };
+        stmt.query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map(|rows| rows.filter_map(Result::ok).collect())
+        .unwrap_or_default()
+    };
+
+    if events.is_empty() {
+        return;
+    }
+
+    for (_, event_type, payload) in &events {
+        if event_type == "mcp_mail_sent" {
+            if let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) {
+                crate::events::publish(crate::events::MCP_MAIL_SENT, value);
+            }
+        }
+    }
+
+    let max_id = events.iter().map(|(id, _, _)| *id).max().unwrap_or(0);
+    if let Ok(conn) = db.conn.lock() {
+        let _ = conn.execute("UPDATE app_events SET consumed = 1 WHERE id <= ?1", [max_id]);
+        let _ = conn.execute(
+            "DELETE FROM app_events WHERE consumed = 1 AND created_ts < strftime('%s','now') - 86400",
+            [],
+        );
+    }
 }
 
 #[tauri::command]
@@ -925,6 +971,15 @@ pub fn mail_get_messages(
     offset: i64,
     limit: i64,
     db: State<'_, DbState>,
+) -> Result<Vec<Message>, String> {
+    get_messages_core(db.inner(), folder_id, offset, limit)
+}
+
+pub fn get_messages_core(
+    db: &DbState,
+    folder_id: i64,
+    offset: i64,
+    limit: i64,
 ) -> Result<Vec<Message>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     query_messages(
@@ -1533,6 +1588,15 @@ pub async fn mail_create_folder(
     parent_id: Option<i64>,
     db: State<'_, DbState>,
 ) -> Result<Vec<Folder>, String> {
+    create_folder_core(db.inner(), account_id, name, parent_id).await
+}
+
+pub async fn create_folder_core(
+    db: &DbState,
+    account_id: i64,
+    name: String,
+    parent_id: Option<i64>,
+) -> Result<Vec<Folder>, String> {
     let name = name.trim().to_string();
     if name.is_empty() {
         return Err("フォルダ名を入力してください".to_string());
@@ -1568,7 +1632,7 @@ pub async fn mail_create_folder(
         .await
         .map_err(|e| e.to_string())?;
 
-    sync_folders_for_account(account_id, db.inner()).await
+    sync_folders_for_account(account_id, db).await
 }
 
 #[tauri::command]
@@ -1576,6 +1640,14 @@ pub async fn mail_rename_folder(
     folder_id: i64,
     new_name: String,
     db: State<'_, DbState>,
+) -> Result<Vec<Folder>, String> {
+    rename_folder_core(db.inner(), folder_id, new_name).await
+}
+
+pub async fn rename_folder_core(
+    db: &DbState,
+    folder_id: i64,
+    new_name: String,
 ) -> Result<Vec<Folder>, String> {
     let new_name = new_name.trim().to_string();
     if new_name.is_empty() {
@@ -1635,7 +1707,7 @@ pub async fn mail_rename_folder(
         .ok();
     }
 
-    sync_folders_for_account(account_id, db.inner()).await
+    sync_folders_for_account(account_id, db).await
 }
 
 #[tauri::command]
@@ -1643,6 +1715,10 @@ pub async fn mail_delete_folder(
     folder_id: i64,
     db: State<'_, DbState>,
 ) -> Result<Vec<Folder>, String> {
+    delete_folder_core(db.inner(), folder_id).await
+}
+
+pub async fn delete_folder_core(db: &DbState, folder_id: i64) -> Result<Vec<Folder>, String> {
     let (config, account_id, path) = {
         let conn = db.conn.lock().map_err(|e| e.to_string())?;
         if is_protected_folder(&conn, folder_id) {
@@ -1684,7 +1760,7 @@ pub async fn mail_delete_folder(
         .ok();
     }
 
-    sync_folders_for_account(account_id, db.inner()).await
+    sync_folders_for_account(account_id, db).await
 }
 
 /// Total attachment size limit. Most providers cap messages at ~25MB, and
@@ -1793,7 +1869,11 @@ pub fn resolve_compose_attachments(
 
 #[tauri::command]
 pub async fn compose_send(data: ComposeInput, db: State<'_, DbState>) -> Result<(), String> {
-    let attachments = resolve_compose_attachments(db.inner(), data.attachments.unwrap_or_default())?;
+    compose_send_core(db.inner(), data).await
+}
+
+pub async fn compose_send_core(db: &DbState, data: ComposeInput) -> Result<(), String> {
+    let attachments = resolve_compose_attachments(db, data.attachments.unwrap_or_default())?;
     let compose = ComposeData {
         from: data.from,
         to: data.to,
@@ -1805,7 +1885,7 @@ pub async fn compose_send(data: ComposeInput, db: State<'_, DbState>) -> Result<
         references: data.references,
         attachments,
     };
-    send_and_record(db.inner(), compose).await
+    send_and_record(db, compose).await
 }
 
 // ---------------------------------------------------------------------------

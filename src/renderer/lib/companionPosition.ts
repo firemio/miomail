@@ -1,5 +1,6 @@
 import type { MascotId } from '../data/mascots'
 import { isNarrowViewport } from './useNarrowLayout'
+import { safeStorage } from './safeStorage'
 
 export interface CompanionPosition {
   x: number
@@ -33,7 +34,7 @@ export function clampCompanionPosition(position: CompanionPosition): CompanionPo
 export function loadCompanionPosition(): CompanionPosition {
   if (typeof window === 'undefined') return { x: 1080, y: 640 }
   try {
-    const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || 'null')
+    const stored = JSON.parse(safeStorage.getItem(STORAGE_KEY) || 'null')
     if (Number.isFinite(stored?.x) && Number.isFinite(stored?.y)) return clampCompanionPosition(stored)
   } catch { /* use default */ }
   return clampCompanionPosition({ x: window.innerWidth * 0.72, y: window.innerHeight * 0.7 })
@@ -41,7 +42,7 @@ export function loadCompanionPosition(): CompanionPosition {
 
 export function saveCompanionPosition(position: CompanionPosition) {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(clampCompanionPosition(position)))
+  safeStorage.setItem(STORAGE_KEY, JSON.stringify(clampCompanionPosition(position)))
 }
 
 export function randomCompanionPosition(seed = Date.now()): CompanionPosition {

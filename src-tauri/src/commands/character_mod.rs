@@ -345,6 +345,11 @@ fn mods_root(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| format!("MODフォルダーを決定できません: {error}"))
 }
 
+/// AppHandle を持たない呼び出し元(Web ブリッジ)向け。`mods_root` と同じ場所を指す。
+pub fn mods_root_in(local_data_dir: &Path) -> PathBuf {
+    local_data_dir.join(MOD_FOLDER_NAME)
+}
+
 /// アプリ同梱MOD（既定4キャラ）のリソースフォルダー。
 /// 見つからない環境（テスト等）は同梱なしとして扱う。
 fn builtin_mods_root(app: &AppHandle) -> Option<PathBuf> {
@@ -3059,9 +3064,16 @@ pub async fn character_mod_list(
     app: AppHandle,
     registry: State<'_, CharacterModRegistry>,
 ) -> Result<CharacterModScanResult, String> {
-    let root = mods_root(&app)?;
+    scan_mods(builtin_mods_root(&app), mods_root(&app)?, registry.inner()).await
+}
+
+/// MOD の検出本体。デスクトップ版と Web ブリッジで共用する。
+pub async fn scan_mods(
+    builtin_root: Option<PathBuf>,
+    root: PathBuf,
+    registry: &CharacterModRegistry,
+) -> Result<CharacterModScanResult, String> {
     ensure_mod_root(&root)?;
-    let builtin_root = builtin_mods_root(&app);
     let (loaded, issues) =
         tauri::async_runtime::spawn_blocking(move || scan_all_packages(builtin_root.as_deref(), &root))
             .await
@@ -3083,6 +3095,17 @@ pub async fn character_mod_read_asset(
     revision: String,
     asset_key: String,
 ) -> Result<Response, String> {
+    let bytes = read_mod_asset(registry.inner(), mod_id, revision, asset_key).await?;
+    Ok(Response::new(bytes))
+}
+
+/// MOD asset の読み出し本体。デスクトップ版と Web ブリッジで共用する。
+pub async fn read_mod_asset(
+    registry: &CharacterModRegistry,
+    mod_id: String,
+    revision: String,
+    asset_key: String,
+) -> Result<Vec<u8>, String> {
     validate_identifier(&mod_id)?;
     if revision.len() != 64 || !revision.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err("revisionが不正です".into());
@@ -3091,10 +3114,9 @@ pub async fn character_mod_read_asset(
         return Err("asset keyが不正です".into());
     }
     let asset = registry.resolve(&mod_id, &revision, &asset_key)?;
-    let bytes = tauri::async_runtime::spawn_blocking(move || read_registered_asset(&asset))
+    tauri::async_runtime::spawn_blocking(move || read_registered_asset(&asset))
         .await
-        .map_err(|error| format!("MOD asset処理に失敗しました: {error}"))??;
-    Ok(Response::new(bytes))
+        .map_err(|error| format!("MOD asset処理に失敗しました: {error}"))?
 }
 
 #[tauri::command]
@@ -3125,29 +3147,37 @@ pub async fn character_mod_install_archive(
     let archive_path = picked
         .into_path()
         .map_err(|error| format!("選択したファイルのパスを取得できません: {error}"))?;
+    install_mod_archive(
+        builtin_mods_root(&app),
+        root,
+        archive_path,
+        registry.inner(),
+    )
+    .await
+    .map(Some)
+}
+
+/// アーカイブからの MOD 追加本体。デスクトップ版はダイアログで選んだパス、
+/// Web ブリッジはアップロードされた一時ファイルのパスを渡す。
+pub async fn install_mod_archive(
+    builtin_root: Option<PathBuf>,
+    root: PathBuf,
+    archive_path: PathBuf,
+    registry: &CharacterModRegistry,
+) -> Result<CharacterModInstallResult, String> {
+    ensure_mod_root(&root)?;
     let install_root = root.clone();
     let (installed_id, installed_name, replaced) =
         tauri::async_runtime::spawn_blocking(move || install_archive(&install_root, &archive_path))
             .await
             .map_err(|error| format!("MODの追加処理に失敗しました: {error}"))??;
-    let builtin_root = builtin_mods_root(&app);
-    let (loaded, issues) =
-        tauri::async_runtime::spawn_blocking(move || scan_all_packages(builtin_root.as_deref(), &root))
-            .await
-            .map_err(|error| format!("MOD検出処理に失敗しました: {error}"))??;
-    registry.replace(&loaded)?;
-    Ok(Some(CharacterModInstallResult {
+    let scan = scan_mods(builtin_root, root, registry).await?;
+    Ok(CharacterModInstallResult {
         installed_id,
         installed_name,
         replaced,
-        scan: CharacterModScanResult {
-            packages: loaded
-                .into_iter()
-                .map(|package| package.descriptor)
-                .collect(),
-            issues,
-        },
-    }))
+        scan,
+    })
 }
 
 #[cfg(test)]

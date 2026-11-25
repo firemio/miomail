@@ -4,19 +4,23 @@ pub mod credential_file;
 pub mod credentials;
 pub mod db;
 pub mod embed;
+pub mod events;
 pub mod imap_service;
 mod outlook_import;
 pub mod smtp_service;
 mod tray;
 pub mod utf7;
 pub mod vectorize;
+pub mod web;
 
 #[cfg(test)]
 mod test_imap;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
-pub fn run() {
+/// `tauri::generate_context!()` は画面一式を埋め込むので、呼ぶのは
+/// main.rs の一箇所だけ。デスクトップ版も Web ブリッジも同じものを受け取る。
+pub fn run_with_context(context: tauri::Context<tauri::Wry>) {
     tauri::Builder::default()
         // 多重起動を防止。2つ目の起動要求時は既存ウィンドウを前面に出す。
         // 他プラグインより先に登録すること(公式ドキュメントの推奨)。
@@ -41,6 +45,16 @@ pub fn run() {
             tray::update_tray_tooltip(app.handle(), 0);
             commands::mail::start_background_sync(app.handle().clone());
             commands::mail::start_mcp_event_bridge(app.handle().clone());
+
+            // イベントバス → ウィンドウ。新着やMCP経由の送信は発生元がバスへ流すので、
+            // ここで Tauri の emit に中継する(Web ブリッジは SSE で同じものを配る)。
+            let emitter = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut receiver = events::subscribe();
+                while let Ok(event) = receiver.recv().await {
+                    let _ = emitter.emit(&event.name, event.payload);
+                }
+            });
             // セマンティック有効化済みでモデル未完備なら DL を再開する
             embed::maybe_resume_model_download(app.handle());
 
@@ -94,6 +108,6 @@ pub fn run() {
             commands::character_mod::character_mod_open_folder,
             commands::character_mod::character_mod_install_archive,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running tauri application");
 }

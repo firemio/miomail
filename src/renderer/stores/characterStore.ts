@@ -7,6 +7,7 @@ import type {
 import { DEFAULT_MOD_ID_BY_MASCOT } from '../characters/types'
 import { api } from '../lib/ipc'
 import { pruneCharacterModAssetCache } from '../lib/characterMods'
+import { safeStorage } from '../lib/safeStorage'
 
 const STORAGE_KEY = 'miomail-character-source-v1'
 
@@ -34,7 +35,7 @@ const fallback: PersistedCharacterSource = {
 function loadSelection(): PersistedCharacterSource {
   if (typeof window === 'undefined') return fallback
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<PersistedCharacterSource>
+    const parsed = JSON.parse(safeStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<PersistedCharacterSource>
     return {
       selectedModId: typeof parsed.selectedModId === 'string' && parsed.selectedModId
         ? parsed.selectedModId
@@ -48,7 +49,7 @@ function loadSelection(): PersistedCharacterSource {
 function persist(selection: PersistedCharacterSource) {
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(selection))
+    safeStorage.setItem(STORAGE_KEY, JSON.stringify(selection))
   } catch {
     // 保存に失敗してもキャラクター表示は継続する
   }

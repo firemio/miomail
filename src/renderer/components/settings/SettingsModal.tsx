@@ -4,6 +4,7 @@ import { Code2, Cpu, Database, Download, FlaskConical, FolderOpen, Mail, Palette
 import { DEFAULT_MOD_ID_BY_MASCOT, type CharacterModPackage } from '../../characters/types'
 import { mascotCatalog, type MascotId } from '../../data/mascots'
 import { themeCatalog } from '../../data/themes'
+import { isBridgeRuntime } from '../../lib/bridge'
 import { api, isTauriRuntime } from '../../lib/ipc'
 import { getMascotPhaseLabel, MASCOT_GROWTH_STAGES, type MascotPhase, useMascotStore } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
@@ -16,6 +17,7 @@ import { SystemSection } from './SystemSection'
 import { ThemePreview } from './ThemePreview'
 import { useLanguage, languages, isLanguage } from '../../lib/i18n'
 import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
+import { safeStorage } from '../../lib/safeStorage'
 
 type SettingsSection = 'appearance' | 'mail' | 'data' | 'system' | 'developer'
 
@@ -67,9 +69,9 @@ export function SettingsModal() {
 
   const exportData = () => {
     const entries = Object.fromEntries(
-      Object.keys(window.localStorage)
+      safeStorage.keys()
         .filter((key) => key.startsWith('miomail-'))
-        .map((key) => [key, window.localStorage.getItem(key)])
+        .map((key) => [key, safeStorage.getItem(key)])
     )
     const payload = JSON.stringify({
       format: 'miomail-export',
@@ -215,7 +217,8 @@ export function SettingsModal() {
                     <div><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">COMPANION</p><h3 className="mt-1 whitespace-nowrap text-lg font-semibold text-sumi-text">{t("相棒を選ぶ")}</h3></div>
                     <div className={`flex gap-2 ${narrow ? 'w-full flex-wrap' : 'shrink-0'}`}>
                       <button type="button" disabled={!isTauriRuntime || characterModsInstalling} onClick={() => void handleInstallMod()} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-sumi-accent px-3 text-[11px] font-semibold text-white shadow-[0_10px_22px_rgba(255,138,160,0.24)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45"><Plus size={14} />{characterModsInstalling ? t("追加中…") : t("MODを追加")}</button>
-                      <button type="button" disabled={!isTauriRuntime} onClick={() => void openModsFolder()} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/90 bg-white/82 px-3 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:cursor-not-allowed disabled:opacity-45"><FolderOpen size={14} />{t("MODフォルダー")}</button>
+                      {/* ブラウザーからはファイルマネージャを開けないので、Web ブリッジでは出さない */}
+                      {!isBridgeRuntime && <button type="button" disabled={!isTauriRuntime} onClick={() => void openModsFolder()} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/90 bg-white/82 px-3 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:cursor-not-allowed disabled:opacity-45"><FolderOpen size={14} />{t("MODフォルダー")}</button>}
                       <button type="button" disabled={characterModsLoading} onClick={() => void refreshMods()} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/90 bg-white/82 px-3 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:opacity-45"><RefreshCw size={14} className={characterModsLoading ? 'animate-spin' : ''} />{t("再読み込み")}</button>
                     </div>
                   </div>

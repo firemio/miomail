@@ -6,6 +6,7 @@ import spanish from '../locales/es.json'
 import thai from '../locales/th.json'
 import indonesian from '../locales/id.json'
 import vietnamese from '../locales/vi.json'
+import { safeStorage } from './safeStorage'
 
 export const languages = [
   { id: 'ja', name: '日本語', region: 'JP', locale: 'ja-JP' },
@@ -28,7 +29,7 @@ const STORAGE_KEY = 'miomail-language'
 
 function loadLanguage(): Language {
   try {
-    const value = localStorage.getItem(STORAGE_KEY)
+    const value = safeStorage.getItem(STORAGE_KEY)
     return isLanguage(value) ? value : 'ja'
   } catch {
     return 'ja'
@@ -39,7 +40,7 @@ export const useLanguage = create<{ language: Language; setLanguage: (language: 
   language: loadLanguage(),
   setLanguage: (language) => {
     if (!isLanguage(language)) return
-    try { localStorage.setItem(STORAGE_KEY, language) } catch { /* Keep the UI usable without storage. */ }
+    try { safeStorage.setItem(STORAGE_KEY, language) } catch { /* Keep the UI usable without storage. */ }
     set({ language })
   },
 }))

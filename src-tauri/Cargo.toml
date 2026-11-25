@@ -1,6 +1,6 @@
 [package]
 name = "miomail"
-version = "2.1.24"
+version = "2.1.25"
 edition = "2021"
 homepage = "https://miomail.app/"
 repository = "https://github.com/firemio/miomail"
@@ -28,6 +28,8 @@ sha2 = "0.10"
 # 資格情報の退避先(credential_file.rs)の暗号化。AEAD で改ざんも検出する
 chacha20poly1305 = "0.10"
 tokio = { version = "1", features = ["full"] }
+# Web ブリッジ(`miomail --serve`)の HTTP サーバー。hyper は reqwest 経由で既に依存ツリーに居る
+axum = "0.8"
 rusqlite = { version = "0.31", features = ["bundled"] }
 async-imap = "0.10"
 async-native-tls = "0.5"

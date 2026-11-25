@@ -40,6 +40,10 @@ pub struct AccountInput {
 
 #[tauri::command]
 pub fn account_list(db: State<'_, DbState>) -> Result<Vec<Account>, String> {
+    account_list_core(db.inner())
+}
+
+pub fn account_list_core(db: &DbState) -> Result<Vec<Account>, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, name, email, imap_host, imap_port, imap_tls, smtp_host, smtp_port, smtp_tls, signature, created_at FROM accounts ORDER BY created_at DESC")
@@ -70,6 +74,10 @@ pub fn account_list(db: State<'_, DbState>) -> Result<Vec<Account>, String> {
 
 #[tauri::command]
 pub fn account_create(data: AccountInput, db: State<'_, DbState>) -> Result<Account, String> {
+    account_create_core(db.inner(), data)
+}
+
+pub fn account_create_core(db: &DbState, data: AccountInput) -> Result<Account, String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO accounts (name, email, imap_host, imap_port, imap_tls, smtp_host, smtp_port, smtp_tls, signature) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
@@ -138,6 +146,10 @@ pub async fn account_test(data: AccountInput) -> Result<serde_json::Value, Strin
 
 #[tauri::command]
 pub fn account_update(id: i64, data: AccountInput, db: State<'_, DbState>) -> Result<(), String> {
+    account_update_core(db.inner(), id, data)
+}
+
+pub fn account_update_core(db: &DbState, id: i64, data: AccountInput) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
         "UPDATE accounts SET name=?1, email=?2, imap_host=?3, imap_port=?4, imap_tls=?5, smtp_host=?6, smtp_port=?7, smtp_tls=?8, signature=?9 WHERE id=?10",
@@ -158,6 +170,10 @@ pub fn account_update(id: i64, data: AccountInput, db: State<'_, DbState>) -> Re
 
 #[tauri::command]
 pub fn account_delete(id: i64, db: State<'_, DbState>) -> Result<(), String> {
+    account_delete_core(db.inner(), id)
+}
+
+pub fn account_delete_core(db: &DbState, id: i64) -> Result<(), String> {
     let conn = db.conn.lock().map_err(|e| e.to_string())?;
 
     conn.execute_batch("BEGIN TRANSACTION;")

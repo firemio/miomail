@@ -5,11 +5,19 @@
 //! 消えるため、頻繁に再起動する仮想マシンでは同期のたびにパスワードの
 //! 再入力が要る。そこで最後の手段としてディスクに置く。
 //!
-//! 鍵はこの機械固有の値(machine-id)と実行ユーザー名から導くので、**ファイル
-//! だけを持ち出しても復号できない**。ただし同じ機械で同じユーザーとして
-//! 動ける人からは守れない。OS の資格情報ストア(Windows の資格情報マネージャー、
+//! 鍵は同じフォルダーの `credentials.key`(初回に作る乱数、0600)と実行ユーザー名
+//! から導く。**この2つのファイルを揃えて持ち出せば復号できる**ので、守りは
+//! 「データ置き場そのものが本人しか読めないこと」に拠る。同じフォルダーには
+//! メール本文の入った DB も置いてあるので、そこを読める相手に対しては
+//! どのみち中身は守れない。OS の資格情報ストア(Windows の資格情報マネージャー、
 //! Linux の secret-service)が使えるならそちらを優先し、ここには書かない。
 //! 判断は credentials.rs 側で行う。
+//!
+//! **なぜ machine-id をやめたか。** 以前は鍵を `/etc/machine-id` から導いていた。
+//! ファイルだけでは復号できない点は強かったが、Muse の仮想マシンのように
+//! 土台ごと入れ替わる環境では machine-id が変わり、保存したパスワードが
+//! 1〜2時間おきに読めなくなった。読めるが少し弱い方を選んでいる。
+//! 古い形式で保存された値は、読めたときに新しい鍵で置き換える。
 
 use anyhow::{anyhow, Context, Result};
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -23,9 +31,12 @@ use std::path::{Path, PathBuf};
 
 /// DB と同じフォルダーに置く。
 const FILE_NAME: &str = "credentials.json";
+/// 鍵のもと。初回に作る 32 バイトの乱数。
+const KEY_FILE_NAME: &str = "credentials.key";
 /// 鍵導出の用途を固定する文字列。保存形式を変えるときはここも変える。
 const KEY_CONTEXT: &[u8] = b"miomail-credential-store-v1";
 const NONCE_LEN: usize = 12;
+const KEY_MATERIAL_LEN: usize = 32;
 
 pub struct FileStore {
     path: PathBuf,
@@ -57,16 +68,67 @@ impl FileStore {
             return Err(anyhow!("保存された資格情報が壊れています"));
         }
         let (nonce, sealed) = raw.split_at(NONCE_LEN);
-        let plain = cipher()?
-            .decrypt(Nonce::from_slice(nonce), sealed)
-            // 機械が変わった(machine-id が別)場合もここに来る
-            .map_err(|_| anyhow!("保存された資格情報を復号できません"))?;
+        let nonce = Nonce::from_slice(nonce);
+
+        // 今の鍵で読めなければ、古い形式(machine-id 由来)で読んでみる。
+        let plain = match self.cipher().and_then(|c| {
+            c.decrypt(nonce, sealed)
+                .map_err(|_| anyhow!("保存された資格情報を復号できません"))
+        }) {
+            Ok(plain) => plain,
+            Err(current) => {
+                let Ok(plain) = legacy_cipher()
+                    .and_then(|c| c.decrypt(nonce, sealed).map_err(|_| anyhow!("復号できません")))
+                else {
+                    return Err(current);
+                };
+                // 読めたので、今の鍵で置き直す(次からは移行が要らない)
+                if let Ok(text) = std::str::from_utf8(&plain) {
+                    let _ = self.set(key, text);
+                }
+                plain
+            }
+        };
         Ok(Some(String::from_utf8(plain).context("資格情報が UTF-8 ではありません")?))
+    }
+
+    /// 鍵のもとを読む。無ければ作る。
+    fn key_material(&self) -> Result<Vec<u8>> {
+        let path = self
+            .path
+            .parent()
+            .map(|dir| dir.join(KEY_FILE_NAME))
+            .ok_or_else(|| anyhow!("資格情報の鍵の置き場所が決まりません"))?;
+
+        if let Ok(existing) = fs::read(&path) {
+            if existing.len() >= KEY_MATERIAL_LEN {
+                return Ok(existing);
+            }
+        }
+
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(dir).context("資格情報の保存先を作れません")?;
+        }
+        let mut fresh = [0u8; KEY_MATERIAL_LEN];
+        chacha20poly1305::aead::rand_core::RngCore::fill_bytes(&mut OsRng, &mut fresh);
+        fs::write(&path, fresh).context("資格情報の鍵を作れません")?;
+        restrict_to_owner(&path)?;
+        Ok(fresh.to_vec())
+    }
+
+    fn cipher(&self) -> Result<ChaCha20Poly1305> {
+        let mut hasher = Sha256::new();
+        hasher.update(KEY_CONTEXT);
+        hasher.update(self.key_material()?);
+        hasher.update([0u8]);
+        hasher.update(user_name().as_bytes());
+        let key = hasher.finalize();
+        Ok(ChaCha20Poly1305::new(Key::from_slice(&key)))
     }
 
     pub fn set(&self, key: &str, secret: &str) -> Result<()> {
         let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let sealed = cipher()?
+        let sealed = self.cipher()?
             .encrypt(&nonce, secret.as_bytes())
             .map_err(|_| anyhow!("資格情報を暗号化できません"))?;
         let mut blob = nonce.to_vec();
@@ -121,7 +183,9 @@ fn restrict_to_owner(_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn cipher() -> Result<ChaCha20Poly1305> {
+/// v2.1.24 までの鍵。machine-id 由来なので、土台が入れ替わると読めなくなる。
+/// 読める間だけ、古い値を今の鍵へ移すために使う。
+fn legacy_cipher() -> Result<ChaCha20Poly1305> {
     let mut hasher = Sha256::new();
     hasher.update(KEY_CONTEXT);
     hasher.update(machine_id().as_bytes());
@@ -166,6 +230,35 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         let path = dir.join(FILE_NAME);
         (FileStore::new(path.clone()), dir)
+    }
+
+    /// v2.1.24 までの形式で保存された値が読めること。Muse の仮想マシンのように
+    /// 土台が入れ替わる環境のために鍵を変えたので、移行できることを確かめる。
+    #[test]
+    fn reads_and_migrates_values_saved_with_the_old_key() {
+        let (store, dir) = temp_store("legacy");
+        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+        let sealed = legacy_cipher()
+            .expect("legacy cipher")
+            .encrypt(&nonce, "old-secret".as_bytes())
+            .expect("encrypt");
+        let mut blob = nonce.to_vec();
+        blob.extend_from_slice(&sealed);
+        let mut entries = BTreeMap::new();
+        entries.insert("acct-1".to_string(), BASE64.encode(blob));
+        fs::create_dir_all(store.path.parent().expect("dir")).expect("mkdir");
+        fs::write(&store.path, serde_json::to_vec_pretty(&entries).expect("json")).expect("write");
+
+        assert_eq!(store.get("acct-1").expect("get").as_deref(), Some("old-secret"));
+        // 読めたら今の鍵へ置き直す
+        assert!(store
+            .path
+            .parent()
+            .expect("dir")
+            .join(KEY_FILE_NAME)
+            .exists());
+        assert_eq!(store.get("acct-1").expect("re-get").as_deref(), Some("old-secret"));
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]

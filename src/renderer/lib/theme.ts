@@ -1,4 +1,5 @@
 import { THEME_IDS, type ThemeId } from '../data/themes'
+import { safeStorage } from './safeStorage'
 
 const THEME_STORAGE_KEY = 'miomail-ui-theme'
 
@@ -18,7 +19,7 @@ export function loadThemeId(): ThemeId {
   }
 
   try {
-    return parseThemeId(window.localStorage.getItem(THEME_STORAGE_KEY))
+    return parseThemeId(safeStorage.getItem(THEME_STORAGE_KEY))
   } catch {
     return getDefaultThemeId()
   }
@@ -29,5 +30,5 @@ export function persistThemeId(themeId: ThemeId) {
     return
   }
 
-  window.localStorage.setItem(THEME_STORAGE_KEY, themeId)
+  safeStorage.setItem(THEME_STORAGE_KEY, themeId)
 }

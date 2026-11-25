@@ -34,6 +34,25 @@ pub fn default_db_path() -> Option<PathBuf> {
     app_data_root().map(|p| p.join("com.firemio.miomail").join("miomail.db"))
 }
 
+/// Tauri の app_local_data_dir と同じ場所を AppHandle 無しで解決する
+/// (Web ブリッジがキャラクターMODフォルダーを探すのに使う)。
+///   Windows: %LOCALAPPDATA%/com.firemio.miomail
+///   Linux:   $XDG_DATA_HOME(既定は ~/.local/share)/com.firemio.miomail
+pub fn default_local_data_dir() -> Option<PathBuf> {
+    local_data_root().map(|p| p.join("com.firemio.miomail"))
+}
+
+#[cfg(windows)]
+fn local_data_root() -> Option<PathBuf> {
+    std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
+}
+
+/// Linux では data_dir と data_local_dir が同じ($XDG_DATA_HOME)。
+#[cfg(not(windows))]
+fn local_data_root() -> Option<PathBuf> {
+    app_data_root()
+}
+
 #[cfg(windows)]
 fn app_data_root() -> Option<PathBuf> {
     std::env::var_os("APPDATA").map(PathBuf::from)

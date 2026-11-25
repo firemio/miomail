@@ -28,7 +28,7 @@ for (const file of readdirSync('src/renderer', { recursive: true }).filter((file
 }
 
 const saved = new Map()
-globalThis.localStorage = { getItem: (key) => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) }
+globalThis.localStorage = { getItem: (key) => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: (key) => saved.delete(key) }
 const bundled = buildSync({ stdin: { contents: "export * from './src/renderer/lib/i18n.ts'; export { getFolderDisplayName } from './src/renderer/lib/folderDisplay.ts'", resolveDir: process.cwd() }, bundle: true, write: false, format: 'esm', platform: 'node' }).outputFiles[0].text
 const load = (suffix) => import(`data:text/javascript;base64,${Buffer.from(bundled).toString('base64')}#${suffix}`)
 const { t, useLanguage, languages, dateLocale, getFolderDisplayName } = await load('initial')
@@ -47,8 +47,20 @@ for (const { id } of languages) {
 assert.equal((await load('reload')).useLanguage.getState().language, 'vi')
 saved.set('miomail-language', 'unsupported')
 assert.equal((await load('invalid')).useLanguage.getState().language, 'ja')
-globalThis.localStorage = { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') } }
+globalThis.localStorage = { getItem() { throw new Error('blocked') }, setItem() { throw new Error('blocked') }, removeItem() { throw new Error('blocked') } }
 const blocked = await load('blocked')
 blocked.useLanguage.getState().setLanguage('ko')
 assert.equal(blocked.t('設定'), '설정')
+
+// A sandboxed frame without allow-same-origin throws on the property itself,
+// not on the method. Reading it must not take the app down.
+Object.defineProperty(globalThis, 'localStorage', {
+  configurable: true,
+  get() { throw new Error('The document is sandboxed and lacks the allow-same-origin flag.') },
+})
+const sandboxed = await load('sandboxed')
+assert.equal(sandboxed.useLanguage.getState().language, 'ja')
+sandboxed.useLanguage.getState().setLanguage('ko')
+assert.equal(sandboxed.t('設定'), '설정')
+
 console.log(`Verified ${languages.length} languages, ${sourceKeys.length} messages, interpolation, persistence, and storage fallback.`)

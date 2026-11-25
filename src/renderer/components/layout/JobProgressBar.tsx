@@ -225,6 +225,8 @@ function SemanticBadge({
   const [showConsent, setShowConsent] = useState(false)
 
   if (!status) return null
+  // 使えない環境(Linux / ブラウザー)では、そもそも誘わない
+  if (!status.supported) return null
 
   if (status.state === 'ready') {
     return (

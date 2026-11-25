@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Minus, Search, Settings, Sparkles, Square, X } from 'lucide-react'
 import logoImage from '../../assets/miomail-logo.png'
 import { getMascotMeta } from '../../data/mascots'
+import { isBridgeRuntime } from '../../lib/bridge'
 import { api } from '../../lib/ipc'
 import { useMailStore } from '../../stores/mailStore'
 import { useMascotStore } from '../../stores/mascotStore'
@@ -23,6 +24,8 @@ export function TitleBar() {
   const selectedMascot = useMemo(() => getMascotMeta(selectedMascotId), [selectedMascotId])
 
   useEffect(() => {
+    // ブラウザーには窓枠が無いので、最大化の状態も見に行かない
+    if (isBridgeRuntime) return
     const check = async () => setIsMaximized(await api.app.isMaximized())
     void check()
     const interval = setInterval(() => void check(), 1000)
@@ -99,29 +102,34 @@ export function TitleBar() {
           <Settings size={16} />
         </button>
 
-        <button
-          onClick={() => api.app.minimize()}
-          aria-label={t("最小化")}
-          className="no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text"
-        >
-          <Minus size={14} />
-        </button>
-        <button
-          onClick={() => api.app.maximize()}
-          aria-label={isMaximized ? t("元のサイズに戻す") : t("最大化")}
-          className={`no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text ${
-            isMaximized ? 'text-sumi-accent' : ''
-          }`}
-        >
-          <Square size={12} />
-        </button>
-        <button
-          onClick={() => api.app.close()}
-          aria-label={t("閉じる")}
-          className="no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
-        >
-          <X size={14} />
-        </button>
+        {/* ブラウザーでは窓枠をブラウザーが持っているので、この3つは出さない */}
+        {!isBridgeRuntime && (
+          <>
+            <button
+              onClick={() => api.app.minimize()}
+              aria-label={t("最小化")}
+              className="no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text"
+            >
+              <Minus size={14} />
+            </button>
+            <button
+              onClick={() => api.app.maximize()}
+              aria-label={isMaximized ? t("元のサイズに戻す") : t("最大化")}
+              className={`no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:bg-white hover:text-sumi-text ${
+                isMaximized ? 'text-sumi-accent' : ''
+              }`}
+            >
+              <Square size={12} />
+            </button>
+            <button
+              onClick={() => api.app.close()}
+              aria-label={t("閉じる")}
+              className="no-drag flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted transition hover:border-red-200 hover:bg-red-50 hover:text-red-500"
+            >
+              <X size={14} />
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
