@@ -43,38 +43,52 @@ dist を二重に持たないので、バイナリも deb も大きくならな�
 `<head>` の直後へ `window.__MIOMAIL_BRIDGE__` を差し込み、レンダラーはこれを見て
 送り先を決める。ビルドは1種類のまま。
 
-### Muse のスペース(オリジンを持たない枠)
+### Muse のスペース(blob の iframe)
 
-Muse のスペースは、VM のポートに繋がった **`blob:` の iframe** だった(2026-11 に実機で確認)。
-`sandbox` に `allow-same-origin` が無いので、中の画面には自分のオリジンが無い。
-これが効いてくる:
+Muse のスペースは **`blob:` の iframe** の中で動く。2026-11-25 に検証用スペースを
+作って計測した値:
+
+| 調べたもの | 実測値 |
+|------------|--------|
+| `location.href` | `blob:https://muse.ai/<uuid>` |
+| `location.origin` | `https://muse.ai` |
+| `location.ancestorOrigins` | `https://muse.ai`, `https://muse.ai`(2段の入れ子) |
+| `http://127.0.0.1:7272/` への `fetch` | **失敗**。`TypeError: Failed to fetch`(`localhost` でも同じ) |
+| 親フレームが送ってくるもの | `hatch:space:theme` / `hatch:space:capabilities` / `hatch:space:blank-check` / `cvm-bridge:confirm-document` |
+| 親フレームが任意のメッセージに返すもの | **何も返さない**。こちらの `{miomail:1,hello:1}` は無視された |
+
+効いてくるのは3つ:
 
 | できないこと | 対処 |
 |--------------|------|
 | `./assets/...` を取りに行く | `--single-file`(または `/__miomail/standalone.html`)が、JS も CSS も画像も入った1枚の HTML を返す |
-| 相対 URL への `fetch` / `EventSource` | 外側の窓へ `postMessage` で頼む経路に切り替える |
-| `localStorage`(**触るだけで** SecurityError) | `lib/safeStorage.ts` が包む。読めないときは、テーマ・相棒・書きかけを DB (`app_settings` の `web.*`)へ預け、次に開くときサーバーが HTML へ埋めて返す |
+| VM のループバックへ届く | 画面は**利用者のブラウザー**で動くので、`127.0.0.1` は利用者の機械を指す。VM に届くのはスペースの**サーバーアクション**だけ |
+| `localStorage` | スペースの作られ方によっては `allow-same-origin` が無く、**触るだけで** SecurityError になる(前に作られたスペースで実際に出た。上の計測では出ていない)。`lib/safeStorage.ts` が包み、読めないときはテーマ・相棒・書きかけを DB (`app_settings` の `web.*`)へ預け、次に開くときサーバーが HTML へ埋めて返す |
 
 1枚にするときは、Vite が吐く `new URL("名前",import.meta.url)` を `data:` へ書き換える
 (枠の中では `import.meta.url` が `blob:` になって解決できない)。CSP の `'self'` も
-何にも当たらないので、nonce 付きに書き換える。できあがりは約 2.3MB。
+当たらないことがあるので、nonce 付きに書き換える。できあがりは約 2.3MB。
 
 ブラウザープレビュー用の同梱MOD(`characters/browserBuiltinMods.ts`。3Dモデルなど約4MB)は
 動的 import に変えてある。本物のバックエンドがいる経路では読み込まれないので、
 1枚の HTML には入らない。
 
-**外側に書いてもらう中継の約束**(これだけ。MioMail 側の口は `invoke` 1本):
+**中継の約束**(MioMail 側の口は `invoke` 1本)。Muse の親フレームは自前の
+プロトコルしか話さず、こちらのメッセージには応答しない。なので**スペースの画面の
+中に MioMail を iframe で置いて、その外側で中継してもらう**:
 
 ```
 画面 → 外側   { miomail: 1, hello: 1 }
 外側 → 画面   { miomail: 1, ready: 1 }
 
 画面 → 外側   { miomail: 1, id, cmd, args }
-外側         POST /__miomail/invoke  {"cmd":…, "args":…}
+外側         サーバーアクションから
+             POST http://127.0.0.1:7272/__miomail/invoke  {"cmd":…, "args":…}
 外側 → 画面   { miomail: 1, id, reply: <サーバーの JSON> }
               または { miomail: 1, id, error: "…" }
 ```
 
+ブラウザーから直に POST しても届かない。必ずサーバーアクション越しにする。
 挨拶の返事が 2.5 秒来なければ、画面は自分で `fetch` に切り替える。
 添付・MODのasset・イベントも、この経路では `invoke` だけで済むようにしてある
 (`__attachment_bytes` / `character_mod_read_asset` は base64、イベントは
