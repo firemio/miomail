@@ -9,9 +9,66 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https: http:; connect-src 'self' ipc: http://ipc.localhost blob:; frame-src blob:;"
     />
+    <!-- スクリプトが1行も動かなかったときだけ出る案内。
+         枠(iframe)を srcdoc や blob: で作られると、親ページの CSP を引き継いで
+         MioMail の nonce 付きスクリプトが全部止められ、真っ白になる。
+         その「何も出ない」を避けるため、JS 無しで出せる案内を置いておく。
+         React が立ち上がれば main.tsx が消すので、普段は目に触れない。 -->
+    <style>
+      #miomail-boot-fallback {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        box-sizing: border-box;
+        background: #fdf6f2;
+        color: #5a4038;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 15px;
+        line-height: 1.8;
+        text-align: center;
+        opacity: 0;
+        animation: miomail-boot-fallback-show 0s linear 6s forwards;
+      }
+      #miomail-boot-fallback strong {
+        font-size: 18px;
+      }
+      #miomail-boot-fallback p {
+        max-width: 34rem;
+        margin: 0;
+      }
+      #miomail-boot-fallback .miomail-boot-fallback-en {
+        color: #8a736b;
+        font-size: 13px;
+      }
+      @keyframes miomail-boot-fallback-show {
+        to {
+          opacity: 1;
+        }
+      }
+    </style>
   </head>
   <body class="bg-sumi-bg text-sumi-text overflow-hidden">
     <div id="root"></div>
+    <div id="miomail-boot-fallback">
+      <strong>MioMail の画面が起動しませんでした</strong>
+      <p>この画面の中のスクリプトが1行も動いていません。</p>
+      <p>
+        枠(iframe)に入れて使っている場合は、srcdoc や blob: で読み込むと親ページの
+        Content-Security-Policy を引き継いでスクリプトが止められます。本物の https の
+        URL を iframe の src に指して読み込んでください。
+      </p>
+      <p class="miomail-boot-fallback-en">
+        MioMail could not start: no script in this page ran. If it is embedded in an
+        iframe, load it from a real https URL — srcdoc and blob: inherit the parent
+        page's Content-Security-Policy, which blocks these scripts.
+      </p>
+    </div>
     <script type="module" src="./main.tsx"></script>
   </body>
 </html>
