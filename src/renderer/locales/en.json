@@ -365,5 +365,10 @@
   "{name} が {stage} に進化しました。": "{name} has grown to {stage}.",
   "{name} が成長しました！": "{name} has grown!",
   "意味検索を有効にする（約{size} MB）": "Enable semantic search (about {size} MB)",
-  "意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。": "Enable semantic search to find related messages even without matching keywords. A small search model (about {size} MB) will be downloaded once."
+  "意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。": "Enable semantic search to find related messages even without matching keywords. A small search model (about {size} MB) will be downloaded once.",
+  "宛先などを表示": "Show recipients and details",
+  "宛先などを閉じる": "Hide recipients and details",
+  "書きかけのメールが{0}件あります": "Unfinished drafts: {0}",
+  "続きを書く": "Continue writing",
+  "下書きを残して戻る": "Go back and keep the draft"
 }

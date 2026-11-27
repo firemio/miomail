@@ -191,21 +191,21 @@ export function ImportDialog() {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={closeImport} />
 
-      <div className="relative flex max-h-[80vh] w-[min(680px,94vw)] flex-col overflow-hidden rounded-[32px] border border-white/75 bg-[linear-gradient(180deg,#fffdfb_0%,#fff6f1_100%)] shadow-[0_30px_80px_rgba(181,132,112,0.24)]">
-        <div className="flex h-[76px] shrink-0 items-center justify-between border-b border-white/70 px-5">
+      <div className="relative flex max-h-[80vh] w-[min(680px,94vw)] flex-col overflow-hidden rounded-[32px] border max-[899px]:max-h-[calc(100dvh-12px)] max-[899px]:w-[calc(100vw-12px)] max-[899px]:rounded-[22px] border-white/75 bg-[linear-gradient(180deg,#fffdfb_0%,#fff6f1_100%)] shadow-[0_30px_80px_rgba(181,132,112,0.24)]">
+        <div className="flex h-[76px] shrink-0 items-center justify-between gap-2 border-b border-white/70 px-5 max-[899px]:px-3">
           <div className="flex items-center gap-2">
             <Download size={14} className="text-sumi-accent" />
             <div>
               <p className="text-[11px] font-semibold tracking-[0.18em] text-sumi-text-muted">
                 MAIL IMPORTER
               </p>
-              <span className="mt-1 block font-display text-2xl text-sumi-text">
+              <span className="mt-1 block font-display text-2xl text-sumi-text max-[899px]:text-lg">
                 {t("New Outlook から取り込む")}</span>
             </div>
           </div>
           <button
             onClick={closeImport}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text max-[899px]:h-11 max-[899px]:w-11"
           >
             <X size={14} />
           </button>
@@ -275,7 +275,7 @@ export function ImportDialog() {
               <select
                 value={targetFolder}
                 onChange={(event) => setTargetFolder(Number(event.target.value))}
-                className="h-10 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
+                className="h-10 min-w-0 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
               >
                 {flatFolders.map(({ accountName, folder, depth }) => (
                   <option key={folder.id} value={folder.id}>

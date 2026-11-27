@@ -122,7 +122,7 @@ export function SettingsModal() {
   return (
     <div
       className={`fixed inset-0 z-[120] flex items-center justify-center bg-[rgba(34,24,24,0.34)] backdrop-blur-md ${
-        narrow ? 'p-2' : 'p-6'
+        narrow ? 'p-1.5' : 'p-6'
       }`}
       onMouseDown={closeSettings}
     >
@@ -134,7 +134,7 @@ export function SettingsModal() {
         data-testid="settings-modal"
         className={`glass-panel flex overflow-hidden border border-white/80 bg-white/92 shadow-[0_36px_100px_rgba(83,56,56,0.28)] ${
           narrow
-            ? 'h-full w-full flex-col rounded-[24px]'
+            ? 'h-full w-full flex-col rounded-[22px]'
             : 'h-[min(760px,88vh)] w-[min(1120px,92vw)] rounded-[36px]'
         }`}
         onMouseDown={(event) => event.stopPropagation()}
@@ -142,7 +142,7 @@ export function SettingsModal() {
         <nav
           className={`flex shrink-0 bg-sumi-surface/55 ${
             narrow
-              ? 'w-full gap-2 overflow-x-auto border-b border-sumi-border/70 p-2'
+              ? 'w-full items-center gap-2 border-b border-sumi-border/70 p-2'
               : 'w-[260px] flex-col border-r border-sumi-border/70 p-5'
           }`}
         >
@@ -156,7 +156,7 @@ export function SettingsModal() {
           </div>
           )}
 
-          <div className={narrow ? 'flex gap-2' : 'space-y-2'}>
+          <div className={narrow ? 'flex min-w-0 flex-1 gap-1.5 overflow-x-auto' : 'space-y-2'}>
             {sections.map((item) => {
               const Icon = item.icon
               const active = section === item.id
@@ -185,29 +185,38 @@ export function SettingsModal() {
           {!narrow && (
             <p className="mt-auto px-2 text-[10px] leading-5 text-sumi-text-muted">{t("変更内容は選択と同時に保存されます。")}</p>
           )}
+          {/* 1カラム表示では閉じるボタンをタブの列に置く(見出しの段を減らして中身に高さを回す) */}
+          {narrow && (
+            <button onClick={closeSettings} aria-label={t("設定を閉じる")} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text">
+              <X size={18} />
+            </button>
+          )}
         </nav>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header
             className={`flex shrink-0 items-center justify-between border-b border-sumi-border/70 ${
-              narrow ? 'h-[60px] px-4' : 'h-[78px] px-7'
+              narrow ? 'h-10 px-4' : 'h-[78px] px-7'
             }`}
           >
-            <div>
-              <p className="text-[10px] font-semibold tracking-[0.2em] text-sumi-text-muted">SETTINGS</p>
-              <h2 className="mt-1 font-display text-2xl text-sumi-text">{t(sections.find((item) => item.id === section)?.label ?? '')}</h2>
+            <div className="min-w-0">
+              {/* 60px の段に2行は入らず、上の行がタブの列に重なっていた。1カラム表示では見出し1行だけにする */}
+              {!narrow && <p className="text-[10px] font-semibold tracking-[0.2em] text-sumi-text-muted">SETTINGS</p>}
+              <h2 className={`truncate font-display text-sumi-text ${narrow ? 'text-base font-semibold' : 'mt-1 text-2xl'}`}>{t(sections.find((item) => item.id === section)?.label ?? '')}</h2>
             </div>
+            {!narrow && (
             <button onClick={closeSettings} aria-label={t("設定を閉じる")} className="flex h-11 w-11 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text">
               <X size={17} />
             </button>
+            )}
           </header>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-7">
+          <div className={`min-h-0 flex-1 overflow-y-auto ${narrow ? (section === 'mail' ? 'p-0' : 'p-3') : 'p-7'}`}>
             {section === 'appearance' && (
               <div className="space-y-8">
                 <section>
                   <label htmlFor="display-language" className="block text-lg font-semibold text-sumi-text">{t("表示言語")}</label>
-                  <select id="display-language" value={language} onChange={(event) => { if (isLanguage(event.target.value)) setLanguage(event.target.value) }} className="mt-3 w-full max-w-xs rounded-xl border border-sumi-border bg-sumi-surface px-3 py-2 text-sm text-sumi-text">
+                  <select id="display-language" value={language} onChange={(event) => { if (isLanguage(event.target.value)) setLanguage(event.target.value) }} className={`mt-3 w-full max-w-xs rounded-xl border border-sumi-border bg-sumi-surface px-3 text-sm text-sumi-text ${narrow ? 'h-11' : 'py-2'}`}>
                     {languages.map((option) => <option key={option.id} value={option.id} lang={option.id}>{option.region}　{option.name}</option>)}
                   </select>
                   <p className="mt-2 text-xs text-sumi-text-muted">{t("言語の変更はすぐに反映されます。")}</p>
@@ -235,7 +244,7 @@ export function SettingsModal() {
                         <div className="mt-1 flex items-end justify-between gap-2">
                           <p className="text-[11px] leading-5 text-sumi-text-muted">{t(mascot.subtitle)}</p>
                           {defaultPackage && (
-                            <span role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); setTestPackage(defaultPackage) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.stopPropagation(); event.preventDefault(); setTestPackage(defaultPackage) } }} className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-white/90 bg-white/85 px-2.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text" title={t("モーションと成長段階をテスト")}><FlaskConical size={11} />{t("テスト")}</span>
+                            <span role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); setTestPackage(defaultPackage) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.stopPropagation(); event.preventDefault(); setTestPackage(defaultPackage) } }} className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-white/90 bg-white/85 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text ${narrow ? 'h-9 px-3.5' : 'px-2.5 py-1'}`} title={t("モーションと成長段階をテスト")}><FlaskConical size={11} />{t("テスト")}</span>
                           )}
                         </div>
                       </button>
@@ -252,7 +261,7 @@ export function SettingsModal() {
                           <div className="mt-3 flex items-center justify-between gap-2"><span className="truncate font-semibold text-sumi-text">{manifest.name}</span>{active && <span className="shrink-0 rounded-full bg-sumi-accent px-2 py-1 text-[10px] font-semibold text-white">{t("選択中")}</span>}</div>
                           <div className="mt-1 flex items-end justify-between gap-2">
                             <p className="truncate text-[11px] leading-5 text-sumi-text-muted">MOD・{manifest.renderer === 'gltf-3d' ? '3D' : manifest.renderer === 'dom-svg' ? 'SVG' : '2D'}・{manifest.author} v{manifest.version}</p>
-                            <span role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); setTestPackage(characterPackage) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.stopPropagation(); event.preventDefault(); setTestPackage(characterPackage) } }} className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-white/90 bg-white/85 px-2.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text" title={t("モーションと成長段階をテスト")}><FlaskConical size={11} />{t("テスト")}</span>
+                            <span role="button" tabIndex={0} onClick={(event) => { event.stopPropagation(); setTestPackage(characterPackage) }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.stopPropagation(); event.preventDefault(); setTestPackage(characterPackage) } }} className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-white/90 bg-white/85 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text ${narrow ? 'h-9 px-3.5' : 'px-2.5 py-1'}`} title={t("モーションと成長段階をテスト")}><FlaskConical size={11} />{t("テスト")}</span>
                           </div>
                         </button>
                       )
@@ -276,7 +285,7 @@ export function SettingsModal() {
                 </section>
 
                 <section>
-                  <div className="mb-4 flex items-end justify-between gap-4">
+                  <div className={`mb-4 flex justify-between ${narrow ? 'flex-col items-start gap-1' : 'items-end gap-4'}`}>
                     <div><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">THEME</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">{t("テーマを選ぶ")}</h3></div>
                     <p className="text-xs text-sumi-text-muted">{t("各テーマの実際の配色をプレビューで確認できます。")}</p>
                   </div>
@@ -331,14 +340,14 @@ export function SettingsModal() {
             )}
 
             {section === 'mail' && (
-              <div className="h-full overflow-hidden rounded-[28px] border border-white/80 bg-white/60">
+              <div className={`h-full overflow-hidden ${narrow ? '' : 'rounded-[28px] border border-white/80 bg-white/60'}`}>
                 <AccountManager />
               </div>
             )}
 
             {section === 'data' && <div className={`grid gap-4 ${narrow ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              <div className="rounded-[28px] border border-white/80 bg-white/72 p-6"><Database size={24} className="text-sumi-accent" /><h3 className="mt-4 text-lg font-semibold text-sumi-text">{t("メールを取り込む")}</h3><p className="mt-2 text-xs leading-6 text-sumi-text-muted">{t("OutlookのデータをMioMailへ移します。")}</p><button onClick={openImporter} className="mt-5 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white">{t("インポートを開く")}</button></div>
-              <div className="rounded-[28px] border border-white/80 bg-white/72 p-6"><Download size={24} className="text-sumi-accent" /><h3 className="mt-4 text-lg font-semibold text-sumi-text">{t("設定を書き出す")}</h3><p className="mt-2 text-xs leading-6 text-sumi-text-muted">{t("テーマや相棒の成長状態などのアプリ設定をJSONファイルとして保存します（メール本文はサーバーとローカルDBに保存されており、ここには含まれません）。")}</p><button onClick={exportData} className="mt-5 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white">{t("JSONをエクスポート")}</button></div>
+              <div className={`border border-white/80 bg-white/72 ${narrow ? 'rounded-[22px] p-4' : 'rounded-[28px] p-6'}`}><Database size={24} className="text-sumi-accent" /><h3 className="mt-4 text-lg font-semibold text-sumi-text">{t("メールを取り込む")}</h3><p className="mt-2 text-xs leading-6 text-sumi-text-muted">{t("OutlookのデータをMioMailへ移します。")}</p><button onClick={openImporter} className="mt-5 min-h-11 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white">{t("インポートを開く")}</button></div>
+              <div className={`border border-white/80 bg-white/72 ${narrow ? 'rounded-[22px] p-4' : 'rounded-[28px] p-6'}`}><Download size={24} className="text-sumi-accent" /><h3 className="mt-4 text-lg font-semibold text-sumi-text">{t("設定を書き出す")}</h3><p className="mt-2 text-xs leading-6 text-sumi-text-muted">{t("テーマや相棒の成長状態などのアプリ設定をJSONファイルとして保存します（メール本文はサーバーとローカルDBに保存されており、ここには含まれません）。")}</p><button onClick={exportData} className="mt-5 min-h-11 rounded-full bg-sumi-accent px-5 py-2.5 text-xs font-semibold text-white">{t("JSONをエクスポート")}</button></div>
             </div>}
 
             {section === 'system' && <SystemSection />}
@@ -362,15 +371,15 @@ export function SettingsModal() {
                   </div>
                 </div>
 
-                <div className="mt-5 flex items-center justify-between gap-4 border-t border-white/75 pt-4">
+                <div className={`mt-5 flex justify-between border-t border-white/75 pt-4 ${narrow ? 'flex-col items-stretch gap-3' : 'items-center gap-4'}`}>
                   <p className="text-[11px] text-sumi-text-muted">{debugNextStage ? `${getMascotPhaseLabel(debugStartPhase)} → ${getMascotPhaseLabel(debugNextStage.phase)}` : t("最終段階のため、次の成長はありません。")}</p>
-                  <div className="flex gap-2"><button onClick={applyDebugStartPhase} className="rounded-full border border-white bg-white/90 px-4 py-2.5 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text">{t("開始状態を適用")}</button><button disabled={!debugNextStage} onClick={runGrowthDemo} className="rounded-full bg-[#dc913f] px-4 py-2.5 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(220,145,63,0.2)] transition hover:bg-[#ca8032] disabled:cursor-not-allowed disabled:opacity-40">{t("成長演出を再生")}</button></div>
+                  <div className="flex flex-wrap gap-2"><button onClick={applyDebugStartPhase} className="whitespace-nowrap rounded-full border border-white bg-white/90 px-4 py-2.5 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text">{t("開始状態を適用")}</button><button disabled={!debugNextStage} onClick={runGrowthDemo} className="whitespace-nowrap rounded-full bg-[#dc913f] px-4 py-2.5 text-xs font-semibold text-white shadow-[0_10px_22px_rgba(220,145,63,0.2)] transition hover:bg-[#ca8032] disabled:cursor-not-allowed disabled:opacity-40">{t("成長演出を再生")}</button></div>
                 </div>
               </section>
 
               <section className="rounded-[28px] border border-white/80 bg-white/65 p-5">
                 <div className="flex items-start justify-between gap-5"><div><p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">ANIMATION LAB</p><h3 className="mt-1 text-lg font-semibold text-sumi-text">{t("動作デモ")}</h3><p className="mt-1 text-xs text-sumi-text-muted">{t("設定を閉じて、送受信と配達演出を再生します。")}</p></div><Sparkles size={22} className="text-sumi-accent" /></div>
-                <div className="mt-4 flex gap-2"><button disabled={demoBusy !== null} onClick={() => void runDemo('receive')} className="rounded-full border border-sumi-border bg-white/80 px-4 py-2.5 text-xs font-semibold text-sumi-text disabled:opacity-50">{demoBusy === 'receive' ? t("受信中…") : t("デモ受信")}</button><button disabled={demoBusy !== null} onClick={() => void runDemo('send')} className="rounded-full border border-sumi-border bg-white/80 px-4 py-2.5 text-xs font-semibold text-sumi-text disabled:opacity-50">{demoBusy === 'send' ? t("送信中…") : t("デモ送信")}</button></div>
+                <div className="mt-4 flex flex-wrap gap-2"><button disabled={demoBusy !== null} onClick={() => void runDemo('receive')} className="rounded-full border border-sumi-border bg-white/80 px-4 py-2.5 text-xs font-semibold text-sumi-text disabled:opacity-50">{demoBusy === 'receive' ? t("受信中…") : t("デモ受信")}</button><button disabled={demoBusy !== null} onClick={() => void runDemo('send')} className="rounded-full border border-sumi-border bg-white/80 px-4 py-2.5 text-xs font-semibold text-sumi-text disabled:opacity-50">{demoBusy === 'send' ? t("送信中…") : t("デモ送信")}</button></div>
               </section>
 
             </div>}

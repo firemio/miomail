@@ -145,7 +145,7 @@ export function SystemSection() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-[28px] border border-white/80 bg-white/72 p-6">
+      <section className="rounded-[28px] border border-white/80 bg-white/72 p-6 max-[899px]:rounded-[22px] max-[899px]:p-4">
         <div className="flex items-start justify-between gap-5">
           <div>
             <div className="flex items-center gap-2">
@@ -166,9 +166,9 @@ export function SystemSection() {
         <dl className="mt-5 divide-y divide-sumi-border/50 rounded-[20px] border border-white/85 bg-white/60">
           {/* アプリバージョン行にアップデートの確認・実行を統合 */}
           <div className="px-4 py-3">
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-[11px] font-semibold text-sumi-text-muted">{t("アプリバージョン")}</dt>
-              <dd className="flex min-w-0 items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <dt className="shrink-0 whitespace-nowrap text-[11px] font-semibold text-sumi-text-muted">{t("アプリバージョン")}</dt>
+              <dd className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <span className="text-xs font-semibold text-sumi-text">v{info.app_version}</span>
                 {updateState.phase === 'latest' && (
                   <span className="rounded-full border border-[#5f9d7a]/30 bg-[#5f9d7a]/15 px-2 py-0.5 text-[10px] font-semibold text-[#3f7a5c]">{t("最新です")}</span>
@@ -181,14 +181,14 @@ export function SystemSection() {
                     type="button"
                     onClick={installUpdate}
                     title={t("ダウンロード後に自動で再起動します")}
-                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-3.5 text-[11px] font-semibold text-white"
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-3.5 text-[11px] font-semibold text-white max-[899px]:h-10"
                   >
                     {t("今すぐ更新")}</button>
                 ) : updateState.phase === 'installing' ? (
                   <button
                     type="button"
                     disabled
-                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-3.5 text-[11px] font-semibold text-white opacity-60"
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-3.5 text-[11px] font-semibold text-white opacity-60 max-[899px]:h-10"
                   >
                     <RefreshCw size={12} className="animate-spin" />
                     {t("更新中…")}</button>
@@ -198,7 +198,7 @@ export function SystemSection() {
                     onClick={() => void checkForUpdates()}
                     disabled={updateState.phase === 'checking' || !isTauriRuntime}
                     title={t("起動時にも自動で確認されます")}
-                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/90 bg-white/82 px-3.5 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-white/90 bg-white/82 px-3.5 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text disabled:cursor-not-allowed disabled:opacity-50 max-[899px]:h-10"
                   >
                     {updateState.phase === 'checking' ? (
                       <>
@@ -220,14 +220,14 @@ export function SystemSection() {
           </div>
           {environmentRows.map((row) => (
             <div key={row.label} className="flex items-center justify-between gap-4 px-4 py-3">
-              <dt className="text-[11px] font-semibold text-sumi-text-muted">{row.label}</dt>
+              <dt className="shrink-0 whitespace-nowrap text-[11px] font-semibold text-sumi-text-muted">{row.label}</dt>
               <dd className="min-w-0 truncate text-xs font-semibold text-sumi-text">{row.value}</dd>
             </div>
           ))}
         </dl>
       </section>
 
-      <section className="rounded-[28px] border border-white/80 bg-white/72 p-6">
+      <section className="rounded-[28px] border border-white/80 bg-white/72 p-6 max-[899px]:rounded-[22px] max-[899px]:p-4">
         <div className="flex items-start justify-between gap-5">
           <div>
             <div className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export function SystemSection() {
         </ul>
       </section>
 
-      <section className="rounded-[28px] border border-white/80 bg-white/72 p-6">
+      <section className="rounded-[28px] border border-white/80 bg-white/72 p-6 max-[899px]:rounded-[22px] max-[899px]:p-4">
         <div className="flex items-start justify-between gap-5">
           <div>
             <div className="flex items-center gap-2">

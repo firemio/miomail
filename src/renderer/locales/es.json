@@ -365,5 +365,10 @@
   "{name} が {stage} に進化しました。": "{name} ha crecido a {stage}.",
   "{name} が成長しました！": "¡{name} ha crecido!",
   "意味検索を有効にする（約{size} MB）": "Activar búsqueda semántica (unos {size} MB)",
-  "意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。": "Activa la búsqueda por significado. Se descargará una vez un modelo pequeño (unos {size} MB)."
+  "意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。": "Activa la búsqueda por significado. Se descargará una vez un modelo pequeño (unos {size} MB).",
+  "宛先などを表示": "Mostrar destinatarios y detalles",
+  "宛先などを閉じる": "Ocultar destinatarios y detalles",
+  "書きかけのメールが{0}件あります": "Borradores sin terminar: {0}",
+  "続きを書く": "Seguir escribiendo",
+  "下書きを残して戻る": "Volver y conservar el borrador"
 }

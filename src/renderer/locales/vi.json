@@ -365,5 +365,10 @@
   "{name} が {stage} に進化しました。": "{name} đã phát triển thành {stage}.",
   "{name} が成長しました！": "{name} đã lớn lên!",
   "意味検索を有効にする（約{size} MB）": "Bật tìm kiếm ngữ nghĩa (khoảng {size} MB)",
-  "意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。": "Bật tìm kiếm theo ý nghĩa dù từ khóa không trùng. Mô hình nhỏ (khoảng {size} MB) sẽ được tải một lần."
+  "意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。": "Bật tìm kiếm theo ý nghĩa dù từ khóa không trùng. Mô hình nhỏ (khoảng {size} MB) sẽ được tải một lần.",
+  "宛先などを表示": "Hiện người nhận và chi tiết",
+  "宛先などを閉じる": "Ẩn người nhận và chi tiết",
+  "書きかけのメールが{0}件あります": "Thư đang viết dở: {0}",
+  "続きを書く": "Viết tiếp",
+  "下書きを残して戻る": "Quay lại và giữ bản nháp"
 }

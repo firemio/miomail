@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { PenLine } from 'lucide-react'
 import { listen as tauriListen } from '@tauri-apps/api/event'
 import type { DemoMailEvent, NewMailEvent } from './types'
 import { ComposePanel } from './components/compose/ComposePanel'
@@ -28,7 +29,7 @@ import { useIsNarrowLayout } from './lib/useNarrowLayout'
 const listen = isBridgeRuntime
   ? (bridgeListen as unknown as typeof tauriListen)
   : tauriListen
-import { useLanguage } from './lib/i18n'
+import { t, useLanguage } from './lib/i18n'
 
 export default function App() {
   const language = useLanguage((state) => state.language)
@@ -43,12 +44,15 @@ export default function App() {
     composeDrafts,
     narrowPane,
     setNarrowPane,
+    narrowComposeMinimized,
+    setNarrowComposeMinimized,
     themeId,
   } = useUIStore()
   const hasComposeDraft = composeDrafts.length > 0
   const narrow = useIsNarrowLayout()
-  // 狭い画面では作成パネルが画面を占有する(他のペインは隠す)
-  const narrowComposeTakesOver = narrow && hasComposeDraft
+  // 狭い画面では作成パネルが画面を占有する(他のペインは隠す)。
+  // ただし畳んでいる間は一覧や本文を見せ、下の帯から作成画面へ戻れるようにする。
+  const narrowComposeTakesOver = narrow && hasComposeDraft && !narrowComposeMinimized
   const currentFolderId = useMailStore((state) => state.currentFolder?.id)
   const currentMessageId = currentMessage?.id
   const { refreshMods } = useCharacterStore()
@@ -146,7 +150,9 @@ export default function App() {
   }, [allFolders, pulseUnreadAttention])
 
   return (
-    <div className="theme-app-shell relative h-screen w-screen overflow-hidden bg-sumi-bg">
+    // 高さは dvh を優先する。スマホのブラウザーでは 100vh がアドレスバーの分だけ
+    // 画面より長く、下端(送信ボタンなど)が画面の外へ出てしまう。
+    <div className="theme-app-shell relative h-screen h-dvh w-full overflow-hidden bg-sumi-bg">
       <div className="theme-app-backdrop pointer-events-none absolute inset-0" />
       <div className="theme-glow-a pointer-events-none absolute -left-20 top-20 h-56 w-56 rounded-full blur-3xl" />
       <div className="theme-glow-b pointer-events-none absolute bottom-0 right-0 h-72 w-72 rounded-full blur-3xl" />
@@ -156,25 +162,44 @@ export default function App() {
 
         <TitleBar />
 
-        <div className={`flex flex-1 overflow-hidden ${narrow ? 'px-2 pb-2' : 'px-3 pb-3'}`}>
+        <div className={`flex flex-1 overflow-hidden ${narrow ? 'px-1.5 pb-1.5' : 'px-3 pb-3'}`}>
           <div
-            className={`theme-main-frame flex min-w-0 flex-1 overflow-hidden rounded-[32px] border ${
-              narrow ? 'p-2' : 'gap-3 p-3'
+            className={`theme-main-frame flex min-w-0 flex-1 overflow-hidden border ${
+              // 1カラムでは枠の二重の余白と大きな角丸が、ただでさえ狭い横幅を食う
+              narrow ? 'rounded-[22px] p-0.5' : 'gap-3 rounded-[32px] p-3'
             }`}
           >
             {narrow ? (
               // 1カラム: フォルダ / 一覧 / 本文 のうち1つだけ出す。
               // 作成中は作成パネルが画面を占有する。
-              <div className="theme-content-frame flex min-w-0 flex-1 overflow-hidden rounded-[28px] border">
-                {!narrowComposeTakesOver &&
-                  (narrowPane === 'folders' ? (
+              <div className="theme-content-frame flex min-w-0 flex-1 flex-col overflow-hidden rounded-[20px] border">
+                <div className="flex min-h-0 flex-1 overflow-hidden">
+                  {narrowComposeTakesOver ? (
+                    <ComposePanel />
+                  ) : narrowPane === 'folders' ? (
                     <Sidebar />
                   ) : narrowPane === 'message' && currentMessage ? (
                     <MessageView />
                   ) : (
                     <MessageList />
-                  ))}
-                <ComposePanel />
+                  )}
+                </div>
+                {hasComposeDraft && narrowComposeMinimized && (
+                  <button
+                    type="button"
+                    onClick={() => setNarrowComposeMinimized(false)}
+                    data-testid="compose-resume"
+                    className="flex min-h-12 shrink-0 items-center gap-2 border-t border-white/70 bg-sumi-accent/10 px-3 py-1.5 text-left"
+                  >
+                    <PenLine size={15} className="shrink-0 text-sumi-accent" />
+                    <span className="min-w-0 flex-1 truncate text-xs font-semibold text-sumi-text">
+                      {t("書きかけのメールが{0}件あります", { "0": composeDrafts.length })}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-sumi-accent px-3.5 py-2 text-xs font-semibold text-white">
+                      {t("続きを書く")}
+                    </span>
+                  </button>
+                )}
               </div>
             ) : (
               <>

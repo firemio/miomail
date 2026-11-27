@@ -57,7 +57,7 @@ export function UpdateBanner() {
 
   return (
     <div className="pointer-events-auto fixed left-1/2 top-16 z-[130] w-[min(480px,90vw)] -translate-x-1/2 rounded-[24px] border border-white/85 bg-[#fffaf7]/[0.97] px-5 py-4 shadow-[0_24px_60px_rgba(91,58,45,0.25)] backdrop-blur-md">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 max-[899px]:flex-col max-[899px]:items-stretch">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-sumi-text">
             {t("新しいバージョン v")}{latestVersion} {t("が利用できます")}</p>
@@ -69,11 +69,11 @@ export function UpdateBanner() {
                 : t("今すぐ更新すると、ダウンロード後に自動で再起動します。")}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 max-[899px]:justify-end">
           <button
             onClick={install}
             disabled={installing}
-            className="flex h-9 items-center gap-1.5 rounded-full bg-sumi-accent px-4 text-xs font-semibold text-white transition hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-9 items-center gap-1.5 rounded-full bg-sumi-accent px-4 text-xs font-semibold text-white transition hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-60 max-[899px]:h-11"
           >
             <Download size={13} />
             {installing ? t("更新中…") : t("今すぐ更新")}
@@ -82,7 +82,7 @@ export function UpdateBanner() {
             onClick={() => setDismissed(true)}
             disabled={installing}
             aria-label={t("後で更新する")}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text disabled:opacity-50"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text disabled:opacity-50 max-[899px]:h-11 max-[899px]:w-11"
           >
             <X size={14} />
           </button>

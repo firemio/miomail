@@ -13,7 +13,7 @@ export function AccountSetup() {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={closeAccountSetup} />
 
-      <div className="relative flex max-h-[85vh] w-[min(560px,94vw)] flex-col overflow-hidden rounded-[32px] border border-white/75 bg-[linear-gradient(180deg,#fffdfb_0%,#fff6f1_100%)] shadow-[0_30px_80px_rgba(181,132,112,0.24)]">
+      <div className="relative flex max-h-[85vh] w-[min(560px,94vw)] flex-col overflow-hidden rounded-[32px] border max-[899px]:max-h-[calc(100dvh-12px)] max-[899px]:w-[calc(100vw-12px)] max-[899px]:rounded-[22px] border-white/75 bg-[linear-gradient(180deg,#fffdfb_0%,#fff6f1_100%)] shadow-[0_30px_80px_rgba(181,132,112,0.24)]">
         <AccountManager onClose={closeAccountSetup} />
       </div>
     </div>

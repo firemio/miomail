@@ -258,7 +258,7 @@ export function Sidebar() {
               aria-current={isActive ? 'page' : undefined}
               title={t("{0} · {1}件、未読{2}件", { "0": getFolderDisplayName(folder), "1": folder.total_count, "2": unread })}
               onClick={() => openFolder(folder)}
-              className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2.5 text-left"
+              className={`flex min-w-0 flex-1 items-center gap-2 px-2 text-left ${narrow ? 'min-h-11 py-2.5' : 'py-2.5'}`}
             >
               <span className={`shrink-0 ${isActive ? 'text-sumi-accent' : 'text-sumi-text-muted group-hover:text-sumi-text'}`}>
                 {getFolderIcon(folder)}
@@ -278,21 +278,24 @@ export function Sidebar() {
                 <button
                   onClick={() => setMenuFolderId(menuFolderId === folder.id ? null : folder.id)}
                   aria-label={t("フォルダの操作")}
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-sumi-text-muted transition hover:bg-white/70 hover:text-sumi-text ${
-                    menuFolderId === folder.id ? 'bg-white/70' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+                  className={`flex items-center justify-center rounded-lg text-sumi-text-muted transition hover:bg-white/70 hover:text-sumi-text ${
+                    narrow ? 'h-10 w-10' : 'h-7 w-7'
+                  } ${
+                    // タッチ端末には hover が無いので、1カラム表示では最初から見せる
+                    menuFolderId === folder.id ? 'bg-white/70' : narrow ? '' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
                   }`}
                 >
                   <MoreHorizontal size={14} />
                 </button>
                 {menuFolderId === folder.id && (
-                  <div className="absolute right-0 top-8 z-20 w-32 overflow-hidden rounded-[14px] border border-white/85 bg-white/98 py-1 shadow-[0_16px_40px_rgba(91,58,45,0.18)]">
+                  <div className={`absolute right-0 z-20 overflow-hidden rounded-[14px] border border-white/85 bg-white/98 py-1 shadow-[0_16px_40px_rgba(91,58,45,0.18)] ${narrow ? 'top-11 w-40' : 'top-8 w-32'}`}>
                     <button
                       onClick={() => {
                         setRenameId(folder.id)
                         setRenameValue(folder.name || folder.path)
                         setMenuFolderId(null)
                       }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] text-sumi-text transition hover:bg-sumi-surface"
+                      className={`flex w-full items-center gap-2 px-3 text-left text-[11px] text-sumi-text transition hover:bg-sumi-surface ${narrow ? 'min-h-11' : 'py-2'}`}
                     >
                       <Pencil size={12} /> {t("名前を変更")}</button>
                     <button
@@ -300,7 +303,7 @@ export function Sidebar() {
                         setConfirmDeleteId(folder.id)
                         setMenuFolderId(null)
                       }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] text-red-400 transition hover:bg-red-400/15"
+                      className={`flex w-full items-center gap-2 px-3 text-left text-[11px] text-red-400 transition hover:bg-red-400/15 ${narrow ? 'min-h-11' : 'py-2'}`}
                     >
                       <Trash2 size={12} /> {t("削除")}</button>
                   </div>
@@ -313,12 +316,12 @@ export function Sidebar() {
                 <button
                   onClick={() => void run(() => deleteFolder(folder.id))}
                   disabled={busy}
-                  className="rounded-lg bg-red-400 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+                  className={`rounded-lg bg-red-400 text-[10px] font-semibold text-white transition hover:bg-red-500 disabled:opacity-50 ${narrow ? 'h-9 px-3' : 'px-2 py-1'}`}
                 >
                   {t("削除")}</button>
                 <button
                   onClick={() => setConfirmDeleteId(null)}
-                  className="rounded-lg px-1.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
+                  className={`rounded-lg text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text ${narrow ? 'h-9 px-2.5' : 'px-1.5 py-1'}`}
                 >
                   {t("やめる")}</button>
               </div>
@@ -337,15 +340,29 @@ export function Sidebar() {
           : 'w-[260px] min-w-[260px] rounded-[28px] border border-white/75'
       }`}
     >
-      <div className="shrink-0 px-4 pt-4">
+      <div className={`shrink-0 ${narrow ? 'flex items-center gap-2 px-3 pt-3' : 'px-4 pt-4'}`}>
         <button
           onClick={handleCompose}
           data-testid="compose-button"
           disabled={accounts.length === 0}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-sumi-accent text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:-translate-y-0.5 hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+          className={`flex h-12 items-center justify-center gap-2 rounded-full bg-sumi-accent text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:-translate-y-0.5 hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-50 ${
+            narrow ? 'min-w-0 flex-1' : 'w-full'
+          }`}
         >
-          <MailPlus size={16} />
-          {t("新しいメールを書く")}</button>
+          <MailPlus size={16} className="shrink-0" />
+          <span className="truncate">{t("新しいメールを書く")}</span></button>
+        {/* 1カラム表示ではこの画面が全面を占める。フォルダを選び直さなくても一覧へ戻れるようにする */}
+        {narrow && (
+          <button
+            onClick={() => setNarrowPane('list')}
+            data-testid="folders-close"
+            aria-label={t("メール一覧へ戻る")}
+            title={t("メール一覧へ戻る")}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/75 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
+          >
+            <X size={18} />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -386,7 +403,7 @@ export function Sidebar() {
                   }}
                   title={t("新規フォルダ")}
                   aria-label={t("新規フォルダを作成")}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white/70 text-sumi-text-muted transition hover:text-sumi-accent"
+                  className={`flex shrink-0 items-center justify-center rounded-2xl border border-white/70 bg-white/70 text-sumi-text-muted transition hover:text-sumi-accent ${narrow ? 'h-10 w-10' : 'h-8 w-8'}`}
                 >
                   <FolderPlus size={14} />
                 </button>
@@ -443,7 +460,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <div className="border-t border-white/70 p-4">
+      <div className={`border-t border-white/70 ${narrow ? 'p-3' : 'p-4'}`}>
         <button
           onClick={() => syncAllFolders()}
           disabled={syncing || accounts.length === 0}

@@ -110,16 +110,16 @@ export function MessageList() {
 
   return (
     <div className={`flex h-full ${listWidthClass} ${listBorderClass} flex-col bg-white/45`}>
-      <div className="shrink-0 border-b border-white/75 px-5 py-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className={`shrink-0 border-b border-white/75 ${narrow ? 'px-3 py-2' : 'px-5 py-4'}`}>
+        <div className={`flex justify-between ${narrow ? 'items-center gap-2' : 'items-start gap-3'}`}>
           {narrow && (
             <button
               onClick={() => setNarrowPane('folders')}
               aria-label={t("フォルダ一覧へ戻る")}
               title={t("フォルダ")}
-              className="-ml-1 mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/75 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/75 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
             >
-              <ChevronLeft size={16} />
+              <ChevronLeft size={18} />
             </button>
           )}
           <div className="min-w-0 flex-1">
@@ -136,7 +136,7 @@ export function MessageList() {
                 title={t("検索を閉じる")}
                 className={`rounded-full border border-white/75 bg-white/80 font-semibold text-sumi-text-muted transition hover:text-sumi-text ${
                   narrow
-                    ? 'flex h-9 w-9 shrink-0 items-center justify-center'
+                    ? 'flex h-11 w-11 shrink-0 items-center justify-center'
                     : 'px-3 py-1.5 text-[10px]'
                 }`}
               >
@@ -150,9 +150,9 @@ export function MessageList() {
                 onClick={handleCompose}
                 aria-label={t("新しいメールを書く")}
                 title={t("新しいメールを書く")}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-sumi-accent text-white shadow-[0_10px_22px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-sumi-accent text-white shadow-[0_10px_22px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong"
               >
-                <MailPlus size={16} />
+                <MailPlus size={18} />
               </button>
             )}
           </div>
@@ -183,7 +183,7 @@ export function MessageList() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-2 pb-3 pt-2" onScroll={handleScroll} aria-busy={loading || searching}>
+      <div className={`flex-1 overflow-y-auto pb-3 ${narrow ? 'px-1.5 pt-1' : 'px-2 pt-2'}`} onScroll={handleScroll} aria-busy={loading || searching}>
         {searching || (loading && messages.length === 0) ? (
           <div role="status" className="flex h-32 items-center justify-center gap-2 text-xs text-sumi-text-muted">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-sumi-accent border-t-transparent" />
@@ -209,7 +209,7 @@ export function MessageList() {
                   void openMessage(message.id)
                   setNarrowPane('message')
                 }}
-                className={`my-1 block w-full rounded-xl border px-4 py-3 text-left transition-colors ${
+                className={`my-1 block w-full rounded-xl border py-3 text-left transition-colors ${narrow ? 'px-3' : 'px-4'} ${
                   isActive
                     ? 'border-white/80 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(255,235,227,0.92))] shadow-[0_18px_35px_rgba(255,191,160,0.18)]'
                     : 'border-transparent bg-white/62 hover:bg-white/88'
@@ -217,7 +217,7 @@ export function MessageList() {
               >
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <span
-                    className={`min-w-0 flex-1 truncate text-xs ${
+                    className={`min-w-0 flex-1 truncate ${narrow ? 'text-sm' : 'text-xs'} ${
                       unread ? 'font-semibold text-sumi-text' : 'text-sumi-text-muted'
                     }`}
                   >
@@ -258,7 +258,7 @@ export function MessageList() {
             {loadingMore ? (
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-sumi-accent border-t-transparent" />
             ) : (
-              <button onClick={() => void loadMoreMessages()} className="rounded-full bg-white/70 px-4 py-1.5 font-semibold transition hover:text-sumi-text">
+              <button onClick={() => void loadMoreMessages()} className={`rounded-full bg-white/70 px-4 font-semibold transition hover:text-sumi-text ${narrow ? 'py-2.5' : 'py-1.5'}`}>
                 {t("さらに読み込む")}</button>
             )}
           </div>

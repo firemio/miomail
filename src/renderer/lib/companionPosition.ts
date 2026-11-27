@@ -10,17 +10,26 @@ export interface CompanionPosition {
 const STORAGE_KEY = 'miomail-companion-position'
 const MARGIN = 28
 const SIZE = 96
+
+/** 1カラム表示(スマホ幅)での相棒の大きさ。タイトルバーに収まる寸法。 */
+export const NARROW_COMPANION_SIZE = 44
+/** 1カラム表示での相棒の定位置(タイトルバーの左端。ロゴが入っていた場所)。 */
+const NARROW_SPOT: CompanionPosition = { x: 8, y: 10 }
+
 /**
- * 相棒が入れる範囲。1カラム表示(スマホ幅)では画面が狭く、どこにいても本文に
- * かぶってしまうため、読み書きの邪魔にならない右下へ固定する。
+ * 相棒が入れる範囲。1カラム表示(スマホ幅)では画面が狭く、本文の上のどこにいても
+ * 一覧の行・本文・「全アカウント同期」などのボタンにかぶって押せなくなる。
+ * そこで、内容と重ならないタイトルバーの左端へ固定する(TitleBar が場所を空けている)。
  */
 function companionBounds() {
   const width = typeof window === 'undefined' ? 1440 : window.innerWidth
   const height = typeof window === 'undefined' ? 900 : window.innerHeight
+  if (isNarrowViewport()) {
+    return { width, height, minX: NARROW_SPOT.x, maxX: NARROW_SPOT.x, minY: NARROW_SPOT.y, maxY: NARROW_SPOT.y }
+  }
   const maxX = Math.max(MARGIN, width - SIZE - MARGIN)
   const maxY = Math.max(92, height - SIZE - MARGIN)
-  const narrow = isNarrowViewport()
-  return { width, height, minX: narrow ? maxX : MARGIN, maxX, minY: narrow ? maxY : 92, maxY }
+  return { width, height, minX: MARGIN, maxX, minY: 92, maxY }
 }
 
 export function clampCompanionPosition(position: CompanionPosition): CompanionPosition {
@@ -42,6 +51,8 @@ export function loadCompanionPosition(): CompanionPosition {
 
 export function saveCompanionPosition(position: CompanionPosition) {
   if (typeof window === 'undefined') return
+  // 1カラム表示の定位置は覚えない(広い画面で決めた居場所を上書きしないため)
+  if (isNarrowViewport()) return
   safeStorage.setItem(STORAGE_KEY, JSON.stringify(clampCompanionPosition(position)))
 }
 

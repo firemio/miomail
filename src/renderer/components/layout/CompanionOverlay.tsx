@@ -12,7 +12,7 @@ import {
   useMascotStore,
 } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
-import { clampCompanionPosition, getCompanionTravelRule, loadCompanionPosition, randomCompanionPosition, saveCompanionPosition, type CompanionPosition } from '../../lib/companionPosition'
+import { clampCompanionPosition, getCompanionTravelRule, loadCompanionPosition, NARROW_COMPANION_SIZE, randomCompanionPosition, saveCompanionPosition, type CompanionPosition } from '../../lib/companionPosition'
 import type { SentDeliveryHandoff } from './CourierDeliveryOverlay'
 import { MascotRenderer } from '../characters/MascotRenderer'
 import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
@@ -37,7 +37,7 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
   const wanderingRef = useRef(false)
   const poseActiveRef = useRef(false)
   const wanderEndTimerRef = useRef<number | null>(null)
-  const { openSettings, composeDrafts } = useUIStore()
+  const { openSettings } = useUIStore()
   const narrow = useIsNarrowLayout()
   const {
     selectedMascotId,
@@ -103,6 +103,8 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
     }
 
     const wander = () => {
+      // 1カラム表示ではタイトルバーの定位置から動かない
+      if (narrow) return
       if (open || dragRef.current || onDelivery || wanderingRef.current || poseActiveRef.current) return
       wanderingRef.current = true
       setWandering(true)
@@ -136,7 +138,7 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
       window.clearTimeout(timer)
       cancelWander()
     }
-  }, [cancelWander, onDelivery, open, reducedMotion, selectedMascotId])
+  }, [cancelWander, narrow, onDelivery, open, reducedMotion, selectedMascotId])
 
   useEffect(() => {
     if (reducedMotion) {
@@ -189,6 +191,11 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
 
   const startDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (onDelivery) return
+    // 1カラム表示では定位置に固定なので、つかんで動かす操作は受けない(タップで詳細を開くだけ)
+    if (narrow) {
+      didDragRef.current = false
+      return
+    }
     cancelWander()
     didDragRef.current = false
     dragRef.current = { startX: event.clientX, startY: event.clientY, origin: position }
@@ -222,9 +229,6 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
   }
 
   if (onDelivery) return null
-  // 1カラム表示では相棒が右下の送信ボタンに重なってしまうため、
-  // メールを書いている間だけ姿を消す(画面を広げれば戻ってくる)
-  if (narrow && composeDrafts.length > 0) return null
 
   const movementClass = wandering
     ? 'transition-[left,top]'
@@ -247,14 +251,19 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
       data-on-delivery="false"
     >
       {open && (
-        <section className={`glass-panel absolute w-[320px] rounded-[30px] border border-white/80 bg-white/90 p-5 shadow-[0_28px_80px_rgba(82,52,60,0.28)] backdrop-blur-2xl ${position.x > window.innerWidth - 450 ? 'right-[108px]' : 'left-[108px]'} ${position.y > window.innerHeight - 520 ? 'bottom-0' : 'top-0'}`} role="dialog" aria-label={t("{0}の詳細", { "0": mascot.name })}>
+        <section className={`glass-panel border border-white/80 bg-white/90 shadow-[0_28px_80px_rgba(82,52,60,0.28)] backdrop-blur-2xl ${
+          narrow
+            // 相棒の横に 320px のパネルを出すと画面の外へはみ出すので、下から出るシートにする
+            ? 'fixed inset-x-2 bottom-2 max-h-[calc(100dvh-76px)] overflow-y-auto rounded-[26px] p-4'
+            : `absolute w-[320px] rounded-[30px] p-5 ${position.x > window.innerWidth - 450 ? 'right-[108px]' : 'left-[108px]'} ${position.y > window.innerHeight - 520 ? 'bottom-0' : 'top-0'}`
+        }`} role="dialog" aria-label={t("{0}の詳細", { "0": mascot.name })}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] font-semibold tracking-[0.2em] text-sumi-text-muted">COMPANION</p>
               <h2 className="mt-1 font-display text-2xl text-sumi-text">{mascot.name}</h2>
               <p className="mt-1 text-[11px] text-sumi-text-muted">{t(mascot.subtitle)}</p>
             </div>
-            <button onClick={() => setOpen(false)} className="flex h-9 w-9 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted" aria-label={t("相棒の詳細を閉じる")}><ChevronDown size={16} /></button>
+            <button onClick={() => setOpen(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/80 bg-white/80 text-sumi-text-muted" aria-label={t("相棒の詳細を閉じる")}><ChevronDown size={16} /></button>
           </div>
 
           {summonEvent && <div className="mt-4 rounded-[18px] border border-sumi-accent/20 bg-sumi-accent/10 px-4 py-3"><div className="flex items-center gap-2 text-[10px] font-semibold text-sumi-accent"><Sparkles size={12} />{t("お知らせ")}</div><p className="mt-1 text-[11px] leading-5 text-sumi-text">{summonEvent.message}</p></div>}
@@ -294,14 +303,18 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
             setOpen((current) => !current)
           }
         }}
-        className="group relative flex h-[96px] w-[96px] touch-none cursor-grab items-center justify-center active:cursor-grabbing"
+        className={`group relative flex items-center justify-center ${
+          narrow ? 'cursor-pointer' : 'h-[96px] w-[96px] touch-none cursor-grab active:cursor-grabbing'
+        }`}
+        style={narrow ? { width: NARROW_COMPANION_SIZE, height: NARROW_COMPANION_SIZE } : undefined}
         aria-label={open ? t("{0}の詳細を閉じる", { "0": mascot.name }) : t("{0}の詳細を開く", { "0": mascot.name })}
       >
         <div className={wandering ? 'courier-walker-waddle' : ''}>
-          <MascotRenderer mascotId={selectedMascotId} bond={bond} care={care} size={88} pose={pose} spinSignal={spinSignal} />
+          <MascotRenderer mascotId={selectedMascotId} bond={bond} care={care} size={narrow ? NARROW_COMPANION_SIZE - 4 : 88} pose={pose} spinSignal={spinSignal} />
         </div>
-        <span className="absolute -left-2 -top-2 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-white bg-sumi-accent px-1.5 text-[10px] font-bold text-white"><Heart size={10} className="mr-0.5" />{bond}</span>
-        {summonEvent && <span className="absolute -right-1 -top-1 h-4 w-4 animate-pulse rounded-full border-2 border-white bg-sumi-unread" />}
+        {/* なかよし度のバッジは、1カラム表示では小さな相棒を隠してしまうので詳細シートの中だけに出す */}
+        {!narrow && <span className="absolute -left-2 -top-2 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-white bg-sumi-accent px-1.5 text-[10px] font-bold text-white"><Heart size={10} className="mr-0.5" />{bond}</span>}
+        {summonEvent && <span className={`absolute animate-pulse rounded-full border-2 border-white bg-sumi-unread ${narrow ? 'right-0 top-0 h-3 w-3' : '-right-1 -top-1 h-4 w-4'}`} />}
       </button>
     </div>
   )

@@ -128,6 +128,12 @@ interface UIState {
   composeDrafts: ComposeDraft[]
   activeDockedComposeId: string | null
   narrowPane: NarrowPane
+  /**
+   * 1カラム表示で、書きかけのメールを残したまま作成画面を畳んでいるか。
+   * 狭い画面では作成画面が全面を占めるので、畳めないと「下書きを消す」以外に
+   * 一覧や他のメールへ戻る道が無くなる。
+   */
+  narrowComposeMinimized: boolean
   zCounter: number
   openSettings: () => void
   closeSettings: () => void
@@ -137,6 +143,7 @@ interface UIState {
   updateComposeDraft: (draftId: string, patch: Partial<ComposeDraft>) => void
   applySignature: (draftId: string, signature: string) => void
   setNarrowPane: (pane: NarrowPane) => void
+  setNarrowComposeMinimized: (minimized: boolean) => void
   setActiveDockedCompose: (draftId: string) => void
   toggleComposeLayout: (draftId: string) => void
   moveCompose: (draftId: string, position: { x: number; y: number }) => void
@@ -302,6 +309,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   composeDrafts: initialComposeState.drafts,
   activeDockedComposeId: initialComposeState.activeDockedComposeId,
   narrowPane: 'list',
+  // 前回の書きかけが残っていても、開いた直後は一覧を見せる(続きは下の帯から開ける)
+  narrowComposeMinimized: initialComposeState.drafts.length > 0,
   zCounter: initialZCounter,
 
   openSettings: () => set({ showSettings: true }),
@@ -320,6 +329,8 @@ export const useUIStore = create<UIState>((set, get) => ({
       composeDrafts: [...state.composeDrafts, draft],
       activeDockedComposeId:
         draft.layout === 'docked' ? draft.id : state.activeDockedComposeId,
+      // 新しく書き始めたら、畳んでいた作成画面を前に出す
+      narrowComposeMinimized: false,
       zCounter: zIndex,
     }))
     return draft.id
@@ -381,6 +392,8 @@ export const useUIStore = create<UIState>((set, get) => ({
     })),
 
   setNarrowPane: (pane) => set({ narrowPane: pane }),
+
+  setNarrowComposeMinimized: (minimized) => set({ narrowComposeMinimized: minimized }),
 
   setActiveDockedCompose: (draftId) => set({ activeDockedComposeId: draftId }),
 

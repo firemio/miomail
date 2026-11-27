@@ -47,6 +47,8 @@ export function TitleBar() {
         narrow ? 'gap-1.5 px-2' : 'gap-4 px-5'
       }`}
     >
+      {/* 1カラム表示では、ここ(ロゴの場所)に相棒が入る。lib/companionPosition.ts の定位置と揃える */}
+      {narrow && <div className="h-11 w-11 shrink-0" aria-hidden="true" />}
       {!narrow && (
         <div className="flex items-center gap-3">
           <div className="px-1">
@@ -61,8 +63,8 @@ export function TitleBar() {
       )}
 
       <div className={`flex min-w-0 flex-1 justify-center ${narrow ? '' : 'mx-2'}`}>
-        <form role="search" onSubmit={(event) => { event.preventDefault(); setNarrowPane('list'); void searchMessages(searchQuery) }} className="no-drag glass-panel flex h-10 w-full max-w-xl items-center gap-3 rounded-full px-4">
-          <button type="submit" aria-label={t("メールを検索")} title={t("検索")} className="shrink-0 text-sumi-accent"><Search size={16} /></button>
+        <form role="search" onSubmit={(event) => { event.preventDefault(); setNarrowPane('list'); void searchMessages(searchQuery) }} className={`no-drag glass-panel flex h-10 w-full max-w-xl items-center rounded-full px-4 ${narrow ? 'gap-1.5' : 'gap-3'}`}>
+          <button type="submit" aria-label={t("メールを検索")} title={t("検索")} className={`shrink-0 text-sumi-accent ${narrow ? '-ml-2 flex h-10 w-9 items-center justify-center' : ''}`}><Search size={16} /></button>
           {semanticSearchActive && (
             <span
               className="flex shrink-0 items-center gap-1 rounded-full bg-sumi-accent/15 px-2 py-0.5 text-[10px] font-semibold text-sumi-accent"
@@ -81,9 +83,9 @@ export function TitleBar() {
               if (event.nativeEvent.isComposing && event.key === 'Enter') event.preventDefault()
               if (event.key === 'Escape') { setSearchQuery(''); void clearSearch() }
             }}
-            className="min-w-0 w-full bg-transparent text-sm text-sumi-text placeholder:text-sumi-text-muted focus:outline-none"
+            className="h-full min-w-0 w-full bg-transparent text-sm text-sumi-text placeholder:text-sumi-text-muted focus:outline-none"
           />
-          {searchQuery && <button type="button" aria-label={t("検索をクリア")} title={t("検索をクリア")} onClick={() => { setSearchQuery(''); void clearSearch() }} className="shrink-0 text-sumi-text-muted"><X size={14} /></button>}
+          {searchQuery && <button type="button" aria-label={t("検索をクリア")} title={t("検索をクリア")} onClick={() => { setSearchQuery(''); void clearSearch() }} className={`shrink-0 text-sumi-text-muted ${narrow ? '-mr-2 flex h-10 w-9 items-center justify-center' : ''}`}><X size={14} /></button>}
         </form>
       </div>
 
@@ -98,7 +100,9 @@ export function TitleBar() {
         <button
           data-testid="settings-button"
           onClick={openSettings}
-          className="no-drag flex h-9 w-9 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted shadow-[0_10px_25px_rgba(255,255,255,0.65)] transition hover:-translate-y-0.5 hover:text-sumi-text"
+          className={`no-drag flex shrink-0 items-center justify-center rounded-full border border-white/65 bg-white/75 text-sumi-text-muted shadow-[0_10px_25px_rgba(255,255,255,0.65)] transition hover:-translate-y-0.5 hover:text-sumi-text ${
+            narrow ? 'h-10 w-10' : 'h-9 w-9'
+          }`}
           title={t("設定")}
           aria-label={t("設定を開く")}
         >

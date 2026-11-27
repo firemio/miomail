@@ -14,6 +14,7 @@ import {
 import type { JobKind, JobProgress, SemanticStatus } from '../../types'
 import { api } from '../../lib/ipc'
 import { useMailStore } from '../../stores/mailStore'
+import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
 
 const KIND_LABEL: Record<JobKind, string> = {
   sync: '同期',
@@ -40,6 +41,7 @@ const IDLE_POLL_MS = 10_000
  * (アイドル時の省電力のため setTimeout で逐次再スケジュール)。
  */
 export function JobProgressBar() {
+  const narrow = useIsNarrowLayout()
   const accounts = useMailStore((state) => state.accounts)
   const currentFolder = useMailStore((state) => state.currentFolder)
 
@@ -132,8 +134,13 @@ export function JobProgressBar() {
     </div>
   )
 
+  // 1カラム表示では、出すものが無いときに空の帯だけが1行ぶんの高さを取ってしまう。
+  // 進行中の処理も、直近の結果も、意味検索の案内も無ければ帯ごと出さない。
+  const semanticHasBadge = Boolean(semantic && semantic.supported)
+  if (narrow && !hasVisibleJobs && !latestInactive && !semanticHasBadge) return null
+
   return (
-    <div className="mx-3 mb-2 mt-0 shrink-0">
+    <div className={`mt-0 shrink-0 ${narrow ? 'mx-1.5 mb-1.5' : 'mx-3 mb-2'}`}>
       <div className="rounded-2xl border border-sumi-border/60 bg-sumi-surface/80 px-3 py-1.5 backdrop-blur-sm">
         {/* 折りたたみ時・常時の1行表示 */}
         <div className="flex items-center gap-2">
@@ -168,7 +175,7 @@ export function JobProgressBar() {
 
           {hasVisibleJobs && <button
             onClick={() => setCollapsed((value) => !value)}
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sumi-text-muted transition hover:bg-sumi-surface-2 hover:text-sumi-text"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sumi-text-muted transition hover:bg-sumi-surface-2 hover:text-sumi-text max-[899px]:h-9 max-[899px]:w-9"
             aria-label={collapsed ? t("進捗を展開") : t("進捗を折りたたむ")}
             aria-expanded={!collapsed}
           >
@@ -185,14 +192,14 @@ export function JobProgressBar() {
               return (
                 <div key={job.kind} className="flex items-center gap-2">
                   <Icon size={12} className="shrink-0 text-sumi-accent" />
-                  <span className="w-24 shrink-0 text-[11px] font-medium text-sumi-text">
+                  <span className="w-24 shrink-0 truncate text-[11px] font-medium text-sumi-text">
                     {t(KIND_LABEL[job.kind])}
                   </span>
                   <div className="min-w-0 flex-1">{renderProgressTrack(job)}</div>
                   <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-sumi-text-muted">
                     {percent ?? '…'}
                   </span>
-                  <span className="w-48 shrink-0 truncate text-[10px] text-sumi-text-muted">
+                  <span className="w-48 shrink-0 truncate text-[10px] text-sumi-text-muted max-[899px]:hidden">
                     {job.message}
                   </span>
                 </div>
@@ -253,7 +260,7 @@ function SemanticBadge({
     return (
       <span className="flex shrink-0 items-center gap-1.5">
         <span
-          className="max-w-56 truncate text-[10px] text-red-700/80"
+          className="max-w-56 truncate text-[10px] text-red-700/80 max-[899px]:max-w-[42vw]"
           title={status.error ?? enableError ?? undefined}
         >
           {t("意味検索の準備に失敗しました")}{status.error ? `: ${status.error}` : ''}
@@ -261,7 +268,7 @@ function SemanticBadge({
         <button
           onClick={onRetry}
           disabled={enabling}
-          className="flex items-center gap-1 rounded-full border border-sumi-border/70 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-sumi-text transition hover:bg-sumi-border/40 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-full border border-sumi-border/70 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-sumi-text transition hover:bg-sumi-border/40 disabled:opacity-50 max-[899px]:min-h-9 max-[899px]:px-3"
         >
           <RotateCw size={10} />
           {t("リトライ")}</button>
@@ -273,7 +280,7 @@ function SemanticBadge({
   return (
     <span className="relative flex shrink-0 items-center">
       {showConsent && (
-        <span className="absolute bottom-full right-0 z-10 mb-2 block w-72 rounded-2xl border border-sumi-border/70 bg-sumi-surface p-3 shadow-lg">
+        <span className="absolute bottom-full right-0 z-10 mb-2 block w-72 max-w-[calc(100vw-32px)] rounded-2xl border border-sumi-border/70 bg-sumi-surface p-3 shadow-lg">
           <span className="block text-[11px] leading-relaxed text-sumi-text">
             {t("意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。", { size: status.model_size_mb })}</span>
           <span className="mt-1 block text-[10px] leading-relaxed text-sumi-text-muted">
@@ -281,7 +288,7 @@ function SemanticBadge({
           <span className="mt-2 flex justify-end gap-1.5">
             <button
               onClick={() => setShowConsent(false)}
-              className="rounded-full px-2.5 py-1 text-[10px] text-sumi-text-muted transition hover:text-sumi-text"
+              className="rounded-full px-2.5 py-1 text-[10px] text-sumi-text-muted transition hover:text-sumi-text max-[899px]:min-h-10 max-[899px]:px-3.5"
             >
               {t("キャンセル")}</button>
             <button
@@ -290,7 +297,7 @@ function SemanticBadge({
                 onEnable()
               }}
               disabled={enabling}
-              className="rounded-full bg-sumi-accent px-3 py-1 text-[10px] font-semibold text-white transition hover:bg-sumi-accent-strong disabled:opacity-50"
+              className="rounded-full bg-sumi-accent px-3 py-1 text-[10px] font-semibold text-white transition hover:bg-sumi-accent-strong disabled:opacity-50 max-[899px]:min-h-10 max-[899px]:px-4"
             >
               {enabling ? t("開始中…") : t("有効にする")}
             </button>
@@ -305,7 +312,7 @@ function SemanticBadge({
       <button
         onClick={() => setShowConsent((value) => !value)}
         disabled={enabling}
-        className="flex items-center gap-1 rounded-full border border-sumi-border/70 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-sumi-text transition hover:bg-sumi-border/40 disabled:opacity-50"
+        className="flex items-center gap-1 rounded-full border border-sumi-border/70 bg-sumi-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-sumi-text transition hover:bg-sumi-border/40 disabled:opacity-50 max-[899px]:min-h-9 max-[899px]:px-3"
       >
         <Sparkles size={11} className="text-sumi-accent" />
         {t("意味検索を有効にする（約{size} MB）", { size: status.model_size_mb })}

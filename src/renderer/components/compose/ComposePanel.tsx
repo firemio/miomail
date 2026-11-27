@@ -2,6 +2,7 @@ import { t } from '../../lib/i18n'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  ChevronLeft,
   FilePlus2,
   Forward,
   GripVertical,
@@ -233,8 +234,8 @@ function ComposeEditor({
       onMouseDown={() => !docked && bringComposeToFront(draft.id)}
     >
       <div
-        className={`flex shrink-0 items-center justify-between border-b border-white/70 px-5 ${
-          docked ? 'h-[70px]' : 'h-[68px] cursor-move'
+        className={`flex shrink-0 items-center justify-between border-b border-white/70 ${
+          narrow ? 'h-11 px-4' : docked ? 'h-[70px] px-5' : 'h-[68px] cursor-move px-5'
         }`}
         onMouseDown={handleMouseDown}
       >
@@ -242,7 +243,7 @@ function ComposeEditor({
           {!docked && <GripVertical size={14} className="text-sumi-text-muted" />}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-display text-2xl text-sumi-text">{getDraftTitle(draft)}</span>
+              <span className={`font-display text-sumi-text ${narrow ? 'text-lg' : 'text-2xl'}`}>{getDraftTitle(draft)}</span>
               <span className="rounded-full bg-white/80 px-2.5 py-1 text-[10px] text-sumi-text-muted">
                 {t("自動保存")}</span>
             </div>
@@ -297,19 +298,19 @@ function ComposeEditor({
       </div>
 
       {confirmDiscard && (
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-100 bg-amber-50/90 px-5 py-3">
+        <div className={`flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-amber-100 bg-amber-50/90 py-3 ${narrow ? 'px-3' : 'px-5'}`}>
           <p className="text-xs text-amber-900">{t("保存済みの下書きを削除しますか？")}</p>
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               onClick={cancelDiscard}
               data-testid={`compose-cancel-discard-${draft.id}`}
-              className="rounded-full border border-white/80 bg-white/85 px-3 py-1.5 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
+              className={`rounded-full border border-white/80 bg-white/85 px-3 text-[11px] font-semibold text-sumi-text-muted transition hover:text-sumi-text ${narrow ? 'h-10' : 'py-1.5'}`}
             >
               {t("キャンセル")}</button>
             <button
               onClick={discardAndClose}
               data-testid={`compose-confirm-discard-${draft.id}`}
-              className="rounded-full bg-[#f58b76] px-3 py-1.5 text-[11px] font-semibold text-white transition hover:brightness-95"
+              className={`rounded-full bg-[#f58b76] px-3 text-[11px] font-semibold text-white transition hover:brightness-95 ${narrow ? 'h-10' : 'py-1.5'}`}
             >
               {t("下書きを削除")}</button>
           </div>
@@ -317,7 +318,7 @@ function ComposeEditor({
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="shrink-0 space-y-3 border-b border-white/70 px-5 py-4">
+        <div className={`shrink-0 border-b border-white/70 ${narrow ? 'space-y-2 px-3 py-2.5' : 'space-y-3 px-5 py-4'}`}>
           {accounts.length > 1 && (
             <div className="flex items-center gap-2">
               <label className="w-12 shrink-0 text-[11px] font-semibold text-sumi-text-muted">
@@ -325,7 +326,7 @@ function ComposeEditor({
               <select
                 value={draft.from || defaultSender}
                 onChange={(event) => updateComposeDraft(draft.id, { from: event.target.value })}
-                className="h-10 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
+                className="h-10 min-w-0 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
               >
                 {accounts.map((account) => (
                   <option key={account.id} value={account.email}>
@@ -344,12 +345,14 @@ function ComposeEditor({
               value={draft.to}
               onChange={(event) => updateComposeDraft(draft.id, { to: event.target.value })}
               placeholder="recipient@example.com"
-              className="h-10 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
+              className="h-10 min-w-0 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
             />
             {!draft.showCc && (
               <button
                 onClick={() => updateComposeDraft(draft.id, { showCc: true })}
-                className="text-[10px] font-semibold text-sumi-text-muted hover:text-sumi-accent"
+                className={`shrink-0 text-[10px] font-semibold text-sumi-text-muted hover:text-sumi-accent ${
+                  narrow ? 'h-10 rounded-full border border-white/80 bg-white/80 px-3' : ''
+                }`}
               >
                 CC
               </button>
@@ -365,7 +368,7 @@ function ComposeEditor({
                 type="text"
                 value={draft.cc}
                 onChange={(event) => updateComposeDraft(draft.id, { cc: event.target.value })}
-                className="h-10 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
+                className="h-10 min-w-0 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
               />
             </div>
           )}
@@ -378,7 +381,7 @@ function ComposeEditor({
               value={draft.subject}
               onChange={(event) => updateComposeDraft(draft.id, { subject: event.target.value })}
               placeholder={t("件名を入力")}
-              className="h-10 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
+              className="h-10 min-w-0 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
             />
           </div>
         </div>
@@ -388,12 +391,14 @@ function ComposeEditor({
             value={draft.body}
             onChange={(event) => updateComposeDraft(draft.id, { body: event.target.value })}
             placeholder={t("ここに本文を書いてください")}
-            className="h-full w-full resize-none bg-transparent px-5 py-5 text-sm leading-7 text-sumi-text placeholder-sumi-text-muted/50 focus:outline-none"
+            className={`h-full w-full resize-none bg-transparent text-sm leading-7 text-sumi-text placeholder-sumi-text-muted/50 focus:outline-none ${
+              narrow ? 'px-4 py-3' : 'px-5 py-5'
+            }`}
           />
         </div>
 
         {attachments.length > 0 && (
-          <div className="shrink-0 border-t border-white/70 px-5 py-2.5">
+          <div className={`shrink-0 border-t border-white/70 py-2.5 ${narrow ? 'max-h-[30vh] overflow-y-auto px-3' : 'px-5'}`}>
             <div className="flex flex-wrap items-center gap-1.5">
               {attachments.map((item) => (
                 <div
@@ -418,9 +423,11 @@ function ComposeEditor({
                     onClick={() => removeAttachment(item.id)}
                     aria-label={t("{0}を削除", { "0": item.name })}
                     data-testid={`compose-remove-attachment-${item.id}`}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sumi-text-muted/70 transition hover:bg-sumi-accent/10 hover:text-sumi-accent"
+                    className={`flex shrink-0 items-center justify-center rounded-full text-sumi-text-muted/70 transition hover:bg-sumi-accent/10 hover:text-sumi-accent ${
+                      narrow ? 'h-9 w-9' : 'h-6 w-6'
+                    }`}
                   >
-                    <X size={11} />
+                    <X size={narrow ? 14 : 11} />
                   </button>
                 </div>
               ))}
@@ -451,7 +458,7 @@ function ComposeEditor({
           </div>
         )}
 
-        <div className="flex h-16 shrink-0 items-center justify-between border-t border-white/70 px-5">
+        <div className={`flex h-16 shrink-0 items-center justify-between gap-2 border-t border-white/70 ${narrow ? 'px-3' : 'px-5'}`}>
           <div className="flex items-center gap-2">
             <button
               onClick={handlePickFiles}
@@ -466,7 +473,9 @@ function ComposeEditor({
             <button
               onClick={requestClose}
               data-testid={`compose-cancel-${draft.id}`}
-              className="rounded-full border border-white/70 bg-white/80 px-4 py-2 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text"
+              className={`rounded-full border border-white/70 bg-white/80 px-4 text-xs font-semibold text-sumi-text-muted transition hover:text-sumi-text ${
+                narrow ? 'h-10' : 'py-2'
+              }`}
             >
               {t("キャンセル")}</button>
           </div>
@@ -475,7 +484,7 @@ function ComposeEditor({
             onClick={handleSend}
             data-testid={`compose-send-${draft.id}`}
             disabled={sending || !draft.to.trim() || attachmentsTooLarge}
-            className="flex h-11 items-center gap-1.5 rounded-full bg-sumi-accent px-5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-sumi-accent px-5 text-sm font-semibold text-white shadow-[0_18px_30px_rgba(255,138,160,0.34)] transition hover:bg-sumi-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
           >
             <SendHorizontal size={13} />
             {sending ? t("送信中...") : t("送信")}
@@ -494,6 +503,7 @@ export function ComposePanel() {
     setActiveDockedCompose,
     openCompose,
     closeCompose,
+    setNarrowComposeMinimized,
   } = useUIStore()
   const { accounts, currentFolder } = useMailStore()
   const draftTabsRef = useRef<HTMLDivElement>(null)
@@ -544,6 +554,15 @@ export function ComposePanel() {
 
   const discardDraft = composeDrafts.find((draft) => draft.id === discardDraftId) || null
 
+  // 1カラム表示の「戻る」。書いた下書きは残して畳み、何も書いていない下書きは閉じる
+  // (空の下書きまで残すと、一覧の下に「書きかけ」の帯が出続けてしまう)。
+  const minimizeCompose = () => {
+    for (const draft of composeDrafts) {
+      if (!draft.isDirty) closeCompose(draft.id)
+    }
+    setNarrowComposeMinimized(true)
+  }
+
   const confirmTabDiscard = () => {
     if (discardDraftId) closeCompose(discardDraftId, true)
     setDiscardDraftId(null)
@@ -557,7 +576,19 @@ export function ComposePanel() {
             narrow ? 'w-full min-w-0 flex-1' : 'w-[440px] min-w-[400px] border-l border-white/80'
           }`}
         >
-          <div className="flex h-14 shrink-0 items-center gap-2 border-b border-white/70 px-3">
+          <div className={`flex h-14 shrink-0 items-center gap-2 border-b border-white/70 ${narrow ? 'px-2' : 'px-3'}`}>
+            {/* 1カラム表示では作成画面が全面を占める。下書きを消さずに一覧へ戻る道を必ず置く */}
+            {narrow && (
+              <button
+                onClick={minimizeCompose}
+                data-testid="compose-minimize"
+                aria-label={t("下書きを残して戻る")}
+                title={t("下書きを残して戻る")}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
             <div
               ref={draftTabsRef}
               className="compose-draft-tabs flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto pb-2 pt-1.5"
@@ -589,7 +620,7 @@ export function ComposePanel() {
                     </button>
                     <button
                       onClick={(event) => closeDraftTab(draft, event.currentTarget)}
-                      className={`ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition focus:outline-none focus:ring-2 focus:ring-sumi-accent/30 ${
+                      className={`ml-1 flex shrink-0 items-center justify-center rounded-full transition focus:outline-none focus:ring-2 focus:ring-sumi-accent/30 ${narrow ? 'h-8 w-8' : 'h-7 w-7'} ${
                         active
                           ? 'text-white/75 hover:bg-white/20 hover:text-white'
                           : 'text-sumi-text-muted/60 hover:bg-sumi-accent/10 hover:text-sumi-accent'
@@ -619,7 +650,7 @@ export function ComposePanel() {
               role="alertdialog"
               aria-labelledby="discard-draft-title"
               aria-describedby="discard-draft-description"
-              className="fixed z-50 w-[292px] rounded-[20px] border border-white/90 bg-[#fffaf7]/[0.98] p-4 shadow-[0_18px_46px_rgba(91,58,45,0.22)] backdrop-blur-md"
+              className="fixed z-50 w-[292px] max-w-[calc(100vw-24px)] rounded-[20px] border border-white/90 bg-[#fffaf7]/[0.98] p-4 shadow-[0_18px_46px_rgba(91,58,45,0.22)] backdrop-blur-md"
               style={{
                 top: discardPopoverPosition.top,
                 left: discardPopoverPosition.left,

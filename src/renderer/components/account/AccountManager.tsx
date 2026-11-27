@@ -240,7 +240,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-[64px] shrink-0 items-center justify-between border-b border-white/70 px-5">
+      <div className="flex h-[64px] shrink-0 items-center justify-between border-b border-white/70 px-5 max-[899px]:px-3">
         <div className="flex items-center gap-2">
           {(view === 'add' || view === 'edit') && accounts.length > 0 && (
             <button
@@ -249,7 +249,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                 resetForm()
               }}
               aria-label={t("一覧に戻る")}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/80 text-sumi-text-muted transition hover:text-sumi-text max-[899px]:h-11 max-[899px]:w-11"
             >
               <ChevronLeft size={14} />
             </button>
@@ -290,7 +290,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
               accounts.map((account) => (
                 <div
                   key={account.id}
-                  className="mx-4 my-3 flex cursor-pointer items-center justify-between rounded-[24px] border border-white/70 bg-white/72 px-4 py-4 shadow-[0_14px_30px_rgba(255,255,255,0.62)]"
+                  className="mx-4 my-3 flex cursor-pointer items-center justify-between rounded-[24px] border border-white/70 bg-white/72 px-4 py-4 shadow-[0_14px_30px_rgba(255,255,255,0.62)] max-[899px]:mx-3"
                   onClick={() => startEdit(account)}
                 >
                   <div className="min-w-0 flex-1">
@@ -313,7 +313,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                           void handleDelete(account.id)
                         }}
                         data-testid={`account-confirm-delete-${account.id}`}
-                        className="rounded-full bg-red-400 px-2.5 py-1 text-[10px] font-semibold text-white transition hover:bg-red-500"
+                        className="rounded-full bg-red-400 px-2.5 py-1 text-[10px] font-semibold text-white transition hover:bg-red-500 max-[899px]:px-3.5 max-[899px]:py-2"
                       >
                         {t("削除")}</button>
                       <button
@@ -321,7 +321,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                           event.stopPropagation()
                           setConfirmDeleteId(null)
                         }}
-                        className="rounded-full px-1.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text"
+                        className="rounded-full px-1.5 py-1 text-[10px] font-semibold text-sumi-text-muted transition hover:text-sumi-text max-[899px]:px-2.5 max-[899px]:py-2"
                       >
                         {t("やめる")}</button>
                     </div>
@@ -333,7 +333,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                       }}
                       disabled={deleting === account.id}
                       data-testid={`account-delete-${account.id}`}
-                      className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-400/25 bg-red-400/10 text-sumi-text-muted transition hover:text-red-400"
+                      className="ml-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-400/25 bg-red-400/10 text-sumi-text-muted transition hover:text-red-400 max-[899px]:h-11 max-[899px]:w-11"
                     >
                       {deleting === account.id ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -362,7 +362,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
 
       {(view === 'add' || view === 'edit') && (
         <>
-          <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          <div className="flex-1 space-y-4 overflow-y-auto p-5 max-[899px]:p-4">
             <div>
               <label className="mb-1.5 block text-[11px] text-sumi-text-muted">{t("プリセット")}</label>
               <div className="flex flex-wrap gap-2">
@@ -370,7 +370,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                   <button
                     key={key}
                     onClick={() => applyPreset(key)}
-                    className="h-9 rounded-full border border-white/80 bg-white/75 px-4 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/40 hover:text-sumi-text"
+                    className="h-9 rounded-full border border-white/80 bg-white/75 px-4 text-[11px] font-semibold text-sumi-text-muted transition hover:border-sumi-accent/40 hover:text-sumi-text max-[899px]:h-10"
                   >
                     {t(preset.label)}
                   </button>
@@ -429,20 +429,20 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                   value={form.imap_host}
                   onChange={(event) => update('imap_host', event.target.value)}
                   placeholder="imap.example.com"
-                  className="h-11 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
+                  className="h-11 min-w-0 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
                 />
                 <input
                   type="number"
                   value={form.imap_port}
                   onChange={(event) => update('imap_port', Number(event.target.value))}
-                  className="h-11 w-20 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
+                  className="h-11 w-20 shrink-0 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
                 />
-                <label className="flex items-center gap-1 text-[11px] text-sumi-text-muted">
+                <label className="flex shrink-0 items-center gap-1 text-[11px] text-sumi-text-muted max-[899px]:min-h-11 max-[899px]:gap-1.5">
                   <input
                     type="checkbox"
                     checked={form.imap_tls}
                     onChange={(event) => update('imap_tls', event.target.checked)}
-                    className="accent-sumi-accent"
+                    className="accent-sumi-accent max-[899px]:h-5 max-[899px]:w-5"
                   />
                   SSL
                 </label>
@@ -456,32 +456,32 @@ export function AccountManager({ onClose }: AccountManagerProps) {
                   value={form.smtp_host}
                   onChange={(event) => update('smtp_host', event.target.value)}
                   placeholder="smtp.example.com"
-                  className="h-11 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
+                  className="h-11 min-w-0 flex-1 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text placeholder-sumi-text-muted/50 focus:border-sumi-accent/50 focus:outline-none"
                 />
                 <input
                   type="number"
                   value={form.smtp_port}
                   onChange={(event) => update('smtp_port', Number(event.target.value))}
-                  className="h-11 w-20 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
+                  className="h-11 w-20 shrink-0 rounded-2xl border border-white/80 bg-white/80 px-3 text-xs text-sumi-text focus:border-sumi-accent/50 focus:outline-none"
                 />
-                <label className="flex items-center gap-1 text-[11px] text-sumi-text-muted">
+                <label className="flex shrink-0 items-center gap-1 text-[11px] text-sumi-text-muted max-[899px]:min-h-11 max-[899px]:gap-1.5">
                   <input
                     type="checkbox"
                     checked={form.smtp_tls}
                     onChange={(event) => update('smtp_tls', event.target.checked)}
-                    className="accent-sumi-accent"
+                    className="accent-sumi-accent max-[899px]:h-5 max-[899px]:w-5"
                   />
                   SSL
                 </label>
               </div>
             </div>
 
-            <label className="flex items-center gap-2 text-[11px] text-sumi-text-muted">
+            <label className="flex items-center gap-2 text-[11px] text-sumi-text-muted max-[899px]:min-h-11">
               <input
                 type="checkbox"
                 checked={samePassword}
                 onChange={(event) => setSamePassword(event.target.checked)}
-                className="accent-sumi-accent"
+                className="accent-sumi-accent max-[899px]:h-5 max-[899px]:w-5"
               />
               {t("IMAP と SMTP で同じパスワードを使う")}</label>
 
@@ -533,7 +533,7 @@ export function AccountManager({ onClose }: AccountManagerProps) {
             )}
           </div>
 
-          <div className="flex h-16 shrink-0 items-center justify-end gap-2 border-t border-white/70 px-5">
+          <div className="flex h-16 shrink-0 items-center justify-end gap-2 border-t border-white/70 px-5 max-[899px]:px-3">
             <button
               onClick={() => void handleTest()}
               disabled={!canTest || testing}

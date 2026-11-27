@@ -62,7 +62,7 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#4a3540]/45 p-6 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#4a3540]/45 p-6 backdrop-blur-[2px] max-[899px]:p-1.5"
       onClick={onClose}
       // 設定モーダルの背景はmousedownで閉じる。clickだけ止めてもmousedownが先に
       // 届いてしまい、テスト内のボタンやスライダーを触った瞬間に設定ごと閉じる
@@ -72,10 +72,10 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
       aria-label={t("{0}のテスト", { "0": manifest.name })}
     >
       <div
-        className="flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[28px] border border-white/85 bg-[linear-gradient(160deg,#fffdfb,#fff3ee)] shadow-[0_30px_80px_rgba(90,55,70,0.3)]"
+        className="flex max-h-[92vh] w-full max-w-[860px] flex-col overflow-hidden rounded-[28px] border max-[899px]:max-h-full max-[899px]:rounded-[22px] border-white/85 bg-[linear-gradient(160deg,#fffdfb,#fff3ee)] shadow-[0_30px_80px_rgba(90,55,70,0.3)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-center justify-between gap-4 border-b border-white/80 px-6 py-4">
+        <header className="flex items-center justify-between gap-4 border-b border-white/80 px-6 py-4 max-[899px]:px-4 max-[899px]:py-3">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold tracking-[0.18em] text-sumi-text-muted">CHARACTER TEST</p>
             <h3 className="mt-0.5 flex items-center gap-2 truncate text-lg font-semibold text-sumi-text">
@@ -87,16 +87,16 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/90 bg-white/85 text-sumi-text-muted transition hover:text-sumi-text"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/90 bg-white/85 text-sumi-text-muted transition hover:text-sumi-text max-[899px]:h-11 max-[899px]:w-11"
             aria-label={t("テストを閉じる")}
           >
             <X size={16} />
           </button>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(300px,1fr)_minmax(0,1.1fr)] gap-5 overflow-y-auto p-6">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(300px,1fr)_minmax(0,1.1fr)] gap-5 overflow-y-auto p-6 max-[899px]:grid-cols-1 max-[899px]:gap-4 max-[899px]:p-3">
           <div
-            className="relative flex min-h-[340px] cursor-pointer flex-col items-center justify-center rounded-[24px] border border-white/85 bg-white/72 p-5 shadow-[0_18px_46px_rgba(121,85,96,0.08)]"
+            className="relative flex min-h-[340px] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-[24px] border border-white/85 bg-white/72 p-5 shadow-[0_18px_46px_rgba(121,85,96,0.08)] max-[899px]:min-h-[240px]"
             onClick={() => setSpinSignal((cycle) => cycle + 1)}
             title={t("クリックでくるっと回る")}
           >
@@ -144,16 +144,16 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
                 max={100}
                 value={bond}
                 onChange={(event) => setBond(Number(event.target.value))}
-                className="mt-2 w-full accent-[#ff6f91]"
+                className="mt-2 w-full accent-[#ff6f91] max-[899px]:h-8"
               />
-              <div className="mt-1 flex gap-1.5">
+              <div className="mt-1 flex flex-wrap gap-1.5">
                 {MASCOT_GROWTH_STAGES.map((stage) => (
                   <button
                     key={stage.phase}
                     type="button"
                     aria-pressed={phase === stage.phase}
                     onClick={() => setBond(stage.minBond)}
-                    className={`rounded-full px-2.5 py-1.5 text-[10px] font-semibold transition ${phase === stage.phase ? 'bg-sumi-accent text-white' : 'border border-white/90 bg-white/80 text-sumi-text-muted hover:text-sumi-text'}`}
+                    className={`rounded-full px-2.5 py-1.5 text-[10px] font-semibold transition max-[899px]:min-h-9 max-[899px]:px-3 ${phase === stage.phase ? 'bg-sumi-accent text-white' : 'border border-white/90 bg-white/80 text-sumi-text-muted hover:text-sumi-text'}`}
                   >
                     {getMascotPhaseLabel(stage.phase)}
                   </button>
@@ -162,7 +162,7 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
               <p className="mt-1.5 text-[10px] leading-4 text-sumi-text-muted">{t("孵化前はたまごで表示されます(ポスティはロボの姿のまま)。実際のアプリ挙動と同じです。")}</p>
             </section>
 
-            <section className="flex items-end justify-between gap-4">
+            <section className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <p className="text-[10px] font-semibold tracking-[0.14em] text-sumi-text-muted">{t("表示サイズ")}</p>
                 <div className="mt-2 flex gap-1.5">
@@ -172,7 +172,7 @@ export function CharacterTestModal({ characterPackage, onClose }: CharacterTestM
                       type="button"
                       aria-pressed={size === option}
                       onClick={() => setSize(option)}
-                      className={`rounded-full px-3 py-1.5 text-[10px] font-semibold transition ${size === option ? 'bg-sumi-accent text-white' : 'border border-white/90 bg-white/80 text-sumi-text-muted hover:text-sumi-text'}`}
+                      className={`rounded-full px-3 py-1.5 text-[10px] font-semibold transition max-[899px]:min-h-9 ${size === option ? 'bg-sumi-accent text-white' : 'border border-white/90 bg-white/80 text-sumi-text-muted hover:text-sumi-text'}`}
                     >
                       {option}px
                     </button>

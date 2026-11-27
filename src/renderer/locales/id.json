@@ -365,5 +365,10 @@
   "{name} が {stage} に進化しました。": "{name} telah tumbuh ke {stage}.",
   "{name} が成長しました！": "{name} telah tumbuh!",
   "意味検索を有効にする（約{size} MB）": "Aktifkan pencarian semantik (sekitar {size} MB)",
-  "意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。": "Aktifkan pencarian berdasarkan makna. Model kecil (sekitar {size} MB) akan diunduh sekali."
+  "意味検索を有効にします。検索用モデル（約{size} MB）を一度だけダウンロードします。": "Aktifkan pencarian berdasarkan makna. Model kecil (sekitar {size} MB) akan diunduh sekali.",
+  "宛先などを表示": "Tampilkan penerima dan detail",
+  "宛先などを閉じる": "Sembunyikan penerima dan detail",
+  "書きかけのメールが{0}件あります": "Draf belum selesai: {0}",
+  "続きを書く": "Lanjutkan menulis",
+  "下書きを残して戻る": "Kembali dan simpan draf"
 }
