@@ -115,6 +115,15 @@ jobs:
           # --- Muse のスペース用: 1ファイル完結の画面 ---
           curl -sf "http://127.0.0.1:7272/__miomail/standalone.html?t=smoketoken" >standalone.html
           grep -q "standalone:true" standalone.html
+          # 画面の本体は「ブラウザーが実行しない型」の札で運ぶ。枠に入れられて親の CSP を
+          # 引き継いでも、親から差し込めば起動できるようにするため。
+          grep -q 'type="application/miomail-module"' standalone.html
+          # 札を取り出して走らせる役が入っていること
+          grep -q "__MIOMAIL_STARTED__" standalone.html
+          # 差し込まれたスクリプトを自分のポリシーでも通すこと(両方の CSP が効くため)
+          grep -q "strict-dynamic" standalone.html
+          # 動くスクリプトとして素のまま埋めていないこと(型を外すと親の CSP に殺される)
+          ! grep -q '<script type="module" nonce=' standalone.html
           # 外部ファイルを参照していないこと(枠の中からは取りに行けない)
           ! grep -q 'src="./assets/' standalone.html
           ! grep -q 'href="./assets/' standalone.html

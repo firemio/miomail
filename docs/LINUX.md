@@ -97,7 +97,7 @@ Muse のスペースは **`blob:` の iframe** の中で動く。2026-11-25 に�
 ### 実機で分かったこと(2026-11-25、Muse に公式プロンプトを渡して通した)
 
 `--serve --single-file --no-token` で入れ、スペースを作るところまで実機で通した。
-出たつまずきは7つ。どれも `site/src/museSetup.tsx` のプロンプトへ書き足した。
+出たつまずきは8つ。どれも `site/src/museSetup.tsx` のプロンプトへ書き足した。
 
 - **サーバーアクションから `127.0.0.1` が叩けない**。`NODE_USE_ENV_PROXY=1` と
   `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`(宛先は `hatch-egress-proxy:3128`)が
@@ -120,14 +120,26 @@ Muse のスペースは **`blob:` の iframe** の中で動く。2026-11-25 に�
   中身(バイト列)をスペース側のファイルとして持たせる(次の項のとおり `blob:` 自体を使わせない)。
 - **VM に1回も聞かないうちに画面を描かせる**。中継(invoke)も生存確認も画面が出た後でいい。
   MioMail が止まっていても、開いて数秒で画面が出るのが正しい作り。
-- **枠は本物の https の URL から読ませる。`srcdoc` と `blob:` は使えない**(最大の罠)。
+- **枠の中の画面は、親ページから起動させる**(最大の罠)。
   `about:srcdoc` / `blob:` / `data:` の文書は**親ページの CSP を引き継ぐ**。引き継いだ分と
   その文書自身の分の両方が効くので、`web.rs` が付ける nonce 付きインラインスクリプトは
   親の nonce と一致せず**1行も実行されない**。HTML は届くのに画面が起動しない。
   muse.ai の `script-src` は `'self' 'wasm-unsafe-eval' 'nonce-...' 'strict-dynamic' blob:` で、
   `strict-dynamic` により `'self'` も `blob:` も無視され、nonce 一致だけが通る。
-  親の `frame-src` が許す先(muse.ai なら `*.metaaiusercontent.com` など)へファイルを置き、
-  その URL を `iframe src` に指させる。ホスト側の監査環境はこのヘッダーを返さないので再現しない。
+  親のオリジン(muse.ai)へ置いても同じで、**404 の応答にまで同じ CSP と `x-nonce` が付く**
+  (実機の curl -sI で実測)。つまり逃げ場は「どこへ置くか」側には無い。
+  そこで `--single-file` の画面は、本体を `<script type="application/miomail-module">`
+  という**ブラウザーが実行しない型の札**に入れて運ぶ(`EMBED_CODE_TYPE`)。普段は同梱の
+  起動役(nonce 付き、`boot_script`)が札から取り出して走らせるので、見た目は何も変わらない。
+  起動役ごと止められる枠の中では、親に同じことをしてもらう。`strict-dynamic` は
+  「信用されたスクリプトが後から差し込んだスクリプト」を通すので、親の nonce は要らない。
+  親にしてほしい5行は、起動しなかったときの案内(`src/renderer/index.html`)に出る。
+  `replace_csp` 側にも `'strict-dynamic'` を足してある(両方のポリシーが効くため、
+  こちらに無いと親が差し込んだスクリプトを自分の CSP が弾く)。
+  ローカルで muse.ai と同じ形の CSP を被せて確認済み: 自分の nonce 付きは実行されず、
+  札は差し込んだ瞬間に実行される。
+- **iframe の `load` は 404 でも発火する**。「読み込み完了」は届いた証拠にならない。
+  届いたかどうかは MioMail 側の `hello` が来たかで見る。
 
 中継経由で実際に通ったもの: `account_list`、`__events_poll`、`character_mod_list`
 (同梱の4体・9パッケージ・`origin:"builtin"`・`issues` 空)。Linux でも MOD は見えている。

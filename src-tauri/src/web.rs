@@ -498,6 +498,19 @@ fn insert_after_head(html: &str, snippet: &str) -> String {
     }
 }
 
+fn insert_before_body_end(html: &str, snippet: &str) -> String {
+    match html.rfind("</body>") {
+        Some(index) => {
+            let mut out = String::with_capacity(html.len() + snippet.len());
+            out.push_str(&html[..index]);
+            out.push_str(snippet);
+            out.push_str(&html[index..]);
+            out
+        }
+        None => format!("{html}{snippet}"),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 1ファイル完結の画面
 // ---------------------------------------------------------------------------
@@ -512,6 +525,48 @@ const STANDALONE_PATH: &str = "/__miomail/standalone.html";
 /// 枠の中では localStorage が使えないので、前回の設定をここへ埋めて渡す。
 /// 画面はこれを同期的に読んで、テーマやキャラクターの選択を復元する。
 const SETTINGS_PLACEHOLDER: &str = "__MIOMAIL_WEB_SETTINGS__";
+
+// --- 親の CSP に止められても起動できる形 ---
+//
+// 枠の中の文書は、`srcdoc` でも `blob:` でも、親と同じオリジンの URL でも、
+// 親ページの Content-Security-Policy を引き継ぐ。引き継いだ分とこの1枚自身の
+// 分の両方が効くので、親が `strict-dynamic` と自分の nonce を使っていると、
+// この1枚に入っているスクリプトは nonce が合わず1行も実行されない。
+// nonce は毎回変わるので、こちらから合わせに行くこともできない。
+//
+// そこで画面の本体は「ブラウザーが実行しない型」の札に入れて運ぶ。
+// 普段は下の起動役(nonce 付き)が札から取り出して走らせるので、何も変わらない。
+// 起動役ごと止められる枠の中では、親に同じことをしてもらう。`strict-dynamic` は
+// 「信用されたスクリプトが後から差し込んだスクリプト」を通す決まりなので、
+// 親の手で差し込めば、こちらが親の nonce を知らなくても動く。
+// 親にしてほしいことは、起動しなかったときの案内(index.html)に書いてある。
+const EMBED_CODE_TYPE: &str = "application/miomail-module";
+
+/// 札に入れた画面の本体を取り出して走らせる役。
+fn boot_script(nonce: &str) -> String {
+    let js = format!(
+        "(function(){{\
+         var d=document;\
+         function go(){{\
+         if(window.__MIOMAIL_STARTED__)return;\
+         window.__MIOMAIL_STARTED__=1;\
+         var l=d.querySelectorAll('script[type=\"{t}\"]');\
+         for(var i=0;i<l.length;i++){{\
+         var s=d.createElement('script');\
+         s.type='module';\
+         s.nonce='{n}';\
+         s.textContent=l[i].textContent;\
+         d.head.appendChild(s);\
+         }}\
+         }}\
+         if(d.readyState==='loading')d.addEventListener('DOMContentLoaded',go);\
+         else go();\
+         }})();",
+        t = EMBED_CODE_TYPE,
+        n = nonce
+    );
+    format!("<script nonce=\"{nonce}\">{js}</script>")
+}
 
 fn standalone_html(ctx: &Ctx) -> Vec<u8> {
     let parts = ctx
@@ -542,6 +597,7 @@ fn build_standalone_html(ctx: &Ctx) -> (String, String) {
         ctx.nonce
     );
     let html = insert_after_head(&html, &marker);
+    let html = insert_before_body_end(&html, &boot_script(&ctx.nonce));
     match html.split_once(SETTINGS_PLACEHOLDER) {
         Some((head, tail)) => (head.to_string(), tail.to_string()),
         None => (html, String::new()),
@@ -611,7 +667,7 @@ fn replace_csp(html: &str, nonce: &str) -> String {
         return html.to_string();
     };
     let policy = format!(
-        "default-src 'self'; script-src 'nonce-{nonce}' 'self'; \
+        "default-src 'self'; script-src 'nonce-{nonce}' 'strict-dynamic' 'self'; \
          style-src 'unsafe-inline' 'self'; font-src 'self' data:; \
          img-src 'self' data: blob: https: http:; media-src 'self' data: blob:; \
          connect-src 'self' data: blob:; frame-src blob:; worker-src blob:;"
@@ -646,7 +702,9 @@ fn inline_scripts(ctx: &Ctx, html: &str) -> String {
             Some(bytes) => {
                 let code = inline_asset_urls(ctx, &String::from_utf8_lossy(bytes));
                 out.push_str(&rest[..start]);
-                out.push_str(&format!("<script type=\"module\" nonce=\"{}\">\n", ctx.nonce));
+                out.push_str("<script type=\"");
+                out.push_str(EMBED_CODE_TYPE);
+                out.push_str("\">\n");
                 // 文字列リテラルの中にしか現れ得ないが、現れたら HTML が切れるので逃がす
                 out.push_str(&code.replace("</script", "<\\/script"));
                 out.push_str("\n</script>");
@@ -1455,5 +1513,41 @@ async fn mod_asset_handler(
                 (StatusCode::INTERNAL_SERVER_ERROR, "response build failed").into_response()
             }),
         Err(error) => (StatusCode::NOT_FOUND, error).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 枠の中では親ページの CSP も効くので、こちら側にも
+    /// 「信用されたスクリプトが後から差し込んだもの」を通す指定が要る。
+    /// これが無いと、親が差し込んだ画面本体を自分のポリシーが弾く。
+    #[test]
+    fn standalone_csp_allows_injected_scripts() {
+        let html = "<meta http-equiv=\"Content-Security-Policy\" content=\"x\" />";
+        let out = replace_csp(html, "abc");
+        assert!(out.contains("'nonce-abc'"), "{out}");
+        assert!(out.contains("'strict-dynamic'"), "{out}");
+    }
+
+    /// 起動役は、札を探して module として走らせる形であること。
+    #[test]
+    fn boot_script_runs_the_embedded_code() {
+        let out = boot_script("abc");
+        assert!(out.contains("nonce=\"abc\""), "{out}");
+        assert!(out.contains(EMBED_CODE_TYPE), "{out}");
+        assert!(out.contains("__MIOMAIL_STARTED__"), "{out}");
+        assert!(out.contains("createElement('script')"), "{out}");
+        // 札の型を間違えると、ブラウザーが先に実行してしまう
+        assert_eq!(EMBED_CODE_TYPE, "application/miomail-module");
+    }
+
+    #[test]
+    fn boot_script_goes_last() {
+        let out = insert_before_body_end("<body><div id=\"root\"></div></body>", "<!--boot-->");
+        assert_eq!(out, "<body><div id=\"root\"></div><!--boot--></body>");
+        // </body> が無いときも落とさない
+        assert_eq!(insert_before_body_end("<p>", "<!--boot-->"), "<p><!--boot-->");
     }
 }

@@ -46,6 +46,20 @@
         color: #8a736b;
         font-size: 13px;
       }
+      #miomail-boot-fallback pre {
+        max-width: 34rem;
+        margin: 0;
+        padding: 0.75rem 1rem;
+        box-sizing: border-box;
+        background: #f1e4dc;
+        border-radius: 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.7;
+        text-align: left;
+        white-space: pre;
+        overflow-x: auto;
+      }
       @keyframes miomail-boot-fallback-show {
         to {
           opacity: 1;
@@ -59,14 +73,28 @@
       <strong>MioMail の画面が起動しませんでした</strong>
       <p>この画面の中のスクリプトが1行も動いていません。</p>
       <p>
-        枠(iframe)に入れて使っている場合は、srcdoc や blob: で読み込むと親ページの
-        Content-Security-Policy を引き継いでスクリプトが止められます。本物の https の
-        URL を iframe の src に指して読み込んでください。
+        枠(iframe)に入れて使っている場合、srcdoc も blob: も親と同じオリジンの URL も、
+        どれも親ページの Content-Security-Policy を引き継ぎます。この画面のスクリプトには
+        MioMail 自身の nonce が付いているので、親の nonce とは一致せず全部止められます。
       </p>
+      <p>
+        <strong>枠の外(親ページ)から、これを1回実行してください。</strong>
+        親ページ自身のスクリプトは信用されているので、そこから差し込めば動きます。
+        CSP の strict-dynamic が、信用されたスクリプトの差し込みを通す決まりだからです。
+      </p>
+      <pre>const d = frame.contentDocument;
+d.querySelectorAll('script[type="application/miomail-module"]')
+  .forEach(function (el) {
+    const s = d.createElement('script');
+    s.type = 'module';
+    s.textContent = el.textContent;
+    d.head.appendChild(s);
+  });</pre>
       <p class="miomail-boot-fallback-en">
-        MioMail could not start: no script in this page ran. If it is embedded in an
-        iframe, load it from a real https URL — srcdoc and blob: inherit the parent
-        page's Content-Security-Policy, which blocks these scripts.
+        MioMail could not start: no script in this page ran. A framed document inherits the
+        parent page's Content-Security-Policy, so the scripts in here never match its nonce.
+        Run the snippet above from the parent page instead — a script inserted by code the
+        parent already trusts is allowed by strict-dynamic.
       </p>
     </div>
     <script type="module" src="./main.tsx"></script>
