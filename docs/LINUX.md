@@ -161,6 +161,28 @@ Muse のスペースは **`blob:` の iframe** の中で動く。2026-11-25 に�
 - **`allow-same-origin` の無い枠では、親から中は一切見えない**。
   起動したかどうかは `{miomail:1, hello:1}` が来たかどうかでしか分からない。
   枠の中の DOM を読んで確かめる手順は書かないこと。
+- **中継の相手は `event.source` で確かめさせる。origin では照合させない**(2026-11-27 夜、実機で確定)。
+  スペースの文書は `allow-same-origin` 無しの枠なので本当の origin は `"null"`(`self.origin`)。
+  ところが `window.location.origin` は blob: の URL から計算されて `"https://muse.ai"` を返す。
+  Muse が書いた中継は許可集合に `window.location.origin` だけを入れていたので、MioMail の
+  hello(`event.origin` は `"null"`)が全部捨てられていた。MioMail は起動しているのに
+  2.5 秒で直結へ倒れ、「アカウントを追加してください」になる。
+- **土台 HTML に書いたインライン `<script>` は実機で1行も動かない**。プラットフォームが
+  nonce を付けるのは自分で差し込むスクリプト(`data-hatch-cvm-bundle` など)だけ。
+  Muse が「静的パネル」の起動役をインラインで書いたので `window.__miomailBoot` が
+  undefined のまま、パネルが「起動中・経過0秒」で残って起動済みの MioMail を覆っていた。
+  表示の更新と消去はバンドルの中でやらせる。
+- **この2つだけを仮に直すと実機で動いた**: 461ms で hello → ready、`account_list` ほかが
+  中継を通り、VM のアカウントが画面に出た。nonce の書き写しは実機でも効いている。
+- **実機の枠の中の測り方**。拡張(Claude in Chrome)は、スペースを開いている間は
+  スクリーンショットも JS も `Cannot access contents of url ""` で落ちる。構造は
+  top(muse.ai) → `/api/hatch/cvm-frame`(同一オリジン・nonce あり) → スペース(blob:、
+  `allow-same-origin` 無し) → MioMail(blob:)。そこで**チャット画面(`/`)で先にフックを仕込み**、
+  サイドバーからスペースを開き(SPA 遷移なので window は残る)、`navigate back` で戻ってから
+  読み出す。フックは cvm-frame の `Blob` を差し替えて、スペースの HTML の `<head>` 直後へ
+  同じ nonce の診断スクリプトを足す(さらにその中で `Blob` を差し替えれば MioMail の枠にも入る)。
+  結果は `parent.postMessage` で cvm-frame まで上げ、top から cvm-frame の `message` を聞いて控える。
+  読み出すときは長い英数字列と `= & ? ;` を潰さないと拡張の出力フィルターに止められる。
 - **iframe の `load` は 404 でも発火する**。「読み込み完了」は届いた証拠にならない。
   届いたかどうかは MioMail 側の `hello` が来たかで見る。
 
