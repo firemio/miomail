@@ -1,7 +1,10 @@
 import { t } from '../../lib/i18n'
 import { useEffect, useMemo, useState } from 'react'
 import { Minus, Search, Settings, Sparkles, Square, X } from 'lucide-react'
-import logoImage from '../../assets/miomail-logo.png'
+// 表示は高さ40pxなので、4倍密度(524×160)の縮小版を使う。原寸の PNG(1662×507、770KB)を
+// ここで読むと、`--single-file` の画面に base64 で約1MB 載り、Muse のスペースでは
+// 開くたびにそれが VM から運ばれる(docs/LINUX.md)。原寸はサイト側だけが使う。
+import logoImage from '../../assets/miomail-logo-titlebar.webp'
 import { getMascotMeta } from '../../data/mascots'
 import { isBridgeRuntime } from '../../lib/bridge'
 import { api } from '../../lib/ipc'

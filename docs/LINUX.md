@@ -226,6 +226,11 @@ Muse のスペースは **`blob:` の iframe** の中で動く。2026-11-25 に�
   - **v16 は利用者のスマホでも MioMail の画面が出た**(同日、利用者の報告)。v15 で `blob:` の
     枠が開かなかった同じスマホなので、`srcdoc` はスマホでも開ける。スマホ側で確かめたのは
     「画面が出た」までで、段階表示の中身や個々の操作までは聞いていない。
+- **画面ファイルの 44% はロゴ1枚だった**。`TitleBar.tsx` が原寸の `miomail-logo.png`
+  (1662×507、770KB)を読んでいて、`--single-file` に base64 で約 1MB 載っていた。
+  表示は高さ 40px なので、4倍密度の `miomail-logo-titlebar.webp`(524×160、23KB)に替えた。
+  画面ファイルは約 2.35MB → 約 1.34MB になる見込み(次のリリースから。VM 側は入れ替えと
+  アセットの置き直しが要る)。
 
 中継経由で実際に通ったもの: `account_list`、`__events_poll`、`character_mod_list`
 (同梱の4体・9パッケージ・`origin:"builtin"`・`issues` 空)。Linux でも MOD は見えている。
