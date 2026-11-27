@@ -78,23 +78,23 @@
         MioMail 自身の nonce が付いているので、親の nonce とは一致せず全部止められます。
       </p>
       <p>
-        <strong>枠の外(親ページ)から、これを1回実行してください。</strong>
-        親ページ自身のスクリプトは信用されているので、そこから差し込めば動きます。
-        CSP の strict-dynamic が、信用されたスクリプトの差し込みを通す決まりだからです。
+        <strong>枠に入れる前に、親ページの nonce をこの HTML へ書き写してください。</strong>
+        nonce が合えば、この画面は自分で起動できます。sandbox をいじる必要も、
+        親から差し込む必要もありません。
       </p>
-      <pre>const d = frame.contentDocument;
-d.querySelectorAll('script[type="application/miomail-module"]')
-  .forEach(function (el) {
-    const s = d.createElement('script');
-    s.type = 'module';
-    s.textContent = el.textContent;
-    d.head.appendChild(s);
-  });</pre>
+      <pre>const mine = document.querySelector('script[nonce]').nonce;
+const theirs = html.match(/'nonce-([a-f0-9]{32})'/)[1];
+const fixed = html.split(theirs).join(mine);
+// この fixed で Blob を作って枠に入れる</pre>
+      <p>
+        nonce は32桁の16進ひとつで、この HTML の中に5箇所あります。
+        書き写したあと、元の nonce が0箇所になっていることを確かめてください。
+      </p>
       <p class="miomail-boot-fallback-en">
         MioMail could not start: no script in this page ran. A framed document inherits the
         parent page's Content-Security-Policy, so the scripts in here never match its nonce.
-        Run the snippet above from the parent page instead — a script inserted by code the
-        parent already trusts is allowed by strict-dynamic.
+        Copy the parent page's own nonce over this file's nonce — all five occurrences —
+        before framing it, and the page starts by itself.
       </p>
     </div>
     <script type="module" src="./main.tsx"></script>

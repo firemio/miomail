@@ -85,19 +85,16 @@ fi
 
 **映す画面**: http://127.0.0.1:7272/ が返す HTML を、1枚の画面としてそのまま使ってください。JS も CSS も画像もその中に入っています。書き換えないでください。2.3MB ほどあるので、チャットへ貼らずにファイルのまま扱ってください(\`curl -s http://127.0.0.1:7272/ > ~/miomail-space.html\` で取り出せます)。
 取り出した HTML は**スペース側のファイル(アセット)として、中身そのもの(バイト列)で置いてください**。開くたびに VM から取りに行く作りにすると、仮想マシンが入れ替わっている間はスペースごと真っ白になり、私には何が起きたのか分かりません。画面さえ出れば、繋がらないことは MioMail 自身が日本語で知らせます。
-**枠の中の MioMail は、親ページから起動してあげてください**。ここが一番つまずく所です。\`srcdoc\` でも \`blob:\` でもスペースと同じオリジンの URL でも、枠の中の文書は**親ページの Content-Security-Policy を引き継ぐ**決まりで、引き継いだ分とその文書自身の分の両方が効きます。MioMail の1枚 HTML の中のスクリプトには MioMail 自身の nonce が付いているので、親ページの nonce とは一致せず、そのままでは**1行も実行されません**。HTML は届いているのに画面が起動しない、という状態になります。
-そこで MioMail は、画面の本体を**ブラウザーが実行しない型の札**に入れて運んでいます。枠の読み込みが終わったら、親ページの側からこれを1回実行してください。これだけです。
+**枠に入れる前に、親ページの nonce を書き写してください**。ここが一番つまずく所です。\`srcdoc\` でも \`blob:\` でもスペースと同じオリジンの URL でも、枠の中の文書は**親ページの Content-Security-Policy を引き継ぐ**決まりで、引き継いだ分とその文書自身の分の両方が効きます。MioMail の1枚 HTML の中のスクリプトには MioMail 自身の nonce が付いているので、親ページの nonce とは一致せず、そのままでは**1行も実行されません**。HTML は届いているのに画面が起動しない、という状態になります。
+枠を作る前に、MioMail の nonce をあなた(親ページ)の nonce へ全部書き写してください。これだけです。
 
-    const d = frame.contentDocument;
-    d.querySelectorAll('script[type="application/miomail-module"]')
-      .forEach(function (el) {
-        const s = d.createElement('script');
-        s.type = 'module';
-        s.textContent = el.textContent;
-        d.head.appendChild(s);
-      });
+    const mine = document.querySelector('script[nonce]').nonce;
+    const theirs = html.match(/'nonce-([a-f0-9]{32})'/)[1];
+    const fixed = html.split(theirs).join(mine);
+    // この fixed で Blob を作って枠に入れる
 
-親ページ自身のスクリプトは信用されているので、そこから差し込んだものは CSP の \`strict-dynamic\` が通します。親ページの nonce を知る必要はありません。**親ページの nonce を HTML に挿し込んで回避しないでください**。nonce は毎回変わりますし、あのファイルは1バイトも変えない約束です。
+nonce は32桁の16進ひとつで、meta の CSP と script タグの中に計5箇所あります。書き写したあと、元の nonce が0箇所になっていることを確かめてください。**それ以外は1バイトも変えないでください**。
+\`sandbox\` はいじらないでください。\`allow-same-origin\` は要りません。親から \`frame.contentDocument\` に触れない枠でも、この方法なら MioMail 自身の起動役が正規のスクリプトとして動きます。muse.ai と同じ形の CSP の下、allow-same-origin 無しの \`blob:\` 枠で実測済みです(画面が描画され、中継も通りました)。
 それでも起動しないときは、枠の中に日本語で理由といまの手順が出ます。枠の中が真っ白なら、そもそも文書が届いていません(置いたファイルの URL を自分で開いて、200 が返ることを先に確かめてください。404 のページでも iframe の load は発火します)。
 **画面は VM に1回も聞かないうちに描いてください**。中継(invoke)も生存確認も、画面が出た後で構いません。MioMail が止まっていても、開いて数秒で画面が出るのが正しい作りです。
 

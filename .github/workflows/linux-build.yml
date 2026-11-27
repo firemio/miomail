@@ -124,6 +124,11 @@ jobs:
           grep -q "strict-dynamic" standalone.html
           # 動くスクリプトとして素のまま埋めていないこと(型を外すと親の CSP に殺される)
           ! grep -q '<script type="module" nonce=' standalone.html
+          # nonce は32桁の16進ひとつで、ちょうど5箇所。公式プロンプトと起動しなかった
+          # ときの案内が「5箇所を全置換してください」と約束しているので、数が変わったら落とす。
+          nonce=$(grep -o "'nonce-[a-f0-9]\{32\}'" standalone.html | head -1 | sed "s/'//g; s/^nonce-//")
+          test -n "$nonce"
+          test "$(grep -o "$nonce" standalone.html | wc -l)" -eq 5
           # 外部ファイルを参照していないこと(枠の中からは取りに行けない)
           ! grep -q 'src="./assets/' standalone.html
           ! grep -q 'href="./assets/' standalone.html
