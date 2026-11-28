@@ -69,7 +69,14 @@ if ($Version) {
   $new = $parts -join "."
 }
 if (git rev-parse -q --verify "refs/tags/v$new") { throw "タグ v$new は既に存在します。" }
-Write-Host "バージョン: $cur -> $new" -ForegroundColor Cyan
+# 試作版(vX.Y.Z-rc1 など)を出すときにブランチ側で番号を上げてあると、ここへ来た時点で
+# 3ファイルとも目的の番号になっている。そのときは書き換えもコミットもせず、タグだけ打つ。
+$alreadyBumped = ($new -eq $cur)
+if ($alreadyBumped) {
+  Write-Host "バージョン: $new (番号は上げ済み。タグだけ打ちます)" -ForegroundColor Cyan
+} else {
+  Write-Host "バージョン: $cur -> $new" -ForegroundColor Cyan
+}
 
 # --- リリースノート（未指定なら前回タグからのコミット一覧を使う） ---
 if (-not $Notes) {
@@ -89,14 +96,30 @@ function Rewrite-Version([string]$Path, [string]$Pattern, [string]$Replacement) 
   if ($updated -eq $content) { throw "$Path 内にバージョン表記が見つかりません: $Pattern" }
   [System.IO.File]::WriteAllText($full, $updated, $utf8NoBom)
 }
-Rewrite-Version "package.json" "`"version`": `"$([regex]::Escape($cur))`"" "`"version`": `"$new`""
-Rewrite-Version "src-tauri/tauri.conf.json" "`"version`": `"$([regex]::Escape($cur))`"" "`"version`": `"$new`""
-Rewrite-Version "src-tauri/Cargo.toml" "(?m)^version = `"$([regex]::Escape($cur))`"" "version = `"$new`""
-# Cargo.lockのmiomailエントリも同期する(ビルド時に書き換わって毎回ツリーが汚れるのを防ぐ)
-Rewrite-Version "src-tauri/Cargo.lock" "(?s)(name = `"miomail`"\r?\nversion = )`"$([regex]::Escape($cur))`"" "`${1}`"$new`""
+if ($alreadyBumped) {
+  # 上げ済みと言えるのは、4ファイルが揃って同じ番号のときだけ。1つでもずれていたら止める
+  # (ずれたままビルドすると、インストーラの名前と latest.json の番号が食い違う)
+  $checks = @(
+    @("src-tauri/tauri.conf.json", "`"version`": `"$([regex]::Escape($new))`""),
+    @("src-tauri/Cargo.toml", "(?m)^version = `"$([regex]::Escape($new))`""),
+    @("src-tauri/Cargo.lock", "(?s)name = `"miomail`"\r?\nversion = `"$([regex]::Escape($new))`"")
+  )
+  foreach ($c in $checks) {
+    $text = [System.IO.File]::ReadAllText((Join-Path (Get-Location) $c[0]))
+    if (-not [regex]::IsMatch($text, $c[1])) { throw "$($c[0]) のバージョンが $new になっていません。" }
+  }
+} else {
+  Rewrite-Version "package.json" "`"version`": `"$([regex]::Escape($cur))`"" "`"version`": `"$new`""
+  Rewrite-Version "src-tauri/tauri.conf.json" "`"version`": `"$([regex]::Escape($cur))`"" "`"version`": `"$new`""
+  Rewrite-Version "src-tauri/Cargo.toml" "(?m)^version = `"$([regex]::Escape($cur))`"" "version = `"$new`""
+  # Cargo.lockのmiomailエントリも同期する(ビルド時に書き換わって毎回ツリーが汚れるのを防ぐ)
+  Rewrite-Version "src-tauri/Cargo.lock" "(?s)(name = `"miomail`"\r?\nversion = )`"$([regex]::Escape($cur))`"" "`${1}`"$new`""
+}
 
 # --- 2. コミット・タグ・プッシュ ---
-Invoke-Native git @("commit", "-am", "chore: v$new") "コミット"
+if (-not $alreadyBumped) {
+  Invoke-Native git @("commit", "-am", "chore: v$new") "コミット"
+}
 Invoke-Native git @("tag", "v$new") "タグ付け"
 Invoke-Native git @("push") "プッシュ"
 Invoke-Native git @("push", "--tags") "タグのプッシュ"
