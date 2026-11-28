@@ -370,5 +370,10 @@
   "宛先などを閉じる": "Ẩn người nhận và chi tiết",
   "書きかけのメールが{0}件あります": "Thư đang viết dở: {0}",
   "続きを書く": "Viết tiếp",
-  "下書きを残して戻る": "Quay lại và giữ bản nháp"
+  "下書きを残して戻る": "Quay lại và giữ bản nháp",
+  "MioMail のサーバーに繋がりません": "Không thể kết nối tới máy chủ MioMail",
+  "アカウントもメールも消えていません。サーバーが動き出すと、自動でつなぎ直します。": "Tài khoản và thư của bạn vẫn còn nguyên. MioMail sẽ tự kết nối lại khi máy chủ hoạt động trở lại.",
+  "Muse のスペースで使っている場合は、Muse に「sh ~/miomail-start.sh を実行して」と頼んでください。": "Nếu bạn đang dùng trong không gian của Muse, hãy nhờ Muse chạy \"sh ~/miomail-start.sh\".",
+  "アカウントを読み込めませんでした": "Không tải được tài khoản",
+  "もう一度試す": "Thử lại"
 }

@@ -47,9 +47,14 @@ function nativeBacking(): Backing | null {
   }
 }
 
+/** localStorage に触れない場所で使う、手元の入れ物。 */
+const memory = new Map<string, string>()
+
 function memoryBacking(): Backing {
-  const map = new Map<string, string>()
-  // サーバーが埋め込んでくれた前回の値で始める
+  const map = memory
+  // サーバーが HTML へ埋め込んでくれた値で始める。HTML をスペース側に置いて使う場合
+  // (Muse)、これは「置いた時点の写し」なので古いことがある。起動のあと
+  // hydrateStorage() が、サーバーから取り直した値で入れ替える。
   const marker = (globalThis as unknown as Record<string, unknown>).__MIOMAIL_BRIDGE__ as
     | BridgeMarker
     | undefined
@@ -86,8 +91,64 @@ export function storageIsNative(): boolean {
   return native
 }
 
+/**
+ * サーバーへ預けてよいか。
+ *
+ * 置いた写しの画面は、古い設定を持って始まる。その状態から起動時に走る自動の保存
+ * (相棒の状態の更新など)をそのまま預けると、サーバーにある新しい設定を古い値で
+ * 上書きしてしまう。だから、サーバーから設定を取り直せるまでは預けない。
+ * `lib/bridge.ts` が切り替える。
+ */
+let persistAllowed = true
+
+export function setStoragePersistAllowed(allowed: boolean): void {
+  persistAllowed = allowed
+}
+
+type HydrateListener = () => void
+
+const hydrateListeners = new Set<HydrateListener>()
+
+/**
+ * 手元の値がサーバーの値で入れ替わったときに呼ばれる。
+ * 各ストアは作られた時点の値を持っているので、ここで読み直す。
+ */
+export function onStorageHydrated(listener: HydrateListener): () => void {
+  hydrateListeners.add(listener)
+  return () => {
+    hydrateListeners.delete(listener)
+  }
+}
+
+/**
+ * サーバーから取り直した設定で、手元の値をまるごと入れ替える(サーバーの値が正)。
+ * localStorage が使える場所では何もしない。中身が変わったときだけ true を返す。
+ */
+export function hydrateStorage(values: Record<string, string>): boolean {
+  if (storageIsNative()) return false
+  const entries = Object.entries(values).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string'
+  )
+  const same =
+    entries.length === memory.size && entries.every(([key, value]) => memory.get(key) === value)
+  if (same) return false
+
+  memory.clear()
+  for (const [key, value] of entries) {
+    memory.set(key, value)
+  }
+  for (const listener of hydrateListeners) {
+    try {
+      listener()
+    } catch {
+      // 1つのストアが読み直せなくても、ほかは続ける
+    }
+  }
+  return true
+}
+
 function remember(key: string, value: string | null) {
-  if (storageIsNative() || !persistHook) return
+  if (storageIsNative() || !persistHook || !persistAllowed) return
   try {
     persistHook(key, value)
   } catch {

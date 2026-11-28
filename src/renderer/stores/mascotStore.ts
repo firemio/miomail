@@ -1,7 +1,7 @@
 import { t } from '../lib/i18n'
 import { create } from 'zustand'
 import { MASCOT_IDS, type MascotId } from '../data/mascots'
-import { safeStorage } from '../lib/safeStorage'
+import { onStorageHydrated, safeStorage } from '../lib/safeStorage'
 
 const STORAGE_KEY = 'miomail-mascot-state'
 const DECAY_STEP_MS = 1000 * 60 * 45
@@ -667,3 +667,10 @@ export function getMascotMoodFace(care: MascotCareStats): MascotMoodFace {
   if (care.mood >= 86 && care.energy >= 66) return 'sparkle'
   return 'calm'
 }
+
+// サーバーから設定を取り直したら、相棒の選択・なかよし度・お世話の状態も読み直す。
+// 置いた写しの画面は古い値で始まるので、これをしないと開き直すたびに成長が巻き戻る。
+// 進化の演出は出さない(読み直しただけで、いま育ったわけではないため)。
+onStorageHydrated(() => {
+  useMascotStore.setState({ ...loadInitialState(), evolutionEvent: null })
+})

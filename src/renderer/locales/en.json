@@ -370,5 +370,10 @@
   "宛先などを閉じる": "Hide recipients and details",
   "書きかけのメールが{0}件あります": "Unfinished drafts: {0}",
   "続きを書く": "Continue writing",
-  "下書きを残して戻る": "Go back and keep the draft"
+  "下書きを残して戻る": "Go back and keep the draft",
+  "MioMail のサーバーに繋がりません": "Can't reach the MioMail server",
+  "アカウントもメールも消えていません。サーバーが動き出すと、自動でつなぎ直します。": "Your accounts and mail are still there. MioMail will reconnect automatically once the server is running.",
+  "Muse のスペースで使っている場合は、Muse に「sh ~/miomail-start.sh を実行して」と頼んでください。": "If you are using a Muse space, ask Muse to run \"sh ~/miomail-start.sh\".",
+  "アカウントを読み込めませんでした": "Couldn't load your accounts",
+  "もう一度試す": "Try again"
 }

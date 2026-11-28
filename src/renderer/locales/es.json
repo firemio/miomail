@@ -370,5 +370,10 @@
   "宛先などを閉じる": "Ocultar destinatarios y detalles",
   "書きかけのメールが{0}件あります": "Borradores sin terminar: {0}",
   "続きを書く": "Seguir escribiendo",
-  "下書きを残して戻る": "Volver y conservar el borrador"
+  "下書きを残して戻る": "Volver y conservar el borrador",
+  "MioMail のサーバーに繋がりません": "No se puede conectar con el servidor de MioMail",
+  "アカウントもメールも消えていません。サーバーが動き出すと、自動でつなぎ直します。": "Tus cuentas y correos siguen ahí. MioMail volverá a conectarse automáticamente cuando el servidor esté en marcha.",
+  "Muse のスペースで使っている場合は、Muse に「sh ~/miomail-start.sh を実行して」と頼んでください。": "Si usas un espacio de Muse, pídele a Muse que ejecute «sh ~/miomail-start.sh».",
+  "アカウントを読み込めませんでした": "No se pudieron cargar las cuentas",
+  "もう一度試す": "Reintentar"
 }

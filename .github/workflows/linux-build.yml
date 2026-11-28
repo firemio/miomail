@@ -137,6 +137,10 @@ jobs:
             -d '{"cmd":"__settings_set","args":{"key":"smoke","value":"1"}}' \
             "http://127.0.0.1:7272/__miomail/invoke" | grep -q '"ok":true'
           curl -sf "http://127.0.0.1:7272/__miomail/standalone.html?t=smoketoken" | grep -q '"smoke":"1"'
+          # 置いた写しの画面が、起動のたびに最新の設定を取り直すための口
+          curl -sf -H "X-MioMail-Token: smoketoken" -H "Content-Type: application/json" \
+            -d '{"cmd":"__settings_all"}' \
+            "http://127.0.0.1:7272/__miomail/invoke" | grep -q '"smoke":"1"'
           # SSE を張れない枠のための、イベントを取りに行く口
           curl -sf -H "X-MioMail-Token: smoketoken" -H "Content-Type: application/json" \
             -d '{"cmd":"__events_poll","args":{"since":0}}' \

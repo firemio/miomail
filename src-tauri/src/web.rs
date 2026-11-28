@@ -1127,6 +1127,11 @@ async fn dispatch(ctx: &Ctx, cmd: &str, args: Value) -> Result<Value, String> {
                 .map_err(|e| format!("一時ファイルを作れませんでした: {e}"))?;
             Ok(json!({ "path": path.to_string_lossy(), "name": name, "size": bytes.len() }))
         }
+        // 預かっている設定をまとめて返す。HTML に埋め込む分と同じ中身。
+        // 画面の HTML をスペース側に置いて使う場合(Muse)、埋め込まれた設定は
+        // 「置いた時点の写し」のままなので、画面は起動のたびにここから取り直す。
+        // これが無かった頃は、スペースの中で変えた設定が開き直すたびに元へ戻っていた。
+        "__settings_all" => Ok(Value::Object(web_settings_all(db)?)),
         "__settings_set" => {
             let key = need_str(&args, "key", "key")?;
             let value = arg(&args, "value", "value")

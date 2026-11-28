@@ -24,6 +24,7 @@ import { useMascotStore } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
 import { getFolderDisplayName } from '../../lib/folderDisplay'
 import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
+import { isBridgeRuntime } from '../../lib/bridge'
 import { buildFolderTree, type FolderTreeNode } from '../../lib/folderTree'
 import type { Account, Folder } from '../../types'
 
@@ -78,6 +79,7 @@ export function Sidebar() {
     createFolder,
     renameFolder,
     deleteFolder,
+    connectionError,
   } = useMailStore()
   const { openCompose, setNarrowPane } = useUIStore()
 
@@ -455,8 +457,11 @@ export function Sidebar() {
         })}
 
         {accounts.length === 0 && (
-          <div className="flex h-20 items-center justify-center text-xs text-sumi-text-muted">
-            {t("アカウントを追加してください")}</div>
+          // 読み込めていないだけのときに「追加してください」と言わない(消えたように見えるため)
+          <div className="flex h-20 items-center justify-center px-3 text-center text-xs text-sumi-text-muted">
+            {connectionError
+              ? (isBridgeRuntime ? t("MioMail のサーバーに繋がりません") : t("アカウントを読み込めませんでした"))
+              : t("アカウントを追加してください")}</div>
         )}
       </div>
 

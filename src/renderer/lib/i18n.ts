@@ -6,7 +6,7 @@ import spanish from '../locales/es.json'
 import thai from '../locales/th.json'
 import indonesian from '../locales/id.json'
 import vietnamese from '../locales/vi.json'
-import { safeStorage } from './safeStorage'
+import { onStorageHydrated, safeStorage } from './safeStorage'
 
 export const languages = [
   { id: 'ja', name: '日本語', region: 'JP', locale: 'ja-JP' },
@@ -44,6 +44,11 @@ export const useLanguage = create<{ language: Language; setLanguage: (language: 
     set({ language })
   },
 }))
+
+// サーバーから設定を取り直したら、言語も読み直す(置いた写しの画面は古い値で始まるため)
+onStorageHydrated(() => {
+  useLanguage.setState({ language: loadLanguage() })
+})
 
 /** Translate app-owned messages only. Never pass mail content or custom names. */
 export function t(message: string, values: Record<string, string | number> = {}): string {

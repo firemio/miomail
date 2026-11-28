@@ -16,6 +16,7 @@ import { blocksSmallControl, clampCompanionPosition, findFreeCompanionPosition, 
 import type { SentDeliveryHandoff } from './CourierDeliveryOverlay'
 import { MascotRenderer } from '../characters/MascotRenderer'
 import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
+import { onStorageHydrated } from '../../lib/safeStorage'
 
 interface CompanionOverlayProps {
   sentDelivery: SentDeliveryHandoff | null
@@ -91,10 +92,34 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
   }, [sentDelivery])
 
   useEffect(() => {
-    const handleResize = () => setPosition((current) => clampCompanionPosition(current))
+    // 居場所は、歩くたび・置くたびに覚えている(広い画面と1カラム表示で別々に)。
+    // 大きさが変わったら、その表示での居場所を読み直す。まだ覚えていなければ、
+    // いまの大きさでの既定の場所になる。
+    // 前は、いまの位置を新しい範囲へ押し込むだけだった。枠が小さいうちに画面が始まり、
+    // あとから広がると、相棒が左上の隅に取り残された(起動時の既定の場所が、小さい枠の
+    // 大きさで決まってしまうため)。
+    const handleResize = () => {
+      if (dragRef.current) {
+        setPosition((current) => clampCompanionPosition(current))
+        return
+      }
+      const next = loadCompanionPosition()
+      positionRef.current = next
+      setMovementDurationMs(0)
+      setPosition(next)
+    }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // サーバーから設定を取り直したら、覚えていた居場所へ戻る(つかんでいる最中は動かさない)
+  useEffect(() => onStorageHydrated(() => {
+    if (dragRef.current) return
+    const saved = loadCompanionPosition()
+    positionRef.current = saved
+    setMovementDurationMs(0)
+    setPosition(saved)
+  }), [])
 
   /** いまの居場所から `next` まで歩く。`hurry` は、どくときの小走り。 */
   const walkTo = useCallback((next: CompanionPosition, hurry = false) => {

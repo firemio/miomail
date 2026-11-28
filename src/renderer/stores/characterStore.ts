@@ -7,7 +7,7 @@ import type {
 import { DEFAULT_MOD_ID_BY_MASCOT } from '../characters/types'
 import { api } from '../lib/ipc'
 import { pruneCharacterModAssetCache } from '../lib/characterMods'
-import { safeStorage } from '../lib/safeStorage'
+import { onStorageHydrated, safeStorage } from '../lib/safeStorage'
 
 const STORAGE_KEY = 'miomail-character-source-v1'
 
@@ -127,6 +127,11 @@ export const useCharacterStore = create<CharacterStore>((set, get) => ({
     }
   },
 }))
+
+// サーバーから設定を取り直したら、選んでいる MOD も読み直す
+onStorageHydrated(() => {
+  useCharacterStore.setState(loadSelection())
+})
 
 export function getSelectedCharacterMod() {
   const { selectedModId, packages } = useCharacterStore.getState()

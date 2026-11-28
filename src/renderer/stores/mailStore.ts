@@ -3,6 +3,8 @@ import { api } from '../lib/ipc'
 import type { Account, Folder, Message, MessageFull } from '../types'
 
 const PAGE_SIZE = 50
+/** アカウント一覧を待つ上限。手元の DB を読むだけなので、ふつうは一瞬で返る。 */
+const ACCOUNT_LOAD_TIMEOUT_MS = 20_000
 
 function parseFlags(flags: string): string[] {
   try {
@@ -59,6 +61,13 @@ interface MailState {
   semanticSearchActive: boolean
   selectedMessageIds: number[]
   syncError: string | null
+  /**
+   * アカウントを読み込めなかった理由。null なら読めている。
+   * 「読めなかった」と「アカウントが0件」は別のこと。これが無かった頃は、MioMail の
+   * サーバーが止まっているだけなのに「アカウントを追加してください」と出ていた。
+   */
+  connectionError: string | null
+  setConnectionError: (message: string | null) => void
   clearSyncError: () => void
   loadAccounts: () => Promise<void>
   syncAllFolders: () => Promise<void>
@@ -101,9 +110,34 @@ export const useMailStore = create<MailState>((set, get) => ({
 
   clearSyncError: () => set({ syncError: null }),
 
+  connectionError: null,
+  setConnectionError: (message) => set({ connectionError: message }),
+
   loadAccounts: async () => {
-    const accounts = await api.account.list()
-    set({ accounts })
+    let accounts: Account[]
+    try {
+      // 返事が来ないまま待ち続けない。枠の外の中継が固まると、エラーも返らないことがある
+      accounts = await new Promise<Account[]>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error('MioMail のサーバーから返事がありません。')),
+          ACCOUNT_LOAD_TIMEOUT_MS
+        )
+        api.account.list().then(
+          (list) => {
+            clearTimeout(timer)
+            resolve(list)
+          },
+          (error) => {
+            clearTimeout(timer)
+            reject(error)
+          }
+        )
+      })
+    } catch (error) {
+      set({ connectionError: error instanceof Error ? error.message : String(error) })
+      throw error
+    }
+    set({ accounts, connectionError: null })
 
     if (accounts.length > 0) {
       await get().syncAllFolders()

@@ -26,7 +26,12 @@
 // 中身を扱うのはサーバー側のまま。
 
 import type { PickedFile } from '../types'
-import { setStoragePersistHook } from './safeStorage'
+import {
+  hydrateStorage,
+  setStoragePersistAllowed,
+  setStoragePersistHook,
+  storageIsNative,
+} from './safeStorage'
 
 const BASE = '/__miomail'
 
@@ -43,6 +48,13 @@ const marker =
 
 /** サーバーが画面へ差し込む目印。デスクトップ版では undefined。 */
 export const isBridgeRuntime = Boolean(marker)
+
+/** 1ファイル完結の画面が、よその窓の枠に入っている(Muse のスペースなど)。 */
+export const isStandaloneFrame =
+  Boolean(marker?.standalone) &&
+  typeof window !== 'undefined' &&
+  Boolean(window.parent) &&
+  window.parent !== window
 
 type Args = Record<string, unknown> | undefined
 
@@ -216,22 +228,189 @@ async function callServer<T>(cmd: string, args: Args): Promise<T> {
   return transport === 'frame' ? callFrame<T>(cmd, args) : callHttp<T>(cmd, args)
 }
 
+// ---------------------------------------------------------------------------
+// 画面の設定(テーマ・キャラクター・書きかけのメールなど)
+// ---------------------------------------------------------------------------
+//
+// localStorage に触れない枠では、設定をサーバーへ預ける。戻ってくる道は2本ある。
+//
+//   1. サーバーが画面の HTML へ埋め込んで返す(同期的に読めるので、最初の描画に間に合う)
+//   2. 起動のあと `__settings_all` で取り直す
+//
+// 2 が要るのは、HTML を毎回サーバーから取らない使い方があるため。Muse のスペースでは
+// HTML を切り分けてスペース側に置くので、埋め込まれた設定は「置いた時点の写し」のまま
+// になる。2 が無かった v2.1.26 までは、スペースの中で変えた設定が、開き直すたびに
+// 元へ戻っていた(保存はされていて、読み戻す道だけが無かった)。
+
+/** 設定をサーバーに預けて暮らす場所か(localStorage が使えない)。 */
+const settingsLiveOnServer = isBridgeRuntime && !storageIsNative()
+
+/** サーバーにある設定を取り直し終えたか。終えるまでは預けない。 */
+let settingsFresh = !settingsLiveOnServer
+
+if (settingsLiveOnServer) {
+  // 取り直す前の値は古いかもしれない。起動時の自動保存で、サーバーの新しい値を
+  // 古い値で上書きしないよう、取り直せるまで預けるのを止めておく。
+  setStoragePersistAllowed(false)
+}
+
+/** 預けようとして失敗した分(キーごとに最後の値)。繋がり直したら送り直す。 */
+const pendingSettings = new Map<string, string | null>()
+let settingWriteSeq = 0
+const latestSettingWrite = new Map<string, number>()
+
 /**
- * 画面の設定(テーマ・キャラクター・書きかけのメールなど)をサーバーへ預ける。
- * localStorage に触れない枠でだけ使う。次に開いたときは、サーバーが画面の
- * HTML へ直接埋め込んで返す。`lib/safeStorage.ts` から呼ばれる。
+ * 設定を1つ預ける。`lib/safeStorage.ts` から呼ばれる。
+ * 失敗した分は覚えておき、あとで送り直す。同じキーに新しい書き込みがあれば、古い方は捨てる。
  */
 export async function persistSetting(key: string, value: string | null): Promise<void> {
   if (!isBridgeRuntime) return
-  await callServer('__settings_set', { key, value })
+  settingWriteSeq += 1
+  const seq = settingWriteSeq
+  latestSettingWrite.set(key, seq)
+  try {
+    await callServer('__settings_set', { key, value })
+    if (latestSettingWrite.get(key) === seq) pendingSettings.delete(key)
+  } catch (error) {
+    if (latestSettingWrite.get(key) === seq) pendingSettings.set(key, value)
+    throw error
+  }
+}
+
+async function flushPendingSettings(): Promise<void> {
+  for (const [key, value] of Array.from(pendingSettings)) {
+    await persistSetting(key, value)
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(
+      () => reject(new Error('MioMail のサーバーから返事がありません。')),
+      ms
+    )
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      }
+    )
+  })
+}
+
+let settingsRefreshing: Promise<boolean> | null = null
+
+/**
+ * サーバーにある設定で、手元の値を入れ替える。済んだら true。
+ *
+ * - 設定を預けていない場所(デスクトップ版・localStorage が使えるブラウザー)では何もしない。
+ * - まだ取り直せていないとき: `__settings_all` で取り直す。サーバーの値が正。
+ *   手元の値が変わると、各ストアが読み直す(`onStorageHydrated`)。
+ * - もう取り直してあるとき: 預けそこねた分を送り直すだけ(手元の方が新しいため)。
+ *
+ * 起動時と、繋がり直したときに呼ぶ。
+ */
+export function refreshStoredSettings(timeoutMs = 6000): Promise<boolean> {
+  if (!settingsLiveOnServer) return Promise.resolve(true)
+  if (settingsRefreshing) return settingsRefreshing
+
+  const run = async (): Promise<boolean> => {
+    if (settingsFresh) {
+      try {
+        await flushPendingSettings()
+      } catch {
+        // まだ繋がらない。次の機会にまた送る
+      }
+      return true
+    }
+    try {
+      const all = await withTimeout(
+        callServer<Record<string, string>>('__settings_all', {}),
+        timeoutMs
+      )
+      hydrateStorage(all && typeof all === 'object' ? all : {})
+    } catch (error) {
+      // `__settings_all` を知らない古いサーバーなら、これまでどおり(埋め込まれた値で動く)
+      const message = error instanceof Error ? error.message : ''
+      if (!message.includes('未対応のコマンド')) return false
+    }
+    settingsFresh = true
+    setStoragePersistAllowed(true)
+    return true
+  }
+
+  settingsRefreshing = run().finally(() => {
+    settingsRefreshing = null
+  })
+  return settingsRefreshing
 }
 
 if (isBridgeRuntime) {
   setStoragePersistHook((key, value) => {
     void persistSetting(key, value).catch(() => {
-      // 預けられなくても、この画面を開いている間は値が残る
+      // 預けられなくても、この画面を開いている間は値が残る(繋がり直したら送り直す)
     })
   })
+}
+
+// ---------------------------------------------------------------------------
+// サーバーに繋がっているか
+// ---------------------------------------------------------------------------
+//
+// 仮想マシンが入れ替わると、画面を開いたまま MioMail のサーバーだけが止まる。
+// イベントの取得が続けて失敗したら「繋がっていない」とみなし、画面に知らせる。
+
+export interface BridgeConnection {
+  online: boolean
+  /** 繋がっていないときの、最後のエラーの文面。 */
+  error: string | null
+}
+
+type ConnectionListener = (connection: BridgeConnection) => void
+
+/** 何回続けて失敗したら「繋がっていない」とするか。1回だけの取りこぼしでは騒がない。 */
+const OFFLINE_AFTER_FAILURES = 2
+
+const connectionListeners = new Set<ConnectionListener>()
+let connection: BridgeConnection = { online: true, error: null }
+let failureStreak = 0
+
+function setConnection(next: BridgeConnection) {
+  if (next.online === connection.online && next.error === connection.error) return
+  const flipped = next.online !== connection.online
+  connection = next
+  if (!flipped) return
+  for (const listener of connectionListeners) {
+    try {
+      listener(connection)
+    } catch {
+      // 聞き手の失敗で、次の通知を止めない
+    }
+  }
+}
+
+function noteServerReached() {
+  failureStreak = 0
+  setConnection({ online: true, error: null })
+}
+
+function noteServerUnreachable(error: unknown) {
+  failureStreak += 1
+  if (failureStreak < OFFLINE_AFTER_FAILURES) return
+  const message = error instanceof Error ? error.message : 'MioMail のサーバーに繋がりませんでした。'
+  setConnection({ online: false, error: message })
+}
+
+/** 繋がった・切れたの切り替わりを聞く。戻り値で解除する。 */
+export function onBridgeConnection(listener: ConnectionListener): () => void {
+  connectionListeners.add(listener)
+  return () => {
+    connectionListeners.delete(listener)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -449,11 +628,16 @@ function startSse() {
   source = new EventSource(`${BASE}/events`, { withCredentials: true })
   source.onopen = () => {
     sourceOpened = true
+    noteServerReached()
   }
   source.onerror = () => {
     // 一度も開けないまま落ちる環境(間に入る仕組みが SSE を通さない等)では
     // 張り直しても無駄なので、取りに行く方へ切り替える。
-    if (sourceOpened) return
+    if (sourceOpened) {
+      // 開けていたのに切れた。ブラウザーが自分で張り直し、失敗のたびにここへ来る
+      noteServerUnreachable(new Error('MioMail のサーバーに繋がりませんでした。接続を確かめてください。'))
+      return
+    }
     source?.close()
     source = null
     startPolling()
@@ -498,6 +682,7 @@ function startPolling() {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     try {
       const reply = await callServer<PolledEvents>('__events_poll', { since: pollSince })
+      noteServerReached()
       pollSince = reply.next
       // 最初の1回は「開く前に起きたこと」なので、番号だけ覚えて流さない。
       if (!pollPrimed) {
@@ -507,8 +692,9 @@ function startPolling() {
       for (const event of reply.events) {
         deliver(event.name, event.payload)
       }
-    } catch {
-      // 繋がらない間は黙って次を待つ
+    } catch (error) {
+      // 繋がらない間も次を待つ。続けて失敗したら、画面が「繋がりません」と知らせる
+      noteServerUnreachable(error)
     }
   }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { PenLine } from 'lucide-react'
 import { listen as tauriListen } from '@tauri-apps/api/event'
 import type { DemoMailEvent, NewMailEvent } from './types'
@@ -21,9 +21,13 @@ import { useMascotStore } from './stores/mascotStore'
 import { useCharacterStore } from './stores/characterStore'
 import { useUIStore } from './stores/uiStore'
 
-import { bridgeListen, isBridgeRuntime } from './lib/bridge'
+import { bridgeListen, isBridgeRuntime, onBridgeConnection, refreshStoredSettings } from './lib/bridge'
 import { isTauriRuntime } from './lib/ipc'
 import { useIsNarrowLayout } from './lib/useNarrowLayout'
+import { ConnectionBanner } from './components/layout/ConnectionBanner'
+
+/** 繋がらない間、つなぎ直しを試す間隔。 */
+const RECONNECT_INTERVAL_MS = 10_000
 
 /** イベントの受け口。デスクトップ版は Tauri、Web ブリッジは SSE。 */
 const listen = isBridgeRuntime
@@ -56,6 +60,9 @@ export default function App() {
   const currentFolderId = useMailStore((state) => state.currentFolder?.id)
   const currentMessageId = currentMessage?.id
   const { refreshMods } = useCharacterStore()
+  const connectionError = useMailStore((state) => state.connectionError)
+  const [connecting, setConnecting] = useState(false)
+  const connectingRef = useRef(false)
   const [sentDelivery, setSentDelivery] = useState<SentDeliveryHandoff | null>(null)
   const activeThemeId = themeId
 
@@ -72,16 +79,53 @@ export default function App() {
     document.body.dataset.theme = activeThemeId
   }, [activeThemeId])
 
-  // First run: go straight to account setup (the one required step). Mascot
-  // and theme keep their defaults and are customizable in Settings anytime.
-  useEffect(() => {
-    loadAccounts().then(() => {
-      const { accounts } = useMailStore.getState()
-      if (accounts.length === 0) {
+  // アカウントを読み込む。読めたうえで0件なら、最初の設定画面を出す
+  // (First run: account setup is the one required step)。
+  // 読めなかったときは設定画面を出さない。0件なのではなく、サーバーに繋がっていないだけ
+  // かもしれないため(connectionError が立ち、ConnectionBanner が知らせる)。
+  const connect = useCallback(async () => {
+    // 10秒おきの試行・繋がった知らせ・ボタンが重なっても、走らせるのは1本だけ
+    if (connectingRef.current) return
+    connectingRef.current = true
+    setConnecting(true)
+    try {
+      // 置いた写しの画面は古い設定で始まる。繋がるたびに設定も取り直す
+      // (待たない。アカウントの読み込みとは独立で、失敗しても false が返るだけ)
+      void refreshStoredSettings()
+      await loadAccounts()
+      if (useMailStore.getState().accounts.length === 0) {
         openAccountSetup()
       }
-    })
+    } catch {
+      // 理由は mailStore.connectionError に入っている
+    } finally {
+      connectingRef.current = false
+      setConnecting(false)
+    }
   }, [loadAccounts, openAccountSetup])
+
+  useEffect(() => {
+    void connect()
+  }, [connect])
+
+  // 繋がらない間は、10秒おきに試す。サーバーが動き出したら、何もしなくても元に戻る
+  useEffect(() => {
+    if (!connectionError) return
+    const timer = window.setInterval(() => void connect(), RECONNECT_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [connect, connectionError])
+
+  // 開いたままサーバーだけが止まったとき(仮想マシンの入れ替わりなど)も知らせる
+  useEffect(() => {
+    if (!isBridgeRuntime) return
+    return onBridgeConnection(({ online, error }) => {
+      if (online) {
+        void connect()
+      } else {
+        useMailStore.getState().setConnectionError(error ?? 'MioMail のサーバーに繋がりませんでした。')
+      }
+    })
+  }, [connect])
 
   useEffect(() => {
     if (!isTauriRuntime) {
@@ -161,6 +205,10 @@ export default function App() {
         <div className="theme-topline h-[4px] shrink-0" />
 
         <TitleBar />
+
+        {connectionError && (
+          <ConnectionBanner error={connectionError} retrying={connecting} onRetry={() => void connect()} />
+        )}
 
         <div className={`flex flex-1 overflow-hidden ${narrow ? 'px-1.5 pb-1.5' : 'px-3 pb-3'}`}>
           <div

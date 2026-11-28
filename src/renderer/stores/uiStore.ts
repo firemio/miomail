@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { type ThemeId } from '../data/themes'
 import { loadThemeId, persistThemeId } from '../lib/theme'
-import { safeStorage } from '../lib/safeStorage'
+import { onStorageHydrated, safeStorage } from '../lib/safeStorage'
 
 export type ComposeMode = 'new' | 'reply' | 'forward'
 /** 狭い画面で表示しているペイン(フォルダ → 一覧 → 本文 の順に進む)。 */
@@ -467,4 +467,22 @@ useUIStore.subscribe((state) => {
 
   lastPersistedComposeState = serialized
   persistComposeState(composeState)
+})
+
+// サーバーから設定を取り直したら、テーマと書きかけのメールも読み直す。
+// 読み直した中身をそのまま保存し直さないよう、「最後に保存した形」も合わせておく。
+onStorageHydrated(() => {
+  const composeState = loadComposeState()
+  lastPersistedComposeState = JSON.stringify(composeState)
+  useUIStore.setState((state) => ({
+    themeId: loadThemeId(),
+    composeDrafts: composeState.drafts,
+    activeDockedComposeId: composeState.activeDockedComposeId,
+    // 書きかけが戻ってきたら、開いた直後と同じく一覧を見せる(続きは下の帯から開ける)
+    narrowComposeMinimized:
+      composeState.drafts.length > 0 && state.composeDrafts.length === 0
+        ? true
+        : state.narrowComposeMinimized,
+    zCounter: Math.max(state.zCounter, ...composeState.drafts.map((draft) => draft.zIndex || 20)),
+  }))
 })

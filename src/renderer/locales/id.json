@@ -370,5 +370,10 @@
   "宛先などを閉じる": "Sembunyikan penerima dan detail",
   "書きかけのメールが{0}件あります": "Draf belum selesai: {0}",
   "続きを書く": "Lanjutkan menulis",
-  "下書きを残して戻る": "Kembali dan simpan draf"
+  "下書きを残して戻る": "Kembali dan simpan draf",
+  "MioMail のサーバーに繋がりません": "Tidak dapat terhubung ke server MioMail",
+  "アカウントもメールも消えていません。サーバーが動き出すと、自動でつなぎ直します。": "Akun dan email Anda tidak hilang. MioMail akan terhubung kembali secara otomatis setelah server berjalan.",
+  "Muse のスペースで使っている場合は、Muse に「sh ~/miomail-start.sh を実行して」と頼んでください。": "Jika Anda memakai ruang Muse, minta Muse menjalankan \"sh ~/miomail-start.sh\".",
+  "アカウントを読み込めませんでした": "Gagal memuat akun",
+  "もう一度試す": "Coba lagi"
 }
