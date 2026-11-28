@@ -350,7 +350,8 @@ Muse のスペースは **`blob:` の iframe** の中で動く。2026-11-25 に�
   「繋がっていない」、成功したら「繋がった」とみなす(`onBridgeConnection`)。開いたまま
   サーバーだけが止まった場合もこれで拾う。繋がったら、設定とアカウントを取り直す。
 
-**確かめ方(手元)。** スペースの代わりをする試験台を作った: MioMail の HTML を1回だけ取って
+**確かめ方(手元)。** スペースの代わりをする試験台を作った(`scripts/space-harness.mjs`。
+使い方は冒頭のコメント): MioMail の HTML を1回だけ取って
 写しとして持ち、`sandbox="allow-scripts"`(`allow-same-origin` 無し)の `srcdoc` の枠に入れ、
 枠からの cmd をサーバー側で `/__miomail/invoke` へ中継する。本体は
 `npm run tauri -- build --no-bundle` で作り、`MIOMAIL_DB` を一時ファイルにして
