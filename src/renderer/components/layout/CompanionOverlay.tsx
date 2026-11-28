@@ -12,7 +12,7 @@ import {
   useMascotStore,
 } from '../../stores/mascotStore'
 import { useUIStore } from '../../stores/uiStore'
-import { clampCompanionPosition, getCompanionTravelRule, loadCompanionPosition, NARROW_COMPANION_SIZE, randomCompanionPosition, saveCompanionPosition, type CompanionPosition } from '../../lib/companionPosition'
+import { blocksSmallControl, clampCompanionPosition, findFreeCompanionPosition, getCompanionTravelRule, loadCompanionPosition, NARROW_COMPANION_SIZE, randomCompanionPosition, saveCompanionPosition, type CompanionPosition } from '../../lib/companionPosition'
 import type { SentDeliveryHandoff } from './CourierDeliveryOverlay'
 import { MascotRenderer } from '../characters/MascotRenderer'
 import { useIsNarrowLayout } from '../../lib/useNarrowLayout'
@@ -96,6 +96,33 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  /** いまの居場所から `next` まで歩く。`hurry` は、どくときの小走り。 */
+  const walkTo = useCallback((next: CompanionPosition, hurry = false) => {
+    const current = positionRef.current
+    const distance = Math.hypot(next.x - current.x, next.y - current.y)
+    const { maxPixelsPerSecond } = getCompanionTravelRule(selectedMascotId)
+    const duration = reducedMotion
+      ? 0
+      : hurry
+        ? Math.max(600, Math.ceil((distance / (maxPixelsPerSecond * 2.5)) * 1000))
+        : Math.max(1800, Math.ceil((distance / maxPixelsPerSecond) * 1000))
+    if (wanderEndTimerRef.current) window.clearTimeout(wanderEndTimerRef.current)
+    wanderEndTimerRef.current = null
+    wanderingRef.current = duration > 0
+    setWandering(duration > 0)
+    setMovementDurationMs(duration)
+    positionRef.current = next
+    setPosition(next)
+    saveCompanionPosition(next)
+    if (duration > 0) {
+      wanderEndTimerRef.current = window.setTimeout(() => {
+        wanderEndTimerRef.current = null
+        wanderingRef.current = false
+        setWandering(false)
+      }, duration + 100)
+    }
+  }, [reducedMotion, selectedMascotId])
+
   useEffect(() => {
     if (reducedMotion) {
       cancelWander()
@@ -103,25 +130,12 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
     }
 
     const wander = () => {
-      // 1カラム表示ではタイトルバーの定位置から動かない
-      if (narrow) return
       if (open || dragRef.current || onDelivery || wanderingRef.current || poseActiveRef.current) return
-      wanderingRef.current = true
-      setWandering(true)
-      const next = randomCompanionPosition()
-      const current = positionRef.current
-      const distance = Math.hypot(next.x - current.x, next.y - current.y)
-      const { maxPixelsPerSecond } = getCompanionTravelRule(selectedMascotId)
-      const duration = Math.max(1800, Math.ceil((distance / maxPixelsPerSecond) * 1000))
-      setMovementDurationMs(duration)
-      positionRef.current = next
-      setPosition(next)
-      saveCompanionPosition(next)
-      wanderEndTimerRef.current = window.setTimeout(() => {
-        wanderEndTimerRef.current = null
-        wanderingRef.current = false
-        setWandering(false)
-      }, duration + 100)
+      // 1カラム表示(スマホ幅)でも歩く。行き先は、小さな押す所を隠さない場所から選ぶ
+      const next = narrow
+        ? findFreeCompanionPosition(panelRef.current) ?? randomCompanionPosition()
+        : randomCompanionPosition()
+      walkTo(next)
     }
 
     let timer: number
@@ -138,7 +152,23 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
       window.clearTimeout(timer)
       cancelWander()
     }
-  }, [cancelWander, narrow, onDelivery, open, reducedMotion, selectedMascotId])
+  }, [cancelWander, narrow, onDelivery, open, reducedMotion, walkTo])
+
+  // 1カラム表示では画面が狭く、相棒がボタンの上に乗ると押せなくなる。
+  // 乗っていたら、近くの空いた場所へ自分でどく(画面が切り替わって、足元にボタンが
+  // 来たときも同じ)。利用者がつかんでボタンの上に置いたときも、1秒ほどでどく。
+  useEffect(() => {
+    if (!narrow || open || onDelivery) return
+    const stepAside = () => {
+      if (document.hidden || dragRef.current || wanderingRef.current) return
+      const self = panelRef.current
+      if (!blocksSmallControl(positionRef.current, self)) return
+      const free = findFreeCompanionPosition(self, positionRef.current)
+      if (free) walkTo(free, true)
+    }
+    const timer = window.setInterval(stepAside, 1000)
+    return () => window.clearInterval(timer)
+  }, [narrow, onDelivery, open, walkTo])
 
   useEffect(() => {
     if (reducedMotion) {
@@ -191,11 +221,6 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
 
   const startDrag = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (onDelivery) return
-    // 1カラム表示では定位置に固定なので、つかんで動かす操作は受けない(タップで詳細を開くだけ)
-    if (narrow) {
-      didDragRef.current = false
-      return
-    }
     cancelWander()
     didDragRef.current = false
     dragRef.current = { startX: event.clientX, startY: event.clientY, origin: position }
@@ -206,7 +231,8 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
     if (!dragRef.current) return
     const dx = event.clientX - dragRef.current.startX
     const dy = event.clientY - dragRef.current.startY
-    if (Math.abs(dx) + Math.abs(dy) > 5) didDragRef.current = true
+    // 指は置いただけでも数ピクセル動く。タップ(詳細を開く)をドラッグと取り違えないよう、指のときは広めに見る
+    if (Math.abs(dx) + Math.abs(dy) > (event.pointerType === 'touch' ? 10 : 5)) didDragRef.current = true
     setWandering(false)
     wanderingRef.current = false
     const next = clampCompanionPosition({ x: dragRef.current.origin.x + dx, y: dragRef.current.origin.y + dy })
@@ -303,17 +329,20 @@ export function CompanionOverlay({ sentDelivery, onSentDeliveryHandoffComplete }
             setOpen((current) => !current)
           }
         }}
-        className={`group relative flex items-center justify-center ${
-          narrow ? 'cursor-pointer' : 'h-[96px] w-[96px] touch-none cursor-grab active:cursor-grabbing'
-        }`}
+        // 1カラム表示で詳細(下から出るシート)を開いている間は、歩いている相棒を隠す。
+        // シートの中に相棒がいるので、外の相棒がシートの上に重なるのを防ぐ
+        className={`group relative flex touch-none cursor-grab items-center justify-center active:cursor-grabbing ${
+          narrow ? '' : 'h-[96px] w-[96px]'
+        } ${narrow && open ? 'invisible' : ''}`}
         style={narrow ? { width: NARROW_COMPANION_SIZE, height: NARROW_COMPANION_SIZE } : undefined}
         aria-label={open ? t("{0}の詳細を閉じる", { "0": mascot.name }) : t("{0}の詳細を開く", { "0": mascot.name })}
       >
         <div className={wandering ? 'courier-walker-waddle' : ''}>
-          <MascotRenderer mascotId={selectedMascotId} bond={bond} care={care} size={narrow ? NARROW_COMPANION_SIZE - 4 : 88} pose={pose} spinSignal={spinSignal} />
+          <MascotRenderer mascotId={selectedMascotId} bond={bond} care={care} size={narrow ? NARROW_COMPANION_SIZE - 6 : 88} pose={pose} spinSignal={spinSignal} />
         </div>
-        {/* なかよし度のバッジは、1カラム表示では小さな相棒を隠してしまうので詳細シートの中だけに出す */}
-        {!narrow && <span className="absolute -left-2 -top-2 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-white bg-sumi-accent px-1.5 text-[10px] font-bold text-white"><Heart size={10} className="mr-0.5" />{bond}</span>}
+        <span className={`absolute flex items-center justify-center rounded-full border-2 border-white bg-sumi-accent font-bold text-white ${
+          narrow ? '-left-1 -top-1 h-6 min-w-6 px-1 text-[10px]' : '-left-2 -top-2 h-7 min-w-7 px-1.5 text-[10px]'
+        }`}><Heart size={narrow ? 9 : 10} className="mr-0.5" />{bond}</span>
         {summonEvent && <span className={`absolute animate-pulse rounded-full border-2 border-white bg-sumi-unread ${narrow ? 'right-0 top-0 h-3 w-3' : '-right-1 -top-1 h-4 w-4'}`} />}
       </button>
     </div>

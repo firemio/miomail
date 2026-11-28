@@ -229,8 +229,8 @@ export default function App() {
         {showAccountSetup && <AccountSetup />}
         {showImport && <ImportDialog />}
         {showSettings && <SettingsModal />}
-        {/* 1カラム表示(スマホ幅)では相棒が右下に固定されるため、
-            ダイアログの「保存」などのボタンに重なって押せなくなる。その間だけ引っ込める。 */}
+        {/* 1カラム表示(スマホ幅)では、全面を覆うダイアログの上を相棒が歩くと
+            「保存」などのボタンに重なって押せなくなる。その間だけ引っ込める。 */}
         {!(narrow && (showAccountSetup || showImport || showSettings)) && (
           <CompanionOverlay
             sentDelivery={sentDelivery}

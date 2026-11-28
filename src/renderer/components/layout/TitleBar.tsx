@@ -47,8 +47,6 @@ export function TitleBar() {
         narrow ? 'gap-1.5 px-2' : 'gap-4 px-5'
       }`}
     >
-      {/* 1カラム表示では、ここ(ロゴの場所)に相棒が入る。lib/companionPosition.ts の定位置と揃える */}
-      {narrow && <div className="h-11 w-11 shrink-0" aria-hidden="true" />}
       {!narrow && (
         <div className="flex items-center gap-3">
           <div className="px-1">
